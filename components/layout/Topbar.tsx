@@ -1,15 +1,26 @@
 'use client';
 import { ReactNode } from 'react';
+import { usePathname } from 'next/navigation';
 import { Search, Bell } from 'lucide-react';
 import { T } from '@/lib/tokens';
 
+const TITLES: Record<string, string> = {
+  '/':              'Home',
+  '/transactions':  'Transakcje',
+  '/categories':    'Kategorie',
+  '/accounts':      'Konta',
+  '/budget':        'Budżet',
+};
+
 interface TopbarProps {
-  title: string;
   subtitle?: string;
   actions?: ReactNode;
 }
 
-export default function Topbar({ title, subtitle, actions }: TopbarProps) {
+export default function Topbar({ subtitle, actions }: TopbarProps) {
+  const pathname = usePathname();
+  const title = TITLES[pathname] ?? '';
+
   return (
     <div style={{
       height: 60, background: T.card, borderBottom: `1px solid ${T.border}`,

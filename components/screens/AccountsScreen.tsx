@@ -1,27 +1,22 @@
 'use client';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { ClipboardList } from 'lucide-react';
 import { T } from '@/lib/tokens';
 import { fmtPLN } from '@/lib/utils';
-import { Account, Transaction } from '@/lib/data';
+import { useAppData } from '@/lib/AppDataContext';
 import Card from '@/components/ui/Card';
 import Sparkline from '@/components/ui/Sparkline';
 import Icon from '@/components/ui/Icon';
 
-interface Props {
-  accounts: Account[];
-  transactions: Transaction[];
-  onSelectTx: (tx: Transaction) => void;
-}
-
-export default function AccountsScreen({ accounts, transactions, onSelectTx }: Props) {
+export default function AccountsScreen() {
+  const router = useRouter();
+  const { accounts, transactions } = useAppData();
   const [selected, setSelected] = useState(accounts[0] ?? null);
+
   const totalBalance = accounts.reduce((s, a) => s + a.balance, 0);
 
-  const accTxs = selected
-    ? transactions.filter(t => t.acc === selected.name)
-    : [];
-
+  const accTxs = selected ? transactions.filter(t => t.acc === selected.name) : [];
   const accIncome = accTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
   const accExpense = Math.abs(accTxs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0));
 
@@ -69,7 +64,7 @@ export default function AccountsScreen({ accounts, transactions, onSelectTx }: P
             {accTxs.map((tx, i) => (
               <div
                 key={tx.id}
-                onClick={() => onSelectTx(tx)}
+                onClick={() => router.push(`/transactions?id=${tx.id}`)}
                 style={{ padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: i < accTxs.length - 1 ? `1px solid ${T.border}` : 'none', cursor: 'pointer' }}
                 onMouseEnter={e => (e.currentTarget.style.background = T.bg)}
                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}

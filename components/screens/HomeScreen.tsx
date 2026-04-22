@@ -1,26 +1,21 @@
 'use client';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { ChevronRight, Sparkles } from 'lucide-react';
 import { T } from '@/lib/tokens';
 import { fmtPLN, fmtShort } from '@/lib/utils';
-import { Account, Category, Transaction } from '@/lib/data';
+import { useAppData } from '@/lib/AppDataContext';
 import Card from '@/components/ui/Card';
 import StatPill from '@/components/ui/StatPill';
 import Bar from '@/components/ui/Bar';
 import Sparkline from '@/components/ui/Sparkline';
 import Donut from '@/components/ui/Donut';
 import Icon from '@/components/ui/Icon';
-import { ScreenId } from '@/components/App';
 
-interface HomeScreenProps {
-  accounts: Account[];
-  categories: Category[];
-  transactions: Transaction[];
-  overallBudget: number | null;
-  onNav: (id: ScreenId) => void;
-  onSelectTx: (tx: Transaction) => void;
-}
+export default function HomeScreen() {
+  const router = useRouter();
+  const { accounts, categories, transactions, overallBudget } = useAppData();
 
-export default function HomeScreen({ accounts, categories, transactions, overallBudget, onNav, onSelectTx }: HomeScreenProps) {
   const totalBalance = accounts.reduce((s, a) => s + a.balance, 0);
   const income = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
   const expense = Math.abs(transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0));
@@ -68,12 +63,12 @@ export default function HomeScreen({ accounts, categories, transactions, overall
         <Card style={{ padding: 0, overflow: 'hidden' }}>
           <div style={{ padding: '16px 20px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ fontWeight: 600, fontSize: 14, color: T.dark }}>Ostatnie transakcje</div>
-            <button
-              onClick={() => onNav('transactions')}
-              style={{ fontSize: 12, color: T.accent, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 4, border: 'none', background: 'none', cursor: 'pointer' }}
+            <Link
+              href="/transactions"
+              style={{ fontSize: 12, color: T.accent, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 4, textDecoration: 'none' }}
             >
               Wszystkie <ChevronRight size={14} color={T.accent} />
-            </button>
+            </Link>
           </div>
           {transactions.length === 0 && (
             <div style={{ padding: 32, textAlign: 'center', fontSize: 13, color: T.faint }}>Brak transakcji w tym miesiącu</div>
@@ -81,7 +76,7 @@ export default function HomeScreen({ accounts, categories, transactions, overall
           {transactions.slice(0, 7).map((tx, i) => (
             <div
               key={tx.id}
-              onClick={() => onSelectTx(tx)}
+              onClick={() => router.push(`/transactions?id=${tx.id}`)}
               style={{ padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: i < Math.min(6, transactions.length - 1) ? `1px solid ${T.border}` : 'none', cursor: 'pointer', transition: 'background .1s' }}
               onMouseEnter={e => (e.currentTarget.style.background = T.bg)}
               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
@@ -137,12 +132,12 @@ export default function HomeScreen({ accounts, categories, transactions, overall
       <div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <div style={{ fontWeight: 600, fontSize: 14, color: T.dark }}>Konta</div>
-          <button
-            onClick={() => onNav('accounts')}
-            style={{ fontSize: 12, color: T.accent, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 4, border: 'none', background: 'none', cursor: 'pointer' }}
+          <Link
+            href="/accounts"
+            style={{ fontSize: 12, color: T.accent, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 4, textDecoration: 'none' }}
           >
             Wszystkie <ChevronRight size={14} color={T.accent} />
-          </button>
+          </Link>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
           {accounts.map(a => (

@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { T } from '@/lib/tokens';
 import { fmtPLN } from '@/lib/utils';
-import { Category } from '@/lib/data';
+import { useAppData } from '@/lib/AppDataContext';
 import Card from '@/components/ui/Card';
 import Bar from '@/components/ui/Bar';
 import Donut from '@/components/ui/Donut';
@@ -14,12 +14,9 @@ const VIEWS = [
   { id: 'income', label: 'Przychody' },
 ] as const;
 
-interface Props {
-  categories: Category[];
-}
-
-export default function CategoriesScreen({ categories }: Props) {
+export default function CategoriesScreen() {
   const [view, setView] = useState<string>('all');
+  const { categories } = useAppData();
   const totalSpent = categories.reduce((s, c) => s + c.spent, 0);
 
   const now = new Date();
@@ -115,8 +112,8 @@ export default function CategoriesScreen({ categories }: Props) {
                   <div key={c.id} style={{ marginBottom: 10 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                       <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: T.mid }}>
-                          <Icon name={c.icon} size={13} color={c.color} />{c.name}
-                        </span>
+                        <Icon name={c.icon} size={13} color={c.color} />{c.name}
+                      </span>
                       <span style={{ fontSize: 12, fontWeight: 600, color: pct > 100 ? T.expense : T.mid }}>{Math.round(pct)}%</span>
                     </div>
                     <Bar pct={pct} color={pct > 100 ? T.expense : T.accent} height={4} />

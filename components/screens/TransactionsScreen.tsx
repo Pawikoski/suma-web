@@ -1,18 +1,14 @@
 'use client';
-import { useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { MapPin, X } from 'lucide-react';
 import { T } from '@/lib/tokens';
 import { fmtPLN } from '@/lib/utils';
 import { Transaction } from '@/lib/data';
+import { useAppData } from '@/lib/AppDataContext';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import Icon from '@/components/ui/Icon';
-
-interface Props {
-  transactions: Transaction[];
-  selectedTx: Transaction | null;
-  onSelectTx: (tx: Transaction | null) => void;
-}
+import { useState } from 'react';
 
 function TxDetailPanel({ tx, onClose }: { tx: Transaction; onClose: () => void }) {
   const amtColor = tx.type === 'expense' ? T.expense : tx.type === 'income' ? T.income : T.mid;
@@ -60,10 +56,19 @@ function TxDetailPanel({ tx, onClose }: { tx: Transaction; onClose: () => void }
   );
 }
 
-export default function TransactionsScreen({ transactions, selectedTx, onSelectTx }: Props) {
+export default function TransactionsScreen() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { transactions } = useAppData();
   const [filter, setFilter] = useState<'all' | 'expense' | 'income'>('all');
 
+  const selectedId = searchParams.get('id');
+  const selectedTx = selectedId ? transactions.find(t => t.id === selectedId) ?? null : null;
+
   const filtered = transactions.filter(t => filter === 'all' || t.type === filter);
+
+  const selectTx = (tx: Transaction) => router.replace(`/transactions?id=${tx.id}`);
+  const deselectTx = () => router.replace('/transactions');
 
   return (
     <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
@@ -93,7 +98,7 @@ export default function TransactionsScreen({ transactions, selectedTx, onSelectT
           {filtered.map((tx, i) => (
             <div
               key={tx.id}
-              onClick={() => onSelectTx(tx)}
+              onClick={() => selectTx(tx)}
               style={{
                 padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 12,
                 borderBottom: i < filtered.length - 1 ? `1px solid ${T.border}` : 'none',
@@ -123,7 +128,7 @@ export default function TransactionsScreen({ transactions, selectedTx, onSelectT
 
       {selectedTx && (
         <div style={{ width: 300, borderLeft: `1px solid ${T.border}`, overflowY: 'auto', background: T.card }}>
-          <TxDetailPanel tx={selectedTx} onClose={() => onSelectTx(null)} />
+          <TxDetailPanel tx={selectedTx} onClose={deselectTx} />
         </div>
       )}
     </div>

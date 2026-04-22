@@ -1,23 +1,24 @@
 'use client';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { Home, ClipboardList, Tag, Wallet, BarChart2, Plus, Settings } from 'lucide-react';
 import { T } from '@/lib/tokens';
-import { ScreenId } from '@/components/App';
 
-const NAV: { id: ScreenId; label: string; Icon: React.ElementType }[] = [
-  { id: 'home',         label: 'Home',       Icon: Home },
-  { id: 'transactions', label: 'Transakcje', Icon: ClipboardList },
-  { id: 'categories',   label: 'Kategorie',  Icon: Tag },
-  { id: 'accounts',     label: 'Konta',      Icon: Wallet },
-  { id: 'budget',       label: 'Budżet',     Icon: BarChart2 },
-];
+const NAV = [
+  { href: '/',              label: 'Home',       Icon: Home },
+  { href: '/transactions',  label: 'Transakcje', Icon: ClipboardList },
+  { href: '/categories',    label: 'Kategorie',  Icon: Tag },
+  { href: '/accounts',      label: 'Konta',      Icon: Wallet },
+  { href: '/budget',        label: 'Budżet',     Icon: BarChart2 },
+] as const;
 
 interface SidebarProps {
-  active: ScreenId;
-  onNav: (id: ScreenId) => void;
   onAdd: () => void;
 }
 
-export default function Sidebar({ active, onNav, onAdd }: SidebarProps) {
+export default function Sidebar({ onAdd }: SidebarProps) {
+  const pathname = usePathname();
+
   return (
     <div style={{
       width: T.sidebarW, background: T.sidebar,
@@ -40,24 +41,24 @@ export default function Sidebar({ active, onNav, onAdd }: SidebarProps) {
 
       {/* Nav */}
       <nav style={{ flex: 1, padding: '12px 10px', display: 'flex', flexDirection: 'column', gap: 2 }}>
-        {NAV.map(({ id, label, Icon }) => {
-          const isActive = active === id;
+        {NAV.map(({ href, label, Icon }) => {
+          const isActive = pathname === href;
           return (
-            <button
-              key={id}
-              onClick={() => onNav(id)}
+            <Link
+              key={href}
+              href={href}
               style={{
                 display: 'flex', alignItems: 'center', gap: 12,
                 padding: '9px 12px', borderRadius: T.radiusSm,
                 background: isActive ? T.accentLight : 'transparent',
                 color: isActive ? T.accent : T.mid,
                 fontWeight: isActive ? 600 : 400, fontSize: 14,
-                transition: 'all .15s', textAlign: 'left', width: '100%', border: 'none', cursor: 'pointer',
+                transition: 'all .15s', textDecoration: 'none',
               }}
             >
               <Icon size={18} color={isActive ? T.accent : T.muted} />
               {label}
-            </button>
+            </Link>
           );
         })}
 

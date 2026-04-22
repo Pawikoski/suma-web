@@ -2,17 +2,14 @@
 import { Plus } from 'lucide-react';
 import { T } from '@/lib/tokens';
 import { fmtPLN } from '@/lib/utils';
-import { Category } from '@/lib/data';
+import { useAppData } from '@/lib/AppDataContext';
 import Card from '@/components/ui/Card';
 import Bar from '@/components/ui/Bar';
 import Icon from '@/components/ui/Icon';
 
-interface Props {
-  categories: Category[];
-  overallBudget: number | null;
-}
+export default function BudgetScreen() {
+  const { categories, overallBudget } = useAppData();
 
-export default function BudgetScreen({ categories, overallBudget }: Props) {
   const spent = categories.reduce((s, c) => s + c.spent, 0);
   const totalBudget = overallBudget ?? 0;
   const pct = totalBudget > 0 ? (spent / totalBudget * 100) : 0;
