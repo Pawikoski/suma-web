@@ -1,0 +1,1023 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8"/>
+<title>Suma — Desktop</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{height:100%;font-family:'Inter',-apple-system,sans-serif;background:#f1f5f9;color:#0f172a;}
+  ::-webkit-scrollbar{width:5px;height:5px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  ::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px;}
+  button{cursor:pointer;border:none;background:none;font-family:inherit;}
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState, useEffect, useRef} = React;
+
+/* ─── TOKENS ─────────────────────────────────── */
+const T = {
+  accent:'#6366f1', accentHover:'#4f46e5', accentLight:'#eef2ff', accentMid:'#c7d2fe',
+  expense:'#ef4444', expenseSoft:'#fee2e2', expenseMid:'#fca5a5',
+  income:'#10b981', incomeSoft:'#d1fae5',
+  warn:'#f59e0b', warnSoft:'#fef3c7',
+  dark:'#0f172a', mid:'#334155', muted:'#64748b', faint:'#94a3b8',
+  border:'#e2e8f0', bg:'#f1f5f9', card:'#ffffff',
+  sidebar:'#ffffff', sidebarW:240,
+  radius:12, radiusSm:8,
+};
+
+const fmtPLN = (n, showSign=false) => {
+  const abs = Math.abs(n).toLocaleString('pl-PL',{minimumFractionDigits:2,maximumFractionDigits:2});
+  if(showSign) return (n>=0?'+':'-')+' '+abs+' zł';
+  return abs+' zł';
+};
+const fmtShort = n => Math.abs(n).toLocaleString('pl-PL',{minimumFractionDigits:0,maximumFractionDigits:0})+' zł';
+
+/* ─── MOCK DATA ──────────────────────────────── */
+const ACCOUNTS = [
+  {id:1, name:'Millennium', type:'Konto bankowe', balance:82870.29, color:'#4f46e5', color2:'#818cf8', icon:'🏦'},
+  {id:2, name:'Portfel', type:'Gotówka', balance:174.09, color:'#059669', color2:'#34d399', icon:'💵'},
+  {id:3, name:'Pekao', type:'Konto bankowe', balance:12340.00, color:'#dc2626', color2:'#f87171', icon:'🏛️'},
+  {id:4, name:'Oszczędności', type:'Konto oszczędnościowe', balance:120000.00, color:'#d97706', color2:'#fbbf24', icon:'🐷'},
+];
+
+const CATEGORIES = [
+  {id:1, name:'Opłaty stałe',    icon:'🏠', bg:'#eef2ff', color:'#6366f1', spent:550,  budget:600,  txCount:2},
+  {id:2, name:'Artykuły spożywcze',icon:'🛒',bg:'#fdf2f8',color:'#ec4899', spent:273,  budget:500,  txCount:12},
+  {id:3, name:'Motocykl (Paliwo)',icon:'⛽', bg:'#ecfdf5', color:'#10b981', spent:197,  budget:250,  txCount:2},
+  {id:4, name:'Restauracja',     icon:'🍽️', bg:'#f0fdf4', color:'#22c55e', spent:151,  budget:300,  txCount:7},
+  {id:5, name:'Motocykl (Ubiór)',icon:'🛡️', bg:'#fff1f2', color:'#f43f5e', spent:281,  budget:200,  txCount:2},
+  {id:6, name:'Zakupy',          icon:'🛍️', bg:'#fffbeb', color:'#f59e0b', spent:64,   budget:300,  txCount:3},
+  {id:7, name:'Rozrywka',        icon:'🎬', bg:'#f5f3ff', color:'#8b5cf6', spent:89,   budget:200,  txCount:4},
+  {id:8, name:'Zdrowie',         icon:'💊', bg:'#ecfeff', color:'#06b6d4', spent:240,  budget:150,  txCount:3},
+  {id:9, name:'Inne',            icon:'📦', bg:'#f8fafc', color:'#64748b', spent:427,  budget:null, txCount:6},
+];
+
+const TRANSACTIONS = [
+  {id:1,  date:'2026-04-15', cat:'Inne',          catIcon:'📦', catBg:'#f8fafc', catColor:'#64748b', desc:'podświetlenie rejestracji sąsiad', acc:'Portfel',    amount:50,     type:'income'},
+  {id:2,  date:'2026-04-15', cat:'Opłaty stałe',  catIcon:'🏠', catBg:'#eef2ff', catColor:'#6366f1', desc:'mieszkanie',                        acc:'Portfel',    amount:-400,   type:'expense'},
+  {id:3,  date:'2026-04-14', cat:'Transfer',      catIcon:'↔️', catBg:'#eef2ff', catColor:'#6366f1', desc:'Gotówka → Portfel',                 acc:'Millennium', amount:550,    type:'transfer'},
+  {id:4,  date:'2026-04-14', cat:'Motocykl',      catIcon:'🔧', catBg:'#dbeafe', catColor:'#3b82f6', desc:'płyn hamulcowy',                    acc:'Pekao',      amount:-16.99, type:'expense', loc:'PSB Mrówka'},
+  {id:5,  date:'2026-04-14', cat:'Restauracja',   catIcon:'🍽️', catBg:'#f0fdf4', catColor:'#22c55e', desc:'obiad',                            acc:'Millennium', amount:-21,    type:'expense'},
+  {id:6,  date:'2026-04-13', cat:'Artykuły spożywcze',catIcon:'🛒',catBg:'#fdf2f8',catColor:'#ec4899',desc:'Zakupy tygodniowe',               acc:'Millennium', amount:-39.55, type:'expense', loc:'Lidl'},
+  {id:7,  date:'2026-04-13', cat:'Artykuły spożywcze',catIcon:'🛒',catBg:'#fdf2f8',catColor:'#ec4899',desc:'',                                acc:'Millennium', amount:-15.72, type:'expense', loc:'Lidl'},
+  {id:8,  date:'2026-04-12', cat:'Rozrywka',      catIcon:'🎬', catBg:'#f5f3ff', catColor:'#8b5cf6', desc:'Netflix',                          acc:'Millennium', amount:-49,    type:'expense'},
+  {id:9,  date:'2026-04-12', cat:'Opłaty stałe',  catIcon:'🏠', catBg:'#eef2ff', catColor:'#6366f1', desc:'prąd',                             acc:'Millennium', amount:-150,   type:'expense'},
+  {id:10, date:'2026-04-11', cat:'Motocykl (Paliwo)',catIcon:'⛽',catBg:'#ecfdf5',catColor:'#10b981',desc:'tankowanie',                        acc:'Pekao',      amount:-97.26, type:'expense', loc:'Orlen'},
+  {id:11, date:'2026-04-10', cat:'Programowanie', catIcon:'💻', catBg:'#ecfdf5', catColor:'#10b981', desc:'faktura #001/2026',                 acc:'Millennium', amount:822.90, type:'income'},
+  {id:12, date:'2026-04-09', cat:'Zakupy',        catIcon:'🛍️', catBg:'#fffbeb', catColor:'#f59e0b', desc:'buty motocyklowe',                 acc:'Pekao',      amount:-63.98, type:'expense'},
+  {id:13, date:'2026-04-08', cat:'Restauracja',   catIcon:'🍽️', catBg:'#f0fdf4', catColor:'#22c55e', desc:'kolacja',                          acc:'Millennium', amount:-78,    type:'expense'},
+  {id:14, date:'2026-04-07', cat:'Zdrowie',       catIcon:'💊', catBg:'#ecfeff', catColor:'#06b6d4', desc:'apteka',                           acc:'Millennium', amount:-32,    type:'expense'},
+  {id:15, date:'2026-04-05', cat:'Artykuły spożywcze',catIcon:'🛒',catBg:'#fdf2f8',catColor:'#ec4899',desc:'',                                acc:'Millennium', amount:-55.20, type:'expense', loc:'Biedronka'},
+];
+
+/* ─── ICONS (SVG inline) ─────────────────────── */
+const Icon = ({n, size=18, color='currentColor'}) => {
+  const icons = {
+    home:     <path d="M3 12L12 3l9 9M5 10v9a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1v-9"/>,
+    list:     <><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/></>,
+    tag:      <><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></>,
+    wallet:   <><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M16 13a1 1 0 100-2 1 1 0 000 2z" fill="currentColor"/></>,
+    bar:      <><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></>,
+    plus:     <><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></>,
+    search:   <><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></>,
+    bell:     <><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></>,
+    chevronR: <polyline points="9 18 15 12 9 6"/>,
+    chevronL: <polyline points="15 18 9 12 15 6"/>,
+    chevronD: <polyline points="6 9 12 15 18 9"/>,
+    x:        <><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>,
+    pin:      <><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></>,
+    repeat:   <><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></>,
+    receipt:  <><path d="M14 2H6a2 2 0 00-2 2v16l3-2 2 2 2-2 2 2 2-2 3 2V4a2 2 0 00-2-2z"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="13" x2="14" y2="13"/></>,
+    edit:     <><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></>,
+    gear:     <><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></>,
+    spark:    <><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></>,
+  };
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      {icons[n]}
+    </svg>
+  );
+};
+
+/* ─── SHARED COMPONENTS ──────────────────────── */
+const Card = ({children, style, onClick}) => (
+  <div onClick={onClick} style={{background:T.card, borderRadius:T.radius, border:`1px solid ${T.border}`, ...style}}>
+    {children}
+  </div>
+);
+
+const Badge = ({type}) => {
+  const cfg = {expense:{bg:T.expenseSoft,color:T.expense,label:'Wydatek'}, income:{bg:T.incomeSoft,color:T.income,label:'Przychód'}, transfer:{bg:T.accentLight,color:T.accent,label:'Transfer'}};
+  const c = cfg[type]||cfg.expense;
+  return <span style={{background:c.bg,color:c.color,fontSize:11,fontWeight:600,padding:'2px 8px',borderRadius:20}}>{c.label}</span>;
+};
+
+const StatPill = ({label, amount, type}) => (
+  <div style={{display:'flex',alignItems:'center',gap:6,background:type==='income'?T.incomeSoft:T.expenseSoft,
+    borderRadius:20,padding:'5px 12px'}}>
+    <span style={{fontSize:13,color:type==='income'?T.income:T.expense}}>{type==='income'?'↑':'↓'}</span>
+    <div>
+      <div style={{fontSize:10,color:type==='income'?T.income:T.expense,fontWeight:500}}>{label}</div>
+      <div style={{fontSize:13,fontWeight:700,color:type==='income'?T.income:T.expense}}>{fmtPLN(amount)}</div>
+    </div>
+  </div>
+);
+
+/* Mini sparkline placeholder */
+const Sparkline = ({color='#6366f1'}) => {
+  const pts = [20,35,25,45,30,55,40,35,50,42,60,48,55,65,58];
+  const max=Math.max(...pts), min=Math.min(...pts), w=120, h=40;
+  const x = (i) => (i/(pts.length-1))*w;
+  const y = (v) => h - ((v-min)/(max-min))*(h-4) - 2;
+  const d = pts.map((v,i)=>`${i===0?'M':'L'}${x(i)},${y(v)}`).join(' ');
+  return (
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
+      <path d={d+` L${w},${h} L0,${h} Z`} fill={color} opacity={0.12}/>
+      <path d={d} fill="none" stroke={color} strokeWidth="2"/>
+    </svg>
+  );
+};
+
+/* Donut chart */
+const Donut = ({data, size=120}) => {
+  const total = data.reduce((s,d)=>s+d.value,0);
+  let angle = -90;
+  const r=44, cx=60, cy=60, circ=2*Math.PI*r;
+  const slices = data.map(d=>{
+    const pct = d.value/total;
+    const start = angle;
+    angle += pct*360;
+    const startR = start*Math.PI/180, endR = angle*Math.PI/180;
+    const x1=cx+r*Math.cos(startR), y1=cy+r*Math.sin(startR);
+    const x2=cx+r*Math.cos(endR), y2=cy+r*Math.sin(endR);
+    const large = pct>0.5?1:0;
+    return {...d, d:`M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} Z`};
+  });
+  return (
+    <svg width={size} height={size} viewBox="0 0 120 120">
+      {slices.map((s,i)=><path key={i} d={s.d} fill={s.color} opacity={0.85}/>)}
+      <circle cx={cx} cy={cy} r={30} fill={T.card}/>
+    </svg>
+  );
+};
+
+/* Progress bar */
+const Bar = ({pct, color=T.accent, track=T.bg, height=6}) => (
+  <div style={{height,background:track,borderRadius:height,overflow:'hidden'}}>
+    <div style={{height:'100%',width:`${Math.min(pct,100)}%`,background:pct>100?T.expense:color,borderRadius:height,transition:'width .3s'}}/>
+  </div>
+);
+
+/* ─── SIDEBAR ────────────────────────────────── */
+const NAV = [
+  {id:'home',         label:'Home',         icon:'home'},
+  {id:'transactions', label:'Transakcje',   icon:'list'},
+  {id:'categories',   label:'Kategorie',    icon:'tag'},
+  {id:'accounts',     label:'Konta',        icon:'wallet'},
+  {id:'budget',       label:'Budżet',       icon:'bar'},
+];
+
+function Sidebar({active, onNav, onAdd}) {
+  return (
+    <div style={{width:T.sidebarW, background:T.sidebar, borderRight:`1px solid ${T.border}`,
+      display:'flex', flexDirection:'column', height:'100vh', position:'fixed', left:0, top:0, zIndex:100}}>
+      {/* Logo */}
+      <div style={{padding:'24px 20px 16px', borderBottom:`1px solid ${T.border}`}}>
+        <div style={{display:'flex',alignItems:'center',gap:10}}>
+          <div style={{width:34,height:34,borderRadius:10,background:T.accent,
+            display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,color:'white',fontWeight:800,letterSpacing:-1}}>Σ</div>
+          <span style={{fontSize:18,fontWeight:800,color:T.dark,letterSpacing:'-0.5px'}}>Suma</span>
+        </div>
+        <div style={{fontSize:11,color:T.muted,marginTop:6,marginLeft:44}}>Kwiecień 2026</div>
+      </div>
+
+      {/* Nav */}
+      <nav style={{flex:1,padding:'12px 10px',display:'flex',flexDirection:'column',gap:2}}>
+        {NAV.map(n=>{
+          const isActive = active===n.id;
+          return (
+            <button key={n.id} onClick={()=>onNav(n.id)}
+              style={{display:'flex',alignItems:'center',gap:12,padding:'9px 12px',borderRadius:T.radiusSm,
+                background:isActive?T.accentLight:'transparent',
+                color:isActive?T.accent:T.mid, fontWeight:isActive?600:400, fontSize:14,
+                transition:'all .15s', textAlign:'left', width:'100%'}}>
+              <Icon n={n.icon} size={18} color={isActive?T.accent:T.muted}/>
+              {n.label}
+            </button>
+          );
+        })}
+
+        {/* Add button */}
+        <div style={{marginTop:12, borderTop:`1px solid ${T.border}`, paddingTop:12}}>
+          <button onClick={onAdd}
+            style={{display:'flex',alignItems:'center',gap:12,padding:'9px 12px',borderRadius:T.radiusSm,
+              background:T.accent, color:'white', fontWeight:600, fontSize:14, width:'100%', transition:'background .15s'}}>
+            <Icon n="plus" size={18} color="white"/>
+            Dodaj transakcję
+          </button>
+        </div>
+      </nav>
+
+      {/* User */}
+      <div style={{padding:'12px 14px', borderTop:`1px solid ${T.border}`, display:'flex', alignItems:'center', gap:10}}>
+        <div style={{width:32,height:32,borderRadius:'50%',background:'linear-gradient(135deg,#6366f1,#8b5cf6)',
+          display:'flex',alignItems:'center',justifyContent:'center',color:'white',fontSize:13,fontWeight:700}}>JK</div>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:13,fontWeight:600,color:T.dark,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>Jan Kowalski</div>
+          <div style={{fontSize:11,color:T.muted}}>Premium</div>
+        </div>
+        <button style={{color:T.muted}}><Icon n="gear" size={15}/></button>
+      </div>
+    </div>
+  );
+}
+
+/* ─── TOP BAR ────────────────────────────────── */
+function Topbar({title, subtitle, month, onPrev, onNext, actions}) {
+  return (
+    <div style={{height:60, background:T.card, borderBottom:`1px solid ${T.border}`,
+      display:'flex', alignItems:'center', paddingLeft:24, paddingRight:20, gap:16, position:'sticky', top:0, zIndex:50}}>
+      <div style={{flex:1}}>
+        <div style={{fontSize:16, fontWeight:700, color:T.dark}}>{title}</div>
+        {subtitle && <div style={{fontSize:12, color:T.muted}}>{subtitle}</div>}
+      </div>
+      {month && (
+        <div style={{display:'flex',alignItems:'center',gap:4}}>
+          <button onClick={onPrev} style={{padding:6,borderRadius:6,color:T.muted}}><Icon n="chevronL" size={16}/></button>
+          <span style={{fontSize:13,fontWeight:600,color:T.mid,minWidth:100,textAlign:'center'}}>{month}</span>
+          <button onClick={onNext} style={{padding:6,borderRadius:6,color:T.muted}}><Icon n="chevronR" size={16}/></button>
+        </div>
+      )}
+      {actions}
+      <button style={{width:34,height:34,borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',
+        background:T.bg, color:T.muted}}>
+        <Icon n="search" size={16}/>
+      </button>
+      <button style={{width:34,height:34,borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',
+        background:T.bg, color:T.muted, position:'relative'}}>
+        <Icon n="bell" size={16}/>
+        <span style={{position:'absolute',top:7,right:7,width:6,height:6,borderRadius:'50%',background:T.expense,border:`1.5px solid ${T.card}`}}/>
+      </button>
+    </div>
+  );
+}
+
+/* ─── HOME SCREEN ────────────────────────────── */
+function HomeScreen({onNav, onSelectTx}) {
+  const totalBalance = ACCOUNTS.reduce((s,a)=>s+a.balance,0);
+  const income = TRANSACTIONS.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+  const expense = Math.abs(TRANSACTIONS.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0));
+  const donutData = CATEGORIES.slice(0,5).map(c=>({value:c.spent,color:c.color}));
+
+  return (
+    <div style={{padding:24, display:'flex', flexDirection:'column', gap:20}}>
+      {/* Top stats row */}
+      <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:16}}>
+        <Card style={{padding:20, gridColumn:'span 2'}}>
+          <div style={{fontSize:12,color:T.muted,fontWeight:500,marginBottom:4}}>Łączny majątek</div>
+          <div style={{fontSize:32,fontWeight:800,color:T.dark,letterSpacing:'-1px',marginBottom:12}}>{fmtPLN(totalBalance)}</div>
+          <div style={{display:'flex',gap:10}}>
+            <StatPill label="Przychody" amount={income} type="income"/>
+            <StatPill label="Wydatki" amount={expense} type="expense"/>
+          </div>
+        </Card>
+        <Card style={{padding:20}}>
+          <div style={{fontSize:12,color:T.muted,fontWeight:500,marginBottom:4}}>Budżet miesięczny</div>
+          <div style={{fontSize:22,fontWeight:700,color:T.dark,marginBottom:6}}>{fmtShort(expense)} <span style={{fontSize:13,color:T.muted,fontWeight:400}}>/ 4 000 zł</span></div>
+          <Bar pct={expense/4000*100} color={T.accent}/>
+          <div style={{fontSize:12,color:T.muted,marginTop:6}}>{Math.round(expense/4000*100)}% wykorzystano</div>
+        </Card>
+        <Card style={{padding:20}}>
+          <div style={{fontSize:12,color:T.muted,fontWeight:500,marginBottom:4}}>Bilans miesiąca</div>
+          <div style={{fontSize:22,fontWeight:700,color:income-expense>=0?T.income:T.expense,marginBottom:2}}>{fmtPLN(income-expense,true)}</div>
+          <div style={{marginTop:10}}><Sparkline color={income-expense>=0?T.income:T.expense}/></div>
+        </Card>
+      </div>
+
+      {/* Middle row */}
+      <div style={{display:'grid', gridTemplateColumns:'2fr 1fr', gap:16}}>
+        {/* Recent transactions */}
+        <Card style={{padding:0, overflow:'hidden'}}>
+          <div style={{padding:'16px 20px', borderBottom:`1px solid ${T.border}`, display:'flex', alignItems:'center', justifyContent:'space-between'}}>
+            <div style={{fontWeight:600, fontSize:14, color:T.dark}}>Ostatnie transakcje</div>
+            <button onClick={()=>onNav('transactions')} style={{fontSize:12,color:T.accent,fontWeight:500,display:'flex',alignItems:'center',gap:4}}>
+              Wszystkie <Icon n="chevronR" size={14} color={T.accent}/>
+            </button>
+          </div>
+          {TRANSACTIONS.slice(0,7).map((tx,i)=>(
+            <div key={tx.id} onClick={()=>onSelectTx(tx)}
+              style={{padding:'12px 20px', display:'flex', alignItems:'center', gap:12,
+                borderBottom:i<6?`1px solid ${T.border}`:'none', cursor:'pointer',
+                transition:'background .1s'}}
+              onMouseEnter={e=>e.currentTarget.style.background=T.bg}
+              onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+              <div style={{width:36,height:36,borderRadius:10,background:tx.catBg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,flexShrink:0}}>
+                {tx.catIcon}
+              </div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:13,fontWeight:600,color:T.dark,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{tx.cat}</div>
+                <div style={{fontSize:12,color:T.muted,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{tx.desc||tx.loc||tx.acc}</div>
+              </div>
+              <div style={{textAlign:'right',flexShrink:0}}>
+                <div style={{fontSize:13,fontWeight:700,color:tx.type==='expense'?T.expense:tx.type==='income'?T.income:T.mid}}>
+                  {tx.type==='expense'?'-':tx.type==='income'?'+':''}{fmtPLN(Math.abs(tx.amount))}
+                </div>
+                <div style={{fontSize:11,color:T.faint}}>{tx.date.slice(5).replace('-','.')}</div>
+              </div>
+            </div>
+          ))}
+        </Card>
+
+        {/* Right column */}
+        <div style={{display:'flex',flexDirection:'column',gap:16}}>
+          {/* Spending donut */}
+          <Card style={{padding:20}}>
+            <div style={{fontWeight:600,fontSize:14,color:T.dark,marginBottom:12}}>Wydatki wg kategorii</div>
+            <div style={{display:'flex',alignItems:'center',gap:16}}>
+              <Donut data={donutData} size={96}/>
+              <div style={{flex:1,display:'flex',flexDirection:'column',gap:6}}>
+                {CATEGORIES.slice(0,5).map(c=>(
+                  <div key={c.id} style={{display:'flex',alignItems:'center',gap:6}}>
+                    <div style={{width:8,height:8,borderRadius:'50%',background:c.color,flexShrink:0}}/>
+                    <span style={{fontSize:11,color:T.muted,flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.name}</span>
+                    <span style={{fontSize:11,fontWeight:600,color:T.mid,flexShrink:0}}>{fmtShort(c.spent)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Card>
+
+          {/* AI */}
+          <Card style={{padding:16, background:'linear-gradient(135deg,#eef2ff 0%,#f5f3ff 100%)'}}>
+            <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
+              <Icon n="spark" size={16} color={T.accent}/>
+              <span style={{fontSize:13,fontWeight:600,color:T.accent}}>Analiza AI</span>
+            </div>
+            <p style={{fontSize:12,color:T.mid,lineHeight:1.6}}>W tym miesiącu wydałeś <strong>27% więcej</strong> na artykuły spożywcze niż w poprzednim. Kategoria <strong>Zdrowie</strong> przekroczyła budżet.</p>
+          </Card>
+        </div>
+      </div>
+
+      {/* Accounts */}
+      <div>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+          <div style={{fontWeight:600,fontSize:14,color:T.dark}}>Konta</div>
+          <button onClick={()=>onNav('accounts')} style={{fontSize:12,color:T.accent,fontWeight:500,display:'flex',alignItems:'center',gap:4}}>
+            Wszystkie <Icon n="chevronR" size={14} color={T.accent}/>
+          </button>
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12}}>
+          {ACCOUNTS.map(a=>(
+            <Card key={a.id} style={{padding:18, background:`linear-gradient(135deg,${a.color},${a.color2})`, border:'none', cursor:'pointer'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:20}}>
+                <div style={{fontSize:13,fontWeight:600,color:'rgba(255,255,255,.9)'}}>{a.name}</div>
+                <span style={{fontSize:18}}>{a.icon}</span>
+              </div>
+              <div style={{fontSize:20,fontWeight:800,color:'white',letterSpacing:'-0.5px'}}>{fmtPLN(a.balance)}</div>
+              <div style={{fontSize:11,color:'rgba(255,255,255,.7)',marginTop:4}}>{a.type}</div>
+            </Card>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── TRANSACTIONS SCREEN ────────────────────── */
+function TransactionsScreen({selectedTx, onSelectTx}) {
+  const [filter, setFilter] = useState('all');
+  const filters = [{id:'all',label:'Wszystkie'},{id:'expense',label:'Wydatki'},{id:'income',label:'Przychody'},{id:'transfer',label:'Transfery'}];
+  const filtered = filter==='all' ? TRANSACTIONS : TRANSACTIONS.filter(t=>t.type===filter);
+
+  // Group by date
+  const grouped = filtered.reduce((acc,tx)=>{
+    if(!acc[tx.date]) acc[tx.date]=[];
+    acc[tx.date].push(tx);
+    return acc;
+  },{});
+
+  const fmtDate = d => {
+    const days = {'2026-04-15':'15 kwietnia','2026-04-14':'14 kwietnia','2026-04-13':'13 kwietnia',
+      '2026-04-12':'12 kwietnia','2026-04-11':'11 kwietnia','2026-04-10':'10 kwietnia',
+      '2026-04-09':'9 kwietnia','2026-04-08':'8 kwietnia','2026-04-07':'7 kwietnia','2026-04-05':'5 kwietnia'};
+    return days[d]||d;
+  };
+  const dayTotal = txs => txs.reduce((s,t)=>s+(t.type==='transfer'?0:t.amount),0);
+
+  return (
+    <div style={{display:'flex', height:'calc(100vh - 60px)', overflow:'hidden'}}>
+      {/* List */}
+      <div style={{flex:1, overflowY:'auto', borderRight:`1px solid ${T.border}`}}>
+        {/* Summary strip */}
+        <div style={{padding:'14px 20px', background:T.card, borderBottom:`1px solid ${T.border}`, display:'flex', gap:16}}>
+          <StatPill label="Przychody kwiecień" amount={1306.54} type="income"/>
+          <StatPill label="Wydatki kwiecień" amount={1597.39} type="expense"/>
+        </div>
+
+        {/* Filters */}
+        <div style={{padding:'12px 20px', background:T.card, borderBottom:`1px solid ${T.border}`, display:'flex', gap:6}}>
+          {filters.map(f=>(
+            <button key={f.id} onClick={()=>setFilter(f.id)}
+              style={{padding:'5px 14px',borderRadius:20,fontSize:13,fontWeight:500,
+                background:filter===f.id?T.dark:'transparent',
+                color:filter===f.id?'white':T.muted,
+                border:`1px solid ${filter===f.id?T.dark:T.border}`,transition:'all .15s'}}>
+              {f.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Grouped rows */}
+        {Object.entries(grouped).map(([date, txs])=>(
+          <div key={date}>
+            <div style={{padding:'10px 20px 6px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+              <span style={{fontSize:12,fontWeight:600,color:T.muted}}>{fmtDate(date)}</span>
+              <span style={{fontSize:12,fontWeight:600,color:dayTotal(txs)>=0?T.income:T.expense}}>
+                {dayTotal(txs)>=0?'+':''}{fmtPLN(dayTotal(txs))}
+              </span>
+            </div>
+            <Card style={{margin:'0 16px 8px', borderRadius:T.radius, overflow:'hidden'}}>
+              {txs.map((tx,i)=>(
+                <div key={tx.id} onClick={()=>onSelectTx(tx)}
+                  style={{padding:'12px 16px', display:'flex', alignItems:'center', gap:12,
+                    background:selectedTx?.id===tx.id?T.accentLight:'transparent',
+                    borderBottom:i<txs.length-1?`1px solid ${T.border}`:'none', cursor:'pointer',
+                    transition:'background .1s'}}
+                  onMouseEnter={e=>{ if(selectedTx?.id!==tx.id) e.currentTarget.style.background=T.bg; }}
+                  onMouseLeave={e=>{ e.currentTarget.style.background=selectedTx?.id===tx.id?T.accentLight:'transparent'; }}>
+                  <div style={{width:38,height:38,borderRadius:10,background:tx.catBg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:17,flexShrink:0}}>{tx.catIcon}</div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:13,fontWeight:600,color:T.dark}}>{tx.cat}</div>
+                    <div style={{fontSize:12,color:T.muted,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                      {tx.desc||tx.loc||''} {tx.loc && tx.desc?`· ${tx.loc}`:''} <span style={{color:T.faint}}>From: {tx.acc}</span>
+                    </div>
+                  </div>
+                  <div style={{textAlign:'right',flexShrink:0}}>
+                    <div style={{fontSize:13,fontWeight:700,color:tx.type==='expense'?T.expense:tx.type==='income'?T.income:T.mid}}>
+                      {tx.type==='expense'?'-':tx.type==='income'?'+':''}{fmtPLN(Math.abs(tx.amount))}
+                    </div>
+                    {tx.loc && <div style={{fontSize:11,color:T.faint,display:'flex',alignItems:'center',justifyContent:'flex-end',gap:2}}><Icon n="pin" size={10} color={T.faint}/>{tx.loc}</div>}
+                  </div>
+                </div>
+              ))}
+            </Card>
+          </div>
+        ))}
+      </div>
+
+      {/* Detail panel */}
+      {selectedTx ? (
+        <div style={{width:320, overflowY:'auto', background:T.bg}}>
+          <TxDetailPanel tx={selectedTx} onClose={()=>onSelectTx(null)}/>
+        </div>
+      ) : (
+        <div style={{width:320, display:'flex', alignItems:'center', justifyContent:'center', background:T.bg}}>
+          <div style={{textAlign:'center', color:T.faint}}>
+            <Icon n="receipt" size={36} color={T.faint}/>
+            <div style={{fontSize:13, marginTop:10}}>Wybierz transakcję</div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── TRANSACTION DETAIL PANEL ───────────────── */
+function TxDetailPanel({tx, onClose}) {
+  const amtColor = tx.type==='expense'?T.expense:tx.type==='income'?T.income:T.mid;
+  return (
+    <div style={{padding:20, display:'flex', flexDirection:'column', gap:14}}>
+      {/* Header */}
+      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+        <div style={{fontSize:14, fontWeight:700, color:T.dark}}>Szczegóły</div>
+        {onClose && <button onClick={onClose} style={{color:T.muted, padding:4}}><Icon n="x" size={16}/></button>}
+      </div>
+
+      {/* Amount card */}
+      <Card style={{padding:20, textAlign:'center'}}>
+        <div style={{width:52,height:52,borderRadius:14,background:tx.catBg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:24,margin:'0 auto 12px'}}>{tx.catIcon}</div>
+        <Badge type={tx.type}/>
+        <div style={{fontSize:28,fontWeight:800,color:amtColor,marginTop:8,letterSpacing:'-1px'}}>
+          {tx.type==='expense'?'-':tx.type==='income'?'+':''}{fmtPLN(Math.abs(tx.amount))}
+        </div>
+        <div style={{fontSize:13,color:T.muted,marginTop:4}}>{tx.cat}</div>
+      </Card>
+
+      {/* Info rows */}
+      <Card style={{padding:0,overflow:'hidden'}}>
+        {[
+          {label:'Data', value:tx.date.split('-').reverse().join('.')},
+          {label:'Konto', value:tx.acc},
+          tx.desc && {label:'Opis', value:tx.desc},
+          tx.loc && {label:'Miejsce', value:tx.loc},
+        ].filter(Boolean).map((row,i,arr)=>(
+          <div key={row.label} style={{padding:'11px 16px', display:'flex', justifyContent:'space-between',
+            borderBottom:i<arr.length-1?`1px solid ${T.border}`:'none'}}>
+            <span style={{fontSize:12,color:T.muted}}>{row.label}</span>
+            <span style={{fontSize:12,fontWeight:600,color:T.mid}}>{row.value}</span>
+          </div>
+        ))}
+      </Card>
+
+      {/* Map placeholder if location */}
+      {tx.loc && (
+        <Card style={{overflow:'hidden', height:100}}>
+          <div style={{height:'100%', background:'linear-gradient(135deg,#e0f2fe,#dbeafe)', position:'relative'}}>
+            <div style={{position:'absolute',inset:0,backgroundImage:`repeating-linear-gradient(0deg,transparent,transparent 14px,rgba(99,102,241,.1) 14px,rgba(99,102,241,.1) 15px),repeating-linear-gradient(90deg,transparent,transparent 14px,rgba(99,102,241,.1) 14px,rgba(99,102,241,.1) 15px)`}}/>
+            <div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center'}}>
+              <div style={{background:T.accent,width:28,height:28,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:`0 2px 8px rgba(99,102,241,.4)`}}>
+                <Icon n="pin" size={14} color="white"/>
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Actions */}
+      <div style={{display:'flex', gap:8}}>
+        <button style={{flex:1, padding:'9px', borderRadius:T.radiusSm, background:T.bg, color:T.mid, fontSize:13, fontWeight:500, border:`1px solid ${T.border}`, display:'flex', alignItems:'center', justifyContent:'center', gap:6}}>
+          <Icon n="edit" size={14}/> Edytuj
+        </button>
+        <button style={{flex:1, padding:'9px', borderRadius:T.radiusSm, background:T.expenseSoft, color:T.expense, fontSize:13, fontWeight:500, border:'none', display:'flex', alignItems:'center', justifyContent:'center', gap:6}}>
+          <Icon n="x" size={14}/> Usuń
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ─── CATEGORIES SCREEN ──────────────────────── */
+function CategoriesScreen() {
+  const [view, setView] = useState('all');
+  const totalSpent = CATEGORIES.reduce((s,c)=>s+c.spent,0);
+  const views = [{id:'all',label:'Wszystkie'},{id:'expense',label:'Wydatki'},{id:'income',label:'Przychody'}];
+
+  return (
+    <div style={{padding:24}}>
+      <div style={{display:'flex', gap:6, marginBottom:20}}>
+        {views.map(v=>(
+          <button key={v.id} onClick={()=>setView(v.id)}
+            style={{padding:'5px 14px',borderRadius:20,fontSize:13,fontWeight:500,
+              background:view===v.id?T.dark:'transparent',
+              color:view===v.id?'white':T.muted,
+              border:`1px solid ${view===v.id?T.dark:T.border}`,transition:'all .15s'}}>
+            {v.label}
+          </button>
+        ))}
+      </div>
+
+      <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:16}}>
+        {/* Category cards */}
+        <div style={{display:'flex', flexDirection:'column', gap:10}}>
+          {CATEGORIES.map(c=>{
+            const pct = c.budget ? (c.spent/c.budget*100) : null;
+            const over = pct !== null && pct > 100;
+            return (
+              <Card key={c.id} style={{padding:16, cursor:'pointer'}}
+                onMouseEnter={e=>e.currentTarget.style.boxShadow='0 2px 12px rgba(0,0,0,.08)'}
+                onMouseLeave={e=>e.currentTarget.style.boxShadow='none'}>
+                <div style={{display:'flex', alignItems:'center', gap:12, marginBottom:c.budget?10:0}}>
+                  <div style={{width:40,height:40,borderRadius:12,background:c.bg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:20,flexShrink:0}}>{c.icon}</div>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:14,fontWeight:600,color:T.dark}}>{c.name}</div>
+                    <div style={{fontSize:12,color:T.muted}}>{c.txCount} transakcji</div>
+                  </div>
+                  <div style={{textAlign:'right'}}>
+                    <div style={{fontSize:15,fontWeight:700,color:over?T.expense:T.dark}}>{fmtPLN(c.spent)}</div>
+                    {c.budget && <div style={{fontSize:11,color:T.faint}}>z {fmtPLN(c.budget)}</div>}
+                  </div>
+                </div>
+                {c.budget && (
+                  <>
+                    <Bar pct={pct} color={over?T.expense:c.color}/>
+                    {over && <div style={{fontSize:11,color:T.expense,marginTop:4,fontWeight:500}}>Przekroczono budżet o {fmtPLN(c.spent-c.budget)}</div>}
+                  </>
+                )}
+              </Card>
+            );
+          })}
+        </div>
+
+        {/* Right: summary + donut */}
+        <div style={{display:'flex', flexDirection:'column', gap:16}}>
+          <Card style={{padding:20}}>
+            <div style={{fontWeight:600,fontSize:14,color:T.dark,marginBottom:16}}>Łącznie wydane</div>
+            <div style={{display:'flex', alignItems:'center', gap:20}}>
+              <Donut data={CATEGORIES.map(c=>({value:c.spent,color:c.color}))} size={130}/>
+              <div style={{flex:1}}>
+                <div style={{fontSize:28,fontWeight:800,color:T.dark,letterSpacing:'-1px',marginBottom:4}}>{fmtPLN(totalSpent)}</div>
+                <div style={{fontSize:12,color:T.muted}}>Kwiecień 2026</div>
+                <div style={{marginTop:16,display:'flex',flexDirection:'column',gap:8}}>
+                  {CATEGORIES.slice(0,4).map(c=>(
+                    <div key={c.id} style={{display:'flex',alignItems:'center',gap:8}}>
+                      <div style={{width:10,height:10,borderRadius:'50%',background:c.color,flexShrink:0}}/>
+                      <span style={{fontSize:12,color:T.muted,flex:1}}>{c.name}</span>
+                      <span style={{fontSize:12,fontWeight:600,color:T.mid}}>{Math.round(c.spent/totalSpent*100)}%</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </Card>
+
+          <Card style={{padding:16, background:T.accentLight}}>
+            <div style={{fontSize:13,fontWeight:600,color:T.accent,marginBottom:8}}>Podsumowanie budżetów</div>
+            {CATEGORIES.filter(c=>c.budget).map(c=>{
+              const pct = c.spent/c.budget*100;
+              return (
+                <div key={c.id} style={{marginBottom:10}}>
+                  <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
+                    <span style={{fontSize:12,color:T.mid}}>{c.icon} {c.name}</span>
+                    <span style={{fontSize:12,fontWeight:600,color:pct>100?T.expense:T.mid}}>{Math.round(pct)}%</span>
+                  </div>
+                  <Bar pct={pct} color={pct>100?T.expense:T.accent} height={4}/>
+                </div>
+              );
+            })}
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── ACCOUNTS SCREEN ────────────────────────── */
+function AccountsScreen({onSelectTx}) {
+  const [selected, setSelected] = useState(ACCOUNTS[0]);
+  const accTxs = TRANSACTIONS.filter(t=>t.acc===selected.name);
+  const totalBalance = ACCOUNTS.reduce((s,a)=>s+a.balance,0);
+
+  return (
+    <div style={{padding:24, display:'flex', flexDirection:'column', gap:20}}>
+      {/* Total */}
+      <div style={{display:'flex', gap:12, alignItems:'center'}}>
+        <div>
+          <div style={{fontSize:12,color:T.muted,fontWeight:500}}>Łączny majątek</div>
+          <div style={{fontSize:28,fontWeight:800,color:T.dark,letterSpacing:'-1px'}}>{fmtPLN(totalBalance)}</div>
+        </div>
+      </div>
+
+      {/* Account cards */}
+      <div style={{display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12}}>
+        {ACCOUNTS.map(a=>(
+          <Card key={a.id} onClick={()=>setSelected(a)}
+            style={{padding:18, cursor:'pointer',
+              background:selected.id===a.id?`linear-gradient(135deg,${a.color},${a.color2})`:'white',
+              border:selected.id===a.id?'none':`1px solid ${T.border}`,
+              transition:'all .2s'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16}}>
+              <div style={{fontSize:13,fontWeight:600,color:selected.id===a.id?'rgba(255,255,255,.9)':T.mid}}>{a.name}</div>
+              <span style={{fontSize:18}}>{a.icon}</span>
+            </div>
+            <div style={{fontSize:20,fontWeight:800,color:selected.id===a.id?'white':T.dark,letterSpacing:'-0.5px'}}>{fmtPLN(a.balance)}</div>
+            <div style={{fontSize:11,color:selected.id===a.id?'rgba(255,255,255,.65)':T.faint,marginTop:4}}>{a.type}</div>
+          </Card>
+        ))}
+      </div>
+
+      {/* Selected account detail */}
+      <div style={{display:'grid', gridTemplateColumns:'1fr 320px', gap:16}}>
+        <Card style={{padding:0,overflow:'hidden'}}>
+          <div style={{padding:'14px 20px', borderBottom:`1px solid ${T.border}`, fontWeight:600, fontSize:14, color:T.dark}}>
+            Historia — {selected.name}
+          </div>
+          {accTxs.length===0 && (
+            <div style={{padding:40, textAlign:'center', color:T.faint}}>
+              <Icon n="list" size={32} color={T.faint}/>
+              <div style={{marginTop:10, fontSize:13}}>Brak transakcji</div>
+            </div>
+          )}
+          {accTxs.map((tx,i)=>(
+            <div key={tx.id} onClick={()=>onSelectTx(tx)}
+              style={{padding:'12px 20px', display:'flex', alignItems:'center', gap:12,
+                borderBottom:i<accTxs.length-1?`1px solid ${T.border}`:'none', cursor:'pointer'}}
+              onMouseEnter={e=>e.currentTarget.style.background=T.bg}
+              onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+              <div style={{width:36,height:36,borderRadius:10,background:tx.catBg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:16}}>{tx.catIcon}</div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,fontWeight:600,color:T.dark}}>{tx.cat}</div>
+                <div style={{fontSize:12,color:T.muted}}>{tx.desc||tx.loc||''}</div>
+              </div>
+              <div style={{textAlign:'right'}}>
+                <div style={{fontSize:13,fontWeight:700,color:tx.type==='expense'?T.expense:tx.type==='income'?T.income:T.mid}}>
+                  {tx.type==='expense'?'-':tx.type==='income'?'+':''}{fmtPLN(Math.abs(tx.amount))}
+                </div>
+                <div style={{fontSize:11,color:T.faint}}>{tx.date.slice(5).replace('-','.')}</div>
+              </div>
+            </div>
+          ))}
+          {accTxs.length===0 && TRANSACTIONS.slice(0,3).map((tx,i)=>(
+            <div key={tx.id} style={{padding:'12px 20px', display:'flex', alignItems:'center', gap:12, borderBottom:`1px solid ${T.border}`, opacity:.3}}>
+              <div style={{width:36,height:36,borderRadius:10,background:tx.catBg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:16}}>{tx.catIcon}</div>
+              <div style={{flex:1}}><div style={{fontSize:13,fontWeight:600,color:T.dark}}>{tx.cat}</div></div>
+              <div style={{fontSize:13,fontWeight:700,color:T.expense}}>-{fmtPLN(Math.abs(tx.amount))}</div>
+            </div>
+          ))}
+        </Card>
+
+        <Card style={{padding:20}}>
+          <div style={{fontWeight:600,fontSize:14,color:T.dark,marginBottom:16}}>Statystyki konta</div>
+          <div style={{display:'flex',flexDirection:'column',gap:12}}>
+            <div style={{padding:14,borderRadius:10,background:T.incomeSoft}}>
+              <div style={{fontSize:12,color:T.income,fontWeight:500}}>Przychody</div>
+              <div style={{fontSize:20,fontWeight:700,color:T.income}}>+1 306,54 zł</div>
+            </div>
+            <div style={{padding:14,borderRadius:10,background:T.expenseSoft}}>
+              <div style={{fontSize:12,color:T.expense,fontWeight:500}}>Wydatki</div>
+              <div style={{fontSize:20,fontWeight:700,color:T.expense}}>-1 597,39 zł</div>
+            </div>
+            <div style={{padding:14,borderRadius:10,background:T.bg}}>
+              <div style={{fontSize:12,color:T.muted,fontWeight:500}}>Bilans</div>
+              <div style={{fontSize:20,fontWeight:700,color:T.expense}}>-290,85 zł</div>
+            </div>
+          </div>
+          <div style={{marginTop:16}}>
+            <Sparkline color={T.accent}/>
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+/* ─── BUDGET SCREEN ──────────────────────────── */
+function BudgetScreen() {
+  const total = 4000;
+  const spent = CATEGORIES.reduce((s,c)=>s+c.spent,0);
+  const pct = spent/total*100;
+
+  return (
+    <div style={{padding:24, display:'flex', flexDirection:'column', gap:20}}>
+      {/* Overview */}
+      <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:16}}>
+        <Card style={{padding:20, gridColumn:'span 2'}}>
+          <div style={{fontSize:13,color:T.muted,fontWeight:500,marginBottom:8}}>Budżet ogólny — Kwiecień 2026</div>
+          <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-end', marginBottom:12}}>
+            <div>
+              <span style={{fontSize:32,fontWeight:800,color:T.dark,letterSpacing:'-1px'}}>{fmtPLN(spent)}</span>
+              <span style={{fontSize:15,color:T.muted,fontWeight:400}}> / {fmtPLN(total)}</span>
+            </div>
+            <span style={{fontSize:20,fontWeight:700,color:pct>100?T.expense:T.accent}}>{Math.round(pct)}%</span>
+          </div>
+          <Bar pct={pct} color={pct>100?T.expense:T.accent} height={10}/>
+          <div style={{display:'flex', justifyContent:'space-between', marginTop:8}}>
+            <span style={{fontSize:12,color:T.muted}}>Pozostało: <strong style={{color:T.income}}>{fmtPLN(Math.max(total-spent,0))}</strong></span>
+            <span style={{fontSize:12,color:T.muted}}>19 dni do końca miesiąca</span>
+          </div>
+        </Card>
+
+        <Card style={{padding:20}}>
+          <div style={{fontSize:13,color:T.muted,fontWeight:500,marginBottom:12}}>Kategorie w budżecie</div>
+          {[{label:'OK', count:CATEGORIES.filter(c=>c.budget&&c.spent/c.budget<=0.8).length, color:T.income},
+            {label:'Blisko limitu', count:CATEGORIES.filter(c=>c.budget&&c.spent/c.budget>0.8&&c.spent/c.budget<=1).length, color:T.warn},
+            {label:'Przekroczone', count:CATEGORIES.filter(c=>c.budget&&c.spent/c.budget>1).length, color:T.expense},
+          ].map(s=>(
+            <div key={s.label} style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+              <div style={{display:'flex',alignItems:'center',gap:8}}>
+                <div style={{width:10,height:10,borderRadius:'50%',background:s.color}}/>
+                <span style={{fontSize:13,color:T.mid}}>{s.label}</span>
+              </div>
+              <span style={{fontSize:16,fontWeight:700,color:s.color}}>{s.count}</span>
+            </div>
+          ))}
+        </Card>
+      </div>
+
+      {/* Category budgets */}
+      <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12}}>
+        {CATEGORIES.filter(c=>c.budget).map(c=>{
+          const pct = c.spent/c.budget*100;
+          const over = pct>100;
+          return (
+            <Card key={c.id} style={{padding:16}}>
+              <div style={{display:'flex', alignItems:'center', gap:12, marginBottom:10}}>
+                <div style={{width:38,height:38,borderRadius:10,background:c.bg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:18}}>{c.icon}</div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:13,fontWeight:600,color:T.dark}}>{c.name}</div>
+                  <div style={{fontSize:12,color:T.muted}}>{c.txCount} transakcji</div>
+                </div>
+                <div style={{textAlign:'right'}}>
+                  <div style={{fontSize:14,fontWeight:700,color:over?T.expense:T.dark}}>{fmtPLN(c.spent)}</div>
+                  <div style={{fontSize:11,color:T.faint}}>z {fmtPLN(c.budget)}</div>
+                </div>
+              </div>
+              <Bar pct={pct} color={over?T.expense:c.color}/>
+              <div style={{display:'flex', justifyContent:'space-between', marginTop:6}}>
+                <span style={{fontSize:11,color:over?T.expense:T.muted}}>{over?`Przekroczono o ${fmtPLN(c.spent-c.budget)}`:`Pozostało ${fmtPLN(c.budget-c.spent)}`}</span>
+                <span style={{fontSize:11,fontWeight:600,color:over?T.expense:T.accent}}>{Math.round(pct)}%</span>
+              </div>
+            </Card>
+          );
+        })}
+        {/* Add budget placeholder */}
+        <Card style={{padding:16, border:`2px dashed ${T.border}`, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', minHeight:80}}>
+          <div style={{textAlign:'center',color:T.faint}}>
+            <Icon n="plus" size={20} color={T.faint}/>
+            <div style={{fontSize:12,marginTop:4}}>Dodaj kategorię</div>
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+/* ─── ADD TRANSACTION MODAL ──────────────────── */
+function AddTransactionModal({onClose}) {
+  const [type, setType] = useState('expense');
+  const [amount, setAmount] = useState('0');
+  const [cat, setCat] = useState(CATEGORIES[0]);
+  const [acc, setAcc] = useState(ACCOUNTS[0]);
+  const [note, setNote] = useState('');
+
+  const typeColor = type==='expense'?T.expense:type==='income'?T.income:T.accent;
+
+  const handleNum = (v) => {
+    if(v==='⌫') { setAmount(a=>a.length>1?a.slice(0,-1):'0'); return; }
+    if(v==='.' && amount.includes('.')) return;
+    if(amount==='0' && v!=='.') { setAmount(v); return; }
+    if(amount.includes('.')&&amount.split('.')[1]?.length>=2) return;
+    setAmount(a=>a+v);
+  };
+
+  return (
+    <div style={{position:'fixed',inset:0,background:'rgba(15,23,42,.4)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:200,backdropFilter:'blur(4px)'}}>
+      <Card style={{width:480,maxHeight:'90vh',overflowY:'auto',boxShadow:'0 20px 60px rgba(0,0,0,.2)',padding:0}}>
+        {/* Header */}
+        <div style={{padding:'18px 20px',borderBottom:`1px solid ${T.border}`,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+          <div style={{fontWeight:700,fontSize:16,color:T.dark}}>Nowa transakcja</div>
+          <button onClick={onClose} style={{color:T.muted,padding:4}}><Icon n="x" size={18}/></button>
+        </div>
+
+        <div style={{padding:20, display:'flex', flexDirection:'column', gap:16}}>
+          {/* Type selector */}
+          <div style={{display:'flex',gap:6,background:T.bg,borderRadius:T.radiusSm,padding:4}}>
+            {['expense','income','transfer'].map(t=>(
+              <button key={t} onClick={()=>setType(t)}
+                style={{flex:1,padding:'6px',borderRadius:6,fontSize:13,fontWeight:600,
+                  background:type===t?T.card:'transparent',
+                  color:type===t?typeColor:T.muted,
+                  boxShadow:type===t?'0 1px 4px rgba(0,0,0,.1)':'none',
+                  transition:'all .15s'}}>
+                {t==='expense'?'Wydatek':t==='income'?'Przychód':'Transfer'}
+              </button>
+            ))}
+          </div>
+
+          {/* Amount display */}
+          <div style={{textAlign:'center',padding:'16px 0'}}>
+            <div style={{fontSize:48,fontWeight:800,color:typeColor,letterSpacing:'-2px',lineHeight:1}}>{amount}</div>
+            <div style={{fontSize:16,color:T.muted,marginTop:4}}>PLN</div>
+          </div>
+
+          {/* Account & Category */}
+          <div style={{display:'grid',gridTemplateColumns:'1fr auto 1fr',gap:8,alignItems:'center'}}>
+            <div style={{background:T.incomeSoft,borderRadius:10,padding:'10px 12px',cursor:'pointer'}}>
+              <div style={{fontSize:10,color:T.muted,fontWeight:500,marginBottom:2}}>Konto</div>
+              <div style={{fontSize:13,fontWeight:700,color:T.dark}}>{acc.icon} {acc.name}</div>
+              <div style={{fontSize:11,color:T.muted}}>{fmtPLN(acc.balance)}</div>
+            </div>
+            <div style={{width:30,height:30,borderRadius:'50%',background:T.expenseSoft,display:'flex',alignItems:'center',justifyContent:'center',color:T.expense,fontSize:16}}>→</div>
+            <div style={{background:T.accentLight,borderRadius:10,padding:'10px 12px',cursor:'pointer'}}>
+              <div style={{fontSize:10,color:T.muted,fontWeight:500,marginBottom:2}}>Kategoria</div>
+              <div style={{fontSize:13,fontWeight:700,color:T.dark}}>{cat.icon} {cat.name}</div>
+              <div style={{fontSize:11,color:T.muted}}>{fmtPLN(cat.spent)} zł</div>
+            </div>
+          </div>
+
+          {/* Note */}
+          <input value={note} onChange={e=>setNote(e.target.value)} placeholder="Dodaj notatkę..."
+            style={{padding:'10px 14px',borderRadius:T.radiusSm,border:`1px solid ${T.border}`,fontSize:13,color:T.dark,outline:'none',fontFamily:'inherit'}}/>
+
+          {/* Numpad */}
+          <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:6}}>
+            {['7','8','9','⌫','4','5','6','↺','1','2','3',null,'PLN','0','.','✓'].map((k,i)=>{
+              if(k===null) return <div key={i}/>;
+              const isConfirm = k==='✓';
+              const isSpecial = k==='PLN'||k==='⌫'||k==='↺';
+              return (
+                <button key={k} onClick={()=>k==='✓'?onClose():handleNum(k)}
+                  style={{padding:'14px 0',borderRadius:T.radiusSm,fontSize:isConfirm?20:15,fontWeight:600,
+                    background:isConfirm?T.accent:isSpecial?T.bg:T.bg,
+                    color:isConfirm?'white':isSpecial?T.muted:T.dark,
+                    border:`1px solid ${isConfirm?T.accent:T.border}`,
+                    gridRow:isConfirm?'span 2':'auto'}}>
+                  {k}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+/* ─── TWEAKS PANEL ───────────────────────────── */
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "accentColor": "#6366f1",
+  "compactSidebar": false,
+  "showAIInsights": true
+}/*EDITMODE-END*/;
+
+function TweaksPanel({tweaks, setTweaks, visible}) {
+  if(!visible) return null;
+  return (
+    <div style={{position:'fixed',bottom:20,right:20,zIndex:300,background:T.card,borderRadius:T.radius,
+      border:`1px solid ${T.border}`,boxShadow:'0 8px 30px rgba(0,0,0,.12)',padding:16,width:240}}>
+      <div style={{fontWeight:700,fontSize:13,color:T.dark,marginBottom:12}}>Tweaks</div>
+      <div style={{display:'flex',flexDirection:'column',gap:12}}>
+        <label style={{fontSize:12,color:T.muted,fontWeight:500}}>
+          Kolor akcentu
+          <div style={{display:'flex',gap:6,marginTop:6}}>
+            {['#6366f1','#8b5cf6','#ec4899','#10b981','#f59e0b'].map(c=>(
+              <button key={c} onClick={()=>setTweaks(t=>({...t,accentColor:c}))}
+                style={{width:22,height:22,borderRadius:'50%',background:c,border:tweaks.accentColor===c?`2px solid ${T.dark}`:'2px solid transparent'}}/>
+            ))}
+          </div>
+        </label>
+        <label style={{fontSize:12,color:T.muted,fontWeight:500,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          Insighty AI
+          <button onClick={()=>setTweaks(t=>({...t,showAIInsights:!t.showAIInsights}))}
+            style={{width:36,height:20,borderRadius:10,background:tweaks.showAIInsights?T.accent:T.border,
+              position:'relative',transition:'background .2s'}}>
+            <div style={{position:'absolute',top:2,left:tweaks.showAIInsights?18:2,width:16,height:16,borderRadius:'50%',background:'white',transition:'left .2s'}}/>
+          </button>
+        </label>
+      </div>
+    </div>
+  );
+}
+
+/* ─── APP ────────────────────────────────────── */
+function App() {
+  const [screen, setScreen] = useState('home');
+  const [selectedTx, setSelectedTx] = useState(null);
+  const [showAdd, setShowAdd] = useState(false);
+  const [tweaks, setTweaks] = useState(TWEAK_DEFAULTS);
+  const [tweaksVisible, setTweaksVisible] = useState(false);
+
+  const MONTHS_LIST = ['Styczeń 2026','Luty 2026','Marzec 2026','Kwiecień 2026'];
+  const [monthIdx, setMonthIdx] = useState(3);
+
+  const handleSelectTx = (tx) => {
+    setSelectedTx(tx);
+    if(screen!=='transactions') setScreen('transactions');
+  };
+
+  // Tweaks protocol
+  useEffect(()=>{
+    const handler = (e) => {
+      if(e.data?.type==='__activate_edit_mode') setTweaksVisible(true);
+      if(e.data?.type==='__deactivate_edit_mode') setTweaksVisible(false);
+    };
+    window.addEventListener('message',handler);
+    window.parent.postMessage({type:'__edit_mode_available'},'*');
+    return ()=>window.removeEventListener('message',handler);
+  },[]);
+
+  const screenTitles = {
+    home:'Home', transactions:'Transakcje', categories:'Kategorie',
+    accounts:'Konta', budget:'Budżet'
+  };
+
+  return (
+    <div style={{display:'flex', height:'100vh', overflow:'hidden'}}>
+      <Sidebar active={screen} onNav={(s)=>{setScreen(s);setSelectedTx(null);}} onAdd={()=>setShowAdd(true)}/>
+
+      {/* Main */}
+      <div style={{flex:1, marginLeft:T.sidebarW, display:'flex', flexDirection:'column', overflow:'hidden'}}>
+        <Topbar
+          title={screenTitles[screen]}
+          month={MONTHS_LIST[monthIdx]}
+          onPrev={()=>setMonthIdx(i=>Math.max(0,i-1))}
+          onNext={()=>setMonthIdx(i=>Math.min(MONTHS_LIST.length-1,i+1))}
+        />
+        <div style={{flex:1, overflowY: screen==='transactions'?'hidden':'auto', background:T.bg}}>
+          {screen==='home'       && <HomeScreen onNav={setScreen} onSelectTx={handleSelectTx}/>}
+          {screen==='transactions'&&<TransactionsScreen selectedTx={selectedTx} onSelectTx={setSelectedTx}/>}
+          {screen==='categories' && <CategoriesScreen/>}
+          {screen==='accounts'   && <AccountsScreen onSelectTx={handleSelectTx}/>}
+          {screen==='budget'     && <BudgetScreen/>}
+        </div>
+      </div>
+
+      {showAdd && <AddTransactionModal onClose={()=>setShowAdd(false)}/>}
+      <TweaksPanel tweaks={tweaks} setTweaks={setTweaks} visible={tweaksVisible}/>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
