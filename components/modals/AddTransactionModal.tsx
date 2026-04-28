@@ -22,8 +22,8 @@ interface AddTransactionModalProps {
 export default function AddTransactionModal({ onClose, accounts, categories }: AddTransactionModalProps) {
   const [type, setType] = useState<TxType>('expense');
   const [amount, setAmount] = useState('0');
-  const [cat, setCat] = useState(categories[0] ?? null);
-  const [acc, setAcc] = useState(accounts[0] ?? null);
+  const cat = categories[0] ?? null;
+  const acc = accounts[0] ?? null;
   const [note, setNote] = useState('');
 
   const typeColor = TYPE_COLORS[type];

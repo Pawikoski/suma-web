@@ -11,7 +11,7 @@ const cfg: Record<TransactionType, { bg: string; color: string; label: string }>
 export default function Badge({ type }: { type: TransactionType }) {
   const c = cfg[type];
   return (
-    <span style={{ background: c.bg, color: c.color, fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 20 }}>
+    <span style={{ background: c.bg, color: c.color, fontSize: 13, fontWeight: 600, padding: '4px 10px', borderRadius: 20 }}>
       {c.label}
     </span>
   );

@@ -14,12 +14,12 @@ export default function StatPill({ label, amount, type }: StatPillProps) {
     <div style={{
       display: 'flex', alignItems: 'center', gap: 6,
       background: isIncome ? T.incomeSoft : T.expenseSoft,
-      borderRadius: 20, padding: '5px 12px',
+      borderRadius: 20, padding: '7px 14px',
     }}>
-      <span style={{ fontSize: 13, color: isIncome ? T.income : T.expense }}>{isIncome ? '↑' : '↓'}</span>
+      <span style={{ fontSize: 15, color: isIncome ? T.income : T.expense }}>{isIncome ? '↑' : '↓'}</span>
       <div>
-        <div style={{ fontSize: 10, color: isIncome ? T.income : T.expense, fontWeight: 500 }}>{label}</div>
-        <div style={{ fontSize: 13, fontWeight: 700, color: isIncome ? T.income : T.expense }}>{fmtPLN(amount)}</div>
+        <div style={{ fontSize: 12, color: isIncome ? T.income : T.expense, fontWeight: 500 }}>{label}</div>
+        <div style={{ fontSize: 15, fontWeight: 700, color: isIncome ? T.income : T.expense }}>{fmtPLN(amount)}</div>
       </div>
     </div>
   );

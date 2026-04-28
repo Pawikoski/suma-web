@@ -1,5 +1,5 @@
 'use client';
-import { useActionState, useTransition } from 'react';
+import { useActionState, useCallback, useEffect, useTransition } from 'react';
 import { loginWithEmail, loginWithGoogle } from '@/app/actions/auth';
 import { T } from '@/lib/tokens';
 
@@ -7,16 +7,20 @@ export default function LoginForm() {
   const [error, formAction, pending] = useActionState(loginWithEmail, null);
   const [googlePending, startGoogleTransition] = useTransition();
 
-  function handleGoogleResponse(response: { credential: string }) {
+  const handleGoogleResponse = useCallback((response: { credential: string }) => {
     startGoogleTransition(async () => {
       await loginWithGoogle(response.credential);
     });
-  }
+  }, [startGoogleTransition]);
 
-  // Expose handler for GSI callback
-  if (typeof window !== 'undefined') {
-    (window as unknown as Record<string, unknown>).__sumaGoogleHandler = handleGoogleResponse;
-  }
+  useEffect(() => {
+    const windowWithGoogleHandler = window as unknown as Record<string, unknown>;
+    windowWithGoogleHandler.__sumaGoogleHandler = handleGoogleResponse;
+
+    return () => {
+      delete windowWithGoogleHandler.__sumaGoogleHandler;
+    };
+  }, [handleGoogleResponse]);
 
   return (
     <div style={{ width: '100%', maxWidth: 400 }}>

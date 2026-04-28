@@ -23,22 +23,22 @@ export default function Topbar({ subtitle, actions }: TopbarProps) {
 
   return (
     <div style={{
-      height: 60, background: T.card, borderBottom: `1px solid ${T.border}`,
+      height: 68, background: T.card, borderBottom: `1px solid ${T.border}`,
       display: 'flex', alignItems: 'center', paddingLeft: 24, paddingRight: 20, gap: 16,
       position: 'sticky', top: 0, zIndex: 50,
     }}>
       <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 16, fontWeight: 700, color: T.dark }}>{title}</div>
-        {subtitle && <div style={{ fontSize: 12, color: T.muted }}>{subtitle}</div>}
+        <div style={{ fontSize: 20, fontWeight: 700, color: T.dark }}>{title}</div>
+        {subtitle && <div style={{ fontSize: 14, color: T.muted }}>{subtitle}</div>}
       </div>
 
       {actions}
 
-      <button style={{ width: 34, height: 34, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: T.bg, color: T.muted, border: 'none', cursor: 'pointer' }}>
-        <Search size={16} />
+      <button style={{ width: 40, height: 40, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: T.bg, color: T.muted, border: 'none', cursor: 'pointer' }}>
+        <Search size={18} />
       </button>
-      <button style={{ width: 34, height: 34, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: T.bg, color: T.muted, border: 'none', cursor: 'pointer', position: 'relative' }}>
-        <Bell size={16} />
+      <button style={{ width: 40, height: 40, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: T.bg, color: T.muted, border: 'none', cursor: 'pointer', position: 'relative' }}>
+        <Bell size={18} />
         <span style={{ position: 'absolute', top: 7, right: 7, width: 6, height: 6, borderRadius: '50%', background: T.expense, border: `1.5px solid ${T.card}` }} />
       </button>
     </div>

@@ -13,23 +13,23 @@ import { useState } from 'react';
 function TxDetailPanel({ tx, onClose }: { tx: Transaction; onClose: () => void }) {
   const amtColor = tx.type === 'expense' ? T.expense : tx.type === 'income' ? T.income : T.mid;
   return (
-    <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+    <div style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: T.dark }}>Szczegóły</div>
+        <div style={{ fontSize: 18, fontWeight: 700, color: T.dark }}>Szczegóły</div>
         <button onClick={onClose} style={{ color: T.muted, padding: 4, border: 'none', background: 'none', cursor: 'pointer' }}>
-          <X size={16} />
+          <X size={18} />
         </button>
       </div>
 
-      <Card style={{ padding: 20, textAlign: 'center' }}>
-        <div style={{ width: 52, height: 52, borderRadius: 14, background: tx.catBg, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
-          <Icon name={tx.catIcon} size={26} color={tx.catColor} />
+      <Card style={{ padding: 22, textAlign: 'center' }}>
+        <div style={{ width: 60, height: 60, borderRadius: 16, background: tx.catBg, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
+          <Icon name={tx.catIcon} size={30} color={tx.catColor} />
         </div>
         <Badge type={tx.type} />
-        <div style={{ fontSize: 28, fontWeight: 800, color: amtColor, marginTop: 8, letterSpacing: '-1px' }}>
+        <div style={{ fontSize: 34, fontWeight: 800, color: amtColor, marginTop: 10, letterSpacing: '-1px' }}>
           {tx.type === 'expense' ? '-' : tx.type === 'income' ? '+' : ''}{fmtPLN(Math.abs(tx.amount))}
         </div>
-        <div style={{ fontSize: 13, color: T.muted, marginTop: 4 }}>{tx.cat}</div>
+        <div style={{ fontSize: 15, color: T.muted, marginTop: 4 }}>{tx.cat}</div>
       </Card>
 
       <Card style={{ padding: 0, overflow: 'hidden' }}>
@@ -39,16 +39,16 @@ function TxDetailPanel({ tx, onClose }: { tx: Transaction; onClose: () => void }
           tx.desc ? { label: 'Opis', value: tx.desc } : null,
           tx.loc ? { label: 'Miejsce', value: tx.loc } : null,
         ].filter(Boolean) as { label: string; value: string }[]).map((row, i, arr) => (
-          <div key={row.label} style={{ padding: '11px 16px', display: 'flex', justifyContent: 'space-between', borderBottom: i < arr.length - 1 ? `1px solid ${T.border}` : 'none' }}>
-            <span style={{ fontSize: 12, color: T.muted }}>{row.label}</span>
-            <span style={{ fontSize: 12, fontWeight: 600, color: T.mid }}>{row.value}</span>
+          <div key={row.label} style={{ padding: '13px 16px', display: 'flex', justifyContent: 'space-between', gap: 12, borderBottom: i < arr.length - 1 ? `1px solid ${T.border}` : 'none' }}>
+            <span style={{ fontSize: 14, color: T.muted }}>{row.label}</span>
+            <span style={{ fontSize: 14, fontWeight: 600, color: T.mid, textAlign: 'right' }}>{row.value}</span>
           </div>
         ))}
       </Card>
 
       {tx.loc && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 14px', borderRadius: T.radiusSm, background: T.bg, fontSize: 12, color: T.muted }}>
-          <MapPin size={13} color={T.accent} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px', borderRadius: T.radiusSm, background: T.bg, fontSize: 14, color: T.muted }}>
+          <MapPin size={16} color={T.accent} />
           {tx.loc}
         </div>
       )}
@@ -72,14 +72,14 @@ export default function TransactionsScreen() {
 
   return (
     <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
-      <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: 28 }}>
         <div style={{ display: 'flex', gap: 6, marginBottom: 20 }}>
           {(['all', 'expense', 'income'] as const).map(f => (
             <button
               key={f}
               onClick={() => setFilter(f)}
               style={{
-                padding: '5px 14px', borderRadius: 20, fontSize: 13, fontWeight: 500,
+                padding: '8px 16px', borderRadius: 20, fontSize: 15, fontWeight: 600,
                 background: filter === f ? T.dark : 'transparent',
                 color: filter === f ? 'white' : T.muted,
                 border: `1px solid ${filter === f ? T.dark : T.border}`,
@@ -93,14 +93,14 @@ export default function TransactionsScreen() {
 
         <Card style={{ padding: 0, overflow: 'hidden' }}>
           {filtered.length === 0 && (
-            <div style={{ padding: 32, textAlign: 'center', fontSize: 13, color: T.faint }}>Brak transakcji</div>
+            <div style={{ padding: 36, textAlign: 'center', fontSize: 15, color: T.faint }}>Brak transakcji</div>
           )}
           {filtered.map((tx, i) => (
             <div
               key={tx.id}
               onClick={() => selectTx(tx)}
               style={{
-                padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 12,
+                padding: '16px 22px', display: 'flex', alignItems: 'center', gap: 14,
                 borderBottom: i < filtered.length - 1 ? `1px solid ${T.border}` : 'none',
                 cursor: 'pointer', background: selectedTx?.id === tx.id ? T.accentLight : 'transparent',
                 transition: 'background .1s',
@@ -108,18 +108,18 @@ export default function TransactionsScreen() {
               onMouseEnter={e => { if (selectedTx?.id !== tx.id) e.currentTarget.style.background = T.bg; }}
               onMouseLeave={e => { if (selectedTx?.id !== tx.id) e.currentTarget.style.background = 'transparent'; }}
             >
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: tx.catBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <Icon name={tx.catIcon} size={18} color={tx.catColor} />
+              <div style={{ width: 44, height: 44, borderRadius: 12, background: tx.catBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Icon name={tx.catIcon} size={22} color={tx.catColor} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: T.dark }}>{tx.cat}</div>
-                <div style={{ fontSize: 12, color: T.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tx.desc || tx.loc || tx.acc}</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: T.dark }}>{tx.cat}</div>
+                <div style={{ fontSize: 14, color: T.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>{tx.desc || tx.loc || tx.acc}</div>
               </div>
               <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: tx.type === 'expense' ? T.expense : tx.type === 'income' ? T.income : T.mid }}>
+                <div style={{ fontSize: 16, fontWeight: 800, color: tx.type === 'expense' ? T.expense : tx.type === 'income' ? T.income : T.mid }}>
                   {tx.type === 'expense' ? '-' : tx.type === 'income' ? '+' : ''}{fmtPLN(Math.abs(tx.amount))}
                 </div>
-                <div style={{ fontSize: 11, color: T.faint }}>{tx.date.slice(5).replace('-', '.')}</div>
+                <div style={{ fontSize: 13, color: T.faint, marginTop: 2 }}>{tx.date.slice(5).replace('-', '.')}</div>
               </div>
             </div>
           ))}
@@ -127,7 +127,7 @@ export default function TransactionsScreen() {
       </div>
 
       {selectedTx && (
-        <div style={{ width: 300, borderLeft: `1px solid ${T.border}`, overflowY: 'auto', background: T.card }}>
+        <div style={{ width: 340, borderLeft: `1px solid ${T.border}`, overflowY: 'auto', background: T.card }}>
           <TxDetailPanel tx={selectedTx} onClose={deselectTx} />
         </div>
       )}

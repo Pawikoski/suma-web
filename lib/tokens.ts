@@ -18,7 +18,7 @@ export const T = {
   bg: '#f1f5f9',
   card: '#ffffff',
   sidebar: '#ffffff',
-  sidebarW: 240,
+  sidebarW: 260,
   radius: 12,
   radiusSm: 8,
 } as const;
