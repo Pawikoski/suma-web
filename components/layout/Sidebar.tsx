@@ -2,7 +2,10 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Home, ClipboardList, Tag, Wallet, BarChart2, Plus, Settings } from 'lucide-react';
+import { format, parse } from 'date-fns';
+import { pl } from 'date-fns/locale';
 import { T } from '@/lib/tokens';
+import { useSumaUiStore } from '@/lib/stores/ui-store';
 
 const NAV = [
   { href: '/',              label: 'Home',       Icon: Home },
@@ -18,6 +21,8 @@ interface SidebarProps {
 
 export default function Sidebar({ onAdd }: SidebarProps) {
   const pathname = usePathname();
+  const activeMonth = useSumaUiStore(state => state.activeMonth);
+  const activeMonthLabel = format(parse(activeMonth, 'yyyy-MM', new Date()), 'LLLL yyyy', { locale: pl });
 
   return (
     <div style={{
@@ -36,7 +41,7 @@ export default function Sidebar({ onAdd }: SidebarProps) {
           }}>Σ</div>
           <span style={{ fontSize: 21, fontWeight: 800, color: T.dark, letterSpacing: '-0.5px' }}>Suma</span>
         </div>
-        <div style={{ fontSize: 13, color: T.muted, marginTop: 6, marginLeft: 48 }}>Kwiecień 2026</div>
+        <div style={{ fontSize: 13, color: T.muted, marginTop: 6, marginLeft: 48 }}>{activeMonthLabel}</div>
       </div>
 
       {/* Nav */}

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
+import Providers from './providers';
 import './globals.css';
 
 const inter = Inter({
@@ -20,7 +21,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons" />
       </head>
       <body className="min-h-full" style={{ fontFamily: 'var(--font-inter), -apple-system, sans-serif' }}>
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

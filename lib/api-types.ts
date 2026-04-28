@@ -1,3 +1,5 @@
+import { ParsedSyncResponse } from './schemas/sync';
+
 export interface SyncAccount {
   id: string;
   name: string;
@@ -88,8 +90,4 @@ export interface SyncServerChanges {
   overall_budgets: SyncOverallBudget[];
 }
 
-export interface SyncResponse {
-  request_id: string;
-  new_sync_token: string;
-  server_changes: SyncServerChanges;
-}
+export type SyncResponse = ParsedSyncResponse;

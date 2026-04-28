@@ -1,6 +1,7 @@
 import 'server-only';
 import { headers } from 'next/headers';
 import { SyncResponse } from './api-types';
+import { parseSyncResponse } from './schemas/sync';
 
 const API_URL = process.env.API_URL!;
 
@@ -29,5 +30,5 @@ export async function fetchSync(): Promise<SyncResponse | null> {
   });
 
   if (!res.ok) return null;
-  return res.json();
+  return parseSyncResponse(await res.json()) as SyncResponse;
 }
