@@ -14,7 +14,7 @@ export default function AccountsScreen() {
   const { accounts, transactions } = useAppData();
   const [selected, setSelected] = useState(accounts[0] ?? null);
 
-  const totalBalance = accounts.reduce((s, a) => s + a.balance, 0);
+  const totalBalance = accounts.filter(a => a.includeInNetWorth).reduce((s, a) => s + a.balance, 0);
 
   const accTxs = selected ? transactions.filter(t => t.acc === selected.name) : [];
   const accIncome = accTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);

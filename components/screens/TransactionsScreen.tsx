@@ -1,22 +1,39 @@
 'use client';
-import { memo, useCallback, useMemo, useState } from 'react';
+import { CSSProperties, memo, useCallback, useMemo, useState, useTransition } from 'react';
 import { ColumnDef, SortingState, flexRender, getCoreRowModel, getSortedRowModel, useReactTable } from '@tanstack/react-table';
-import { parseAsStringLiteral, useQueryState } from 'nuqs';
-import { ArrowUpDown, MapPin, X } from 'lucide-react';
+import { parseAsString, parseAsStringLiteral, useQueryState } from 'nuqs';
+import { ArrowUpDown, Download, MapPin, Trash2, X } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
+import { deleteTransactionAction } from '@/app/actions/sync';
 import { T } from '@/lib/tokens';
 import { fmtPLN } from '@/lib/utils';
 import { Transaction } from '@/lib/data';
 import { useAppData } from '@/lib/AppDataContext';
-import { useSumaUiStore } from '@/lib/stores/ui-store';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import Icon from '@/components/ui/Icon';
 
-const TX_FILTERS = ['all', 'expense', 'income'] as const;
+const TX_FILTERS = ['all', 'expense', 'income', 'transfer'] as const;
 type TxFilter = typeof TX_FILTERS[number];
 
 function TxDetailPanel({ tx, onClose }: { tx: Transaction; onClose: () => void }) {
+  const router = useRouter();
+  const [isDeleting, startDeleteTransition] = useTransition();
   const amtColor = tx.type === 'expense' ? T.expense : tx.type === 'income' ? T.income : T.mid;
+  const deleteTx = () => {
+    startDeleteTransition(async () => {
+      const result = await deleteTransactionAction(tx.id);
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
+      toast.success(result.message);
+      onClose();
+      router.refresh();
+    });
+  };
+
   return (
     <div style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -41,6 +58,7 @@ function TxDetailPanel({ tx, onClose }: { tx: Transaction; onClose: () => void }
         {([
           { label: 'Data', value: tx.date.split('-').reverse().join('.') },
           { label: 'Konto', value: tx.acc },
+          tx.toAccountName ? { label: 'Do konta', value: tx.toAccountName } : null,
           tx.desc ? { label: 'Opis', value: tx.desc } : null,
           tx.loc ? { label: 'Miejsce', value: tx.loc } : null,
         ].filter(Boolean) as { label: string; value: string }[]).map((row, i, arr) => (
@@ -57,6 +75,15 @@ function TxDetailPanel({ tx, onClose }: { tx: Transaction; onClose: () => void }
           {tx.loc}
         </div>
       )}
+
+      <button
+        onClick={deleteTx}
+        disabled={isDeleting}
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '11px 14px', borderRadius: T.radiusSm, background: T.expenseSoft, color: T.expense, fontWeight: 700, opacity: isDeleting ? 0.65 : 1 }}
+      >
+        <Trash2 size={16} color={T.expense} />
+        {isDeleting ? 'Usuwanie...' : 'Usuń transakcję'}
+      </button>
     </div>
   );
 }
@@ -197,51 +224,128 @@ const TransactionsTable = memo(function TransactionsTable({ transactions, onSele
 });
 
 export default function TransactionsScreen() {
-  const { transactions } = useAppData();
+  const { accounts, categories, allTransactions, yearMonth } = useAppData();
   const [filter, setFilter] = useQueryState('type', parseAsStringLiteral(TX_FILTERS).withDefault('all'));
-  const selectedId = useSumaUiStore(state => state.selectedTransactionId);
-  const selectTransaction = useSumaUiStore(state => state.selectTransaction);
-  const clearSelectedTransaction = useSumaUiStore(state => state.clearSelectedTransaction);
+  const [selectedId, setSelectedId] = useQueryState('id');
+  const [month, setMonth] = useQueryState('month', parseAsString.withDefault(yearMonth));
+  const [accountId, setAccountId] = useQueryState('account', parseAsString.withDefault('all'));
+  const [categoryId, setCategoryId] = useQueryState('category', parseAsString.withDefault('all'));
+  const [query, setQuery] = useQueryState('q', parseAsString.withDefault(''));
 
   const selectedTx = useMemo(
-    () => selectedId ? transactions.find(t => t.id === selectedId) ?? null : null,
-    [selectedId, transactions]
+    () => selectedId ? allTransactions.find(t => t.id === selectedId) ?? null : null,
+    [allTransactions, selectedId]
   );
 
-  const filtered = useMemo(
-    () => transactions.filter(t => filter === 'all' || t.type === filter),
-    [filter, transactions]
+  const filtered = useMemo(() => {
+    const textQuery = query.trim().toLocaleLowerCase('pl-PL');
+    return allTransactions.filter(t => {
+      if (month !== 'all' && !t.date.startsWith(month)) return false;
+      if (filter !== 'all' && t.type !== filter) return false;
+      if (accountId !== 'all' && t.accountId !== accountId && t.toAccountId !== accountId) return false;
+      if (categoryId !== 'all' && t.categoryId !== categoryId) return false;
+      if (!textQuery) return true;
+      return [t.cat, t.desc, t.acc, t.toAccountName, t.loc, t.amount.toString()]
+        .filter(Boolean)
+        .some(value => String(value).toLocaleLowerCase('pl-PL').includes(textQuery));
+    });
+  }, [accountId, allTransactions, categoryId, filter, month, query]);
+
+  const months = useMemo(
+    () => Array.from(new Set(allTransactions.map(t => t.date.slice(0, 7)))).sort((a, b) => b.localeCompare(a)),
+    [allTransactions]
   );
+  const income = filtered.filter(t => t.type === 'income').reduce((sum, tx) => sum + tx.amount, 0);
+  const expense = Math.abs(filtered.filter(t => t.type === 'expense').reduce((sum, tx) => sum + tx.amount, 0));
+  const exportFiltered = useCallback(() => {
+    const quote = (value: string | number | null | undefined) => `"${String(value ?? '').replaceAll('"', '""')}"`;
+    const rows = [
+      ['date', 'type', 'category', 'account', 'to_account', 'description', 'amount', 'currency'],
+      ...filtered.map(tx => [
+        tx.date,
+        tx.type,
+        tx.cat,
+        tx.acc,
+        tx.toAccountName ?? '',
+        tx.desc,
+        tx.amount.toFixed(2),
+        tx.currency,
+      ]),
+    ];
+    const csv = rows.map(row => row.map(quote).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `suma-transakcje-${month}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }, [filtered, month]);
 
   const setTypedFilter = useCallback((value: TxFilter) => {
     void setFilter(value);
   }, [setFilter]);
   const selectTx = useCallback((tx: Transaction) => {
-    selectTransaction(tx.id);
-  }, [selectTransaction]);
+    void setSelectedId(tx.id);
+  }, [setSelectedId]);
   const deselectTx = useCallback(() => {
-    clearSelectedTransaction();
-  }, [clearSelectedTransaction]);
+    void setSelectedId(null);
+  }, [setSelectedId]);
 
   return (
     <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
       <div style={{ flex: 1, overflowY: 'auto', padding: 28 }}>
-        <div style={{ display: 'flex', gap: 6, marginBottom: 20 }}>
-          {TX_FILTERS.map(f => (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {TX_FILTERS.map(f => (
+              <button
+                key={f}
+                onClick={() => setTypedFilter(f)}
+                style={{
+                  padding: '8px 16px', borderRadius: 20, fontSize: 15, fontWeight: 600,
+                  background: filter === f ? T.dark : 'transparent',
+                  color: filter === f ? 'white' : T.muted,
+                  border: `1px solid ${filter === f ? T.dark : T.border}`,
+                  transition: 'all .15s', cursor: 'pointer',
+                }}
+              >
+                {f === 'all' ? 'Wszystkie' : f === 'expense' ? 'Wydatki' : f === 'income' ? 'Przychody' : 'Transfery'}
+              </button>
+            ))}
+          </div>
+
+          <Card style={{ padding: 12, display: 'grid', gridTemplateColumns: '1.2fr .8fr .9fr .9fr auto auto', gap: 10, alignItems: 'center' }}>
+            <input
+              value={query}
+              onChange={e => void setQuery(e.target.value)}
+              placeholder="Szukaj po opisie, kategorii, koncie..."
+              style={{ height: 38, border: `1px solid ${T.border}`, borderRadius: T.radiusSm, padding: '0 12px', font: 'inherit', color: T.dark, outline: 'none' }}
+            />
+            <select value={month} onChange={e => void setMonth(e.target.value)} style={selectStyle}>
+              <option value="all">Wszystkie miesiące</option>
+              {months.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+            <select value={accountId} onChange={e => void setAccountId(e.target.value)} style={selectStyle}>
+              <option value="all">Wszystkie konta</option>
+              {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+            <select value={categoryId} onChange={e => void setCategoryId(e.target.value)} style={selectStyle}>
+              <option value="all">Wszystkie kategorie</option>
+              {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', fontSize: 13, color: T.muted, whiteSpace: 'nowrap' }}>
+              <strong style={{ color: T.income }}>+{income.toLocaleString('pl-PL', { maximumFractionDigits: 0 })} zł</strong>
+              <strong style={{ color: T.expense }}>-{expense.toLocaleString('pl-PL', { maximumFractionDigits: 0 })} zł</strong>
+            </div>
             <button
-              key={f}
-              onClick={() => setTypedFilter(f)}
-              style={{
-                padding: '8px 16px', borderRadius: 20, fontSize: 15, fontWeight: 600,
-                background: filter === f ? T.dark : 'transparent',
-                color: filter === f ? 'white' : T.muted,
-                border: `1px solid ${filter === f ? T.dark : T.border}`,
-                transition: 'all .15s', cursor: 'pointer',
-              }}
+              onClick={exportFiltered}
+              disabled={filtered.length === 0}
+              style={{ height: 38, padding: '0 12px', borderRadius: T.radiusSm, background: T.dark, color: 'white', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, opacity: filtered.length === 0 ? 0.5 : 1 }}
             >
-              {f === 'all' ? 'Wszystkie' : f === 'expense' ? 'Wydatki' : 'Przychody'}
+              <Download size={16} color="white" />
+              CSV
             </button>
-          ))}
+          </Card>
         </div>
 
         <Card style={{ padding: 0, overflow: 'hidden' }}>
@@ -257,3 +361,14 @@ export default function TransactionsScreen() {
     </div>
   );
 }
+
+const selectStyle: CSSProperties = {
+  height: 38,
+  border: `1px solid ${T.border}`,
+  borderRadius: T.radiusSm,
+  padding: '0 10px',
+  font: 'inherit',
+  color: T.mid,
+  background: T.card,
+  outline: 'none',
+};

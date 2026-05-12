@@ -1,10 +1,12 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, ClipboardList, Tag, Wallet, BarChart2, Plus, Settings } from 'lucide-react';
+import { Home, ClipboardList, Tag, Wallet, BarChart2, Plus, LogOut } from 'lucide-react';
 import { format, parse } from 'date-fns';
 import { pl } from 'date-fns/locale';
+import { logout } from '@/app/actions/auth';
 import { T } from '@/lib/tokens';
+import { useAppData } from '@/lib/AppDataContext';
 import { useSumaUiStore } from '@/lib/stores/ui-store';
 
 const NAV = [
@@ -21,8 +23,11 @@ interface SidebarProps {
 
 export default function Sidebar({ onAdd }: SidebarProps) {
   const pathname = usePathname();
+  const { userEmail } = useAppData();
   const activeMonth = useSumaUiStore(state => state.activeMonth);
   const activeMonthLabel = format(parse(activeMonth, 'yyyy-MM', new Date()), 'LLLL yyyy', { locale: pl });
+  const displayEmail = userEmail ?? 'Konto Suma';
+  const initials = displayEmail.slice(0, 2).toUpperCase();
 
   return (
     <div style={{
@@ -93,14 +98,16 @@ export default function Sidebar({ onAdd }: SidebarProps) {
           background: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           color: 'white', fontSize: 14, fontWeight: 700,
-        }}>PK</div>
+        }}>{initials}</div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 15, fontWeight: 600, color: T.dark, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Paweł K.</div>
-          <div style={{ fontSize: 13, color: T.muted }}>Premium</div>
+          <div style={{ fontSize: 15, fontWeight: 600, color: T.dark, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayEmail}</div>
+          <div style={{ fontSize: 13, color: T.muted }}>Sesja aktywna</div>
         </div>
-        <button style={{ color: T.muted, border: 'none', background: 'none', cursor: 'pointer', padding: 2 }}>
-          <Settings size={17} />
-        </button>
+        <form action={logout}>
+          <button title="Wyloguj" style={{ color: T.muted, border: 'none', background: 'none', cursor: 'pointer', padding: 2 }}>
+            <LogOut size={17} />
+          </button>
+        </form>
       </div>
     </div>
   );

@@ -15,6 +15,6 @@ export default defineConfig({
     timeout: 120_000,
   },
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    { name: 'chromium', use: { ...devices['Desktop Chrome'], channel: 'chrome' } },
   ],
 });

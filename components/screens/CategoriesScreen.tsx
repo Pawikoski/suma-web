@@ -17,7 +17,11 @@ const VIEWS = [
 export default function CategoriesScreen() {
   const [view, setView] = useState<string>('all');
   const { categories } = useAppData();
-  const totalSpent = categories.reduce((s, c) => s + c.spent, 0);
+  const visibleCategories = categories.filter(c => {
+    if (view === 'all') return true;
+    return c.types.includes(view.toUpperCase());
+  });
+  const totalSpent = visibleCategories.reduce((s, c) => s + c.spent, 0);
 
   const now = new Date();
   const monthLabel = now.toLocaleString('pl-PL', { month: 'long', year: 'numeric' });
@@ -44,10 +48,10 @@ export default function CategoriesScreen() {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {categories.length === 0 && (
+          {visibleCategories.length === 0 && (
             <div style={{ textAlign: 'center', fontSize: 13, color: T.faint, padding: 32 }}>Brak kategorii</div>
           )}
-          {categories.map(c => {
+          {visibleCategories.map(c => {
             const pct = c.budget ? (c.spent / c.budget * 100) : null;
             const over = pct !== null && pct > 100;
             return (
@@ -81,7 +85,7 @@ export default function CategoriesScreen() {
             <div style={{ fontWeight: 600, fontSize: 14, color: T.dark, marginBottom: 16 }}>Łącznie wydane</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
               {totalSpent > 0 ? (
-                <Donut data={categories.map(c => ({ value: c.spent, color: c.color }))} size={130} />
+                <Donut data={visibleCategories.map(c => ({ value: c.spent, color: c.color }))} size={130} />
               ) : (
                 <div style={{ width: 130, height: 130, borderRadius: '50%', background: T.bg }} />
               )}
@@ -89,7 +93,7 @@ export default function CategoriesScreen() {
                 <div style={{ fontSize: 28, fontWeight: 800, color: T.dark, letterSpacing: '-1px', marginBottom: 4 }}>{fmtPLN(totalSpent)}</div>
                 <div style={{ fontSize: 12, color: T.muted }}>{monthLabel}</div>
                 <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {categories.slice(0, 4).map(c => (
+                  {visibleCategories.slice(0, 4).map(c => (
                     <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <div style={{ width: 10, height: 10, borderRadius: '50%', background: c.color, flexShrink: 0 }} />
                       <span style={{ fontSize: 12, color: T.muted, flex: 1 }}>{c.name}</span>
@@ -103,10 +107,10 @@ export default function CategoriesScreen() {
             </div>
           </Card>
 
-          {categories.some(c => c.budget) && (
+          {visibleCategories.some(c => c.budget) && (
             <Card style={{ padding: 16, background: T.accentLight }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: T.accent, marginBottom: 8 }}>Podsumowanie budżetów</div>
-              {categories.filter(c => c.budget).map(c => {
+              {visibleCategories.filter(c => c.budget).map(c => {
                 const pct = c.spent / c.budget! * 100;
                 return (
                   <div key={c.id} style={{ marginBottom: 10 }}>

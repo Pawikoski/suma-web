@@ -16,7 +16,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const { accounts, categories, transactions, overallBudget } = useAppData();
 
-  const totalBalance = accounts.reduce((s, a) => s + a.balance, 0);
+  const totalBalance = accounts.filter(a => a.includeInNetWorth).reduce((s, a) => s + a.balance, 0);
   const income = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
   const expense = Math.abs(transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0));
   const donutData = categories.slice(0, 5).map(c => ({ value: c.spent, color: c.color }));

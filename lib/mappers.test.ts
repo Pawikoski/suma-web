@@ -1,0 +1,155 @@
+import { describe, expect, it } from 'vitest';
+import { mapSyncData } from './mappers';
+import { SyncServerChanges } from './api-types';
+
+const baseChange = {
+  updated_at: '2026-05-10T10:00:00Z',
+  deleted_at: null,
+  version: 1,
+};
+
+function syncFixture(): SyncServerChanges {
+  return {
+    accounts: [
+      {
+        ...baseChange,
+        id: 'acc-cash',
+        name: 'Cash',
+        type: 'CASH',
+        category: 'BASIC',
+        balance: '100.00',
+        currency: 'PLN',
+        sort_order: 1,
+        is_default: true,
+        is_active: true,
+        include_in_net_worth: true,
+        icon_name: 'wallet',
+        icon_bg: '#fff',
+        icon_color: '#111',
+        notes: null,
+      },
+    ],
+    categories: [
+      {
+        ...baseChange,
+        id: 'cat-food',
+        name: 'Food',
+        types: ['EXPENSE'],
+        icon_name: 'shopping_cart',
+        icon_bg: '#eee',
+        icon_color: '#123456',
+        sort_order: 1,
+        is_default: false,
+        is_system: false,
+        parent_category_id: null,
+      },
+    ],
+    transactions: [
+      {
+        ...baseChange,
+        id: 'tx-current',
+        type: 'EXPENSE',
+        total_amount: '25.50',
+        from_account_id: 'acc-cash',
+        to_account_id: null,
+        account_currency: 'PLN',
+        transaction_amount: '25.50',
+        transaction_currency: 'PLN',
+        exchange_rate: 1,
+        to_account_amount: null,
+        to_account_currency: null,
+        recurring_transaction_id: null,
+        date_time: '2026-05-09T12:00:00Z',
+        notes: 'Lunch',
+        location_lat: null,
+        location_lng: null,
+        location_name: null,
+        location_address: null,
+        is_from_receipt: false,
+        is_from_notification_parser: false,
+        review_status: null,
+        parser_notification_key: null,
+        count_in_summary: true,
+        summary_amount: null,
+      },
+      {
+        ...baseChange,
+        id: 'tx-old',
+        type: 'INCOME',
+        total_amount: '50.00',
+        from_account_id: 'acc-cash',
+        to_account_id: null,
+        account_currency: 'PLN',
+        transaction_amount: '50.00',
+        transaction_currency: 'PLN',
+        exchange_rate: 1,
+        to_account_amount: null,
+        to_account_currency: null,
+        recurring_transaction_id: null,
+        date_time: '2026-04-09T12:00:00Z',
+        notes: null,
+        location_lat: null,
+        location_lng: null,
+        location_name: null,
+        location_address: null,
+        is_from_receipt: false,
+        is_from_notification_parser: false,
+        review_status: null,
+        parser_notification_key: null,
+        count_in_summary: true,
+        summary_amount: null,
+      },
+    ],
+    transaction_splits: [
+      {
+        ...baseChange,
+        id: 'split-current',
+        transaction_id: 'tx-current',
+        category_id: 'cat-food',
+        amount: '25.50',
+        name: '',
+        quantity: 1,
+        unit: 'pcs',
+        unit_price: null,
+      },
+    ],
+    category_budgets: [
+      {
+        ...baseChange,
+        id: 'budget-food',
+        category_id: 'cat-food',
+        type: 'EXPENSE_BUDGET',
+        budget_amount: '100.00',
+      },
+    ],
+    overall_budgets: [
+      {
+        ...baseChange,
+        id: 'overall',
+        budget_amount: '500.00',
+      },
+    ],
+  };
+}
+
+describe('mapSyncData', () => {
+  it('keeps all transactions while deriving the selected month view', () => {
+    const data = mapSyncData(syncFixture(), '2026-05');
+
+    expect(data.transactions.map(tx => tx.id)).toEqual(['tx-current']);
+    expect(data.allTransactions.map(tx => tx.id)).toEqual(['tx-current', 'tx-old']);
+  });
+
+  it('maps category budget and month spending from splits', () => {
+    const data = mapSyncData(syncFixture(), '2026-05');
+
+    expect(data.categories[0]).toMatchObject({
+      id: 'cat-food',
+      spent: 25.5,
+      budget: 100,
+      budgetId: 'budget-food',
+      txCount: 1,
+    });
+    expect(data.overallBudgetRecord).toMatchObject({ id: 'overall', amount: 500 });
+  });
+});

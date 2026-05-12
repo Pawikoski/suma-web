@@ -4,33 +4,71 @@ export interface Account {
   id: string;
   name: string;
   type: string;
+  rawType: string;
   balance: number;
+  currency: string;
   color: string;
   color2: string;
   icon: string;
+  category: string;
+  sortOrder: number;
+  includeInNetWorth: boolean;
+  notes: string | null;
+  updatedAt: string;
+  deletedAt: string | null;
+  version: number;
 }
 
 export interface Category {
   id: string;
   name: string;
+  types: string[];
   icon: string;
   bg: string;
   color: string;
   spent: number;
   budget: number | null;
+  budgetId: string | null;
+  budgetVersion: number | null;
   txCount: number;
+  parentCategoryId: string | null;
+  isSystem: boolean;
+  sortOrder: number;
+  updatedAt: string;
+  deletedAt: string | null;
+  version: number;
 }
 
 export interface Transaction {
   id: string;
   date: string;
+  dateTime: string;
   cat: string;
   catIcon: string;
   catBg: string;
   catColor: string;
+  categoryId: string | null;
   desc: string;
   acc: string;
+  accountId: string;
+  toAccountId: string | null;
+  toAccountName: string | null;
+  currency: string;
   amount: number;
+  rawAmount: number;
   type: TransactionType;
   loc?: string;
+  countInSummary: boolean;
+  splitIds: string[];
+  updatedAt: string;
+  deletedAt: string | null;
+  version: number;
+}
+
+export interface OverallBudget {
+  id: string;
+  amount: number;
+  updatedAt: string;
+  deletedAt: string | null;
+  version: number;
 }

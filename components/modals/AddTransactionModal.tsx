@@ -1,6 +1,9 @@
 'use client';
-import { useState } from 'react';
+import { useMemo, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { X } from 'lucide-react';
+import { toast } from 'sonner';
+import { createTransactionAction } from '@/app/actions/sync';
 import { T } from '@/lib/tokens';
 import { fmtPLN } from '@/lib/utils';
 import { Account, Category } from '@/lib/data';
@@ -20,21 +23,65 @@ interface AddTransactionModalProps {
 }
 
 export default function AddTransactionModal({ onClose, accounts, categories }: AddTransactionModalProps) {
+  const router = useRouter();
   const [type, setType] = useState<TxType>('expense');
   const [amount, setAmount] = useState('0');
-  const cat = categories[0] ?? null;
-  const acc = accounts[0] ?? null;
   const [note, setNote] = useState('');
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [accountId, setAccountId] = useState(accounts[0]?.id ?? '');
+  const [toAccountId, setToAccountId] = useState(accounts.find(a => a.id !== accounts[0]?.id)?.id ?? '');
+  const [categoryId, setCategoryId] = useState('');
+  const [isPending, startTransition] = useTransition();
 
   const typeColor = TYPE_COLORS[type];
+  const amountNumber = Number(amount);
+  const account = accounts.find(a => a.id === accountId) ?? accounts[0] ?? null;
+  const toAccount = accounts.find(a => a.id === toAccountId) ?? null;
+  const eligibleCategories = useMemo(() => {
+    if (type === 'transfer') return [];
+    const targetType = type === 'income' ? 'INCOME' : 'EXPENSE';
+    return categories.filter(c => c.types.length === 0 || c.types.includes(targetType));
+  }, [categories, type]);
+  const category = eligibleCategories.find(c => c.id === categoryId) ?? eligibleCategories[0] ?? null;
+  const effectiveToAccount = type === 'transfer'
+    ? (toAccount && toAccount.id !== accountId ? toAccount : accounts.find(a => a.id !== accountId) ?? null)
+    : null;
 
   const handleNum = (v: string) => {
     if (v === '⌫') { setAmount(a => a.length > 1 ? a.slice(0, -1) : '0'); return; }
+    if (v === '↺') { setAmount('0'); return; }
+    if (v === 'PLN') return;
     if (v === '.' && amount.includes('.')) return;
     if (amount === '0' && v !== '.') { setAmount(v); return; }
     if (amount.includes('.') && amount.split('.')[1]?.length >= 2) return;
     setAmount(a => a + v);
   };
+
+  const submit = () => {
+    startTransition(async () => {
+      const result = await createTransactionAction({
+        type,
+        amount: amountNumber,
+        date,
+        accountId,
+        toAccountId: effectiveToAccount?.id ?? null,
+        categoryId: type === 'transfer' ? null : category?.id ?? null,
+        note,
+      });
+
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
+
+      toast.success(result.message ?? 'Zapisano transakcję.');
+      onClose();
+      router.refresh();
+      if (result.id) router.push(`/transactions?id=${result.id}`);
+    });
+  };
+
+  const canSubmit = amountNumber > 0 && !!account && (type === 'transfer' ? !!effectiveToAccount && effectiveToAccount.id !== account.id : !!category);
 
   return (
     <div style={{
@@ -73,23 +120,54 @@ export default function AddTransactionModal({ onClose, accounts, categories }: A
           {/* Amount display */}
           <div style={{ textAlign: 'center', padding: '16px 0' }}>
             <div style={{ fontSize: 48, fontWeight: 800, color: typeColor, letterSpacing: '-2px', lineHeight: 1 }}>{amount}</div>
-            <div style={{ fontSize: 16, color: T.muted, marginTop: 4 }}>PLN</div>
+            <div style={{ fontSize: 16, color: T.muted, marginTop: 4 }}>{account?.currency ?? 'PLN'}</div>
           </div>
 
           {/* Account & Category */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 8, alignItems: 'center' }}>
-            <div style={{ background: T.incomeSoft, borderRadius: 10, padding: '10px 12px', cursor: 'pointer' }}>
-              <div style={{ fontSize: 10, color: T.muted, fontWeight: 500, marginBottom: 2 }}>Konto</div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: T.dark }}>{acc ? `${acc.icon} ${acc.name}` : '—'}</div>
-              <div style={{ fontSize: 11, color: T.muted }}>{acc ? fmtPLN(acc.balance) : ''}</div>
+            <div style={{ background: T.incomeSoft, borderRadius: 10, padding: '10px 12px' }}>
+              <label style={{ fontSize: 10, color: T.muted, fontWeight: 500, marginBottom: 4, display: 'block' }}>Konto</label>
+              <select
+                value={accountId}
+                onChange={e => setAccountId(e.target.value)}
+                style={{ width: '100%', border: 'none', background: 'transparent', fontSize: 13, fontWeight: 700, color: T.dark, outline: 'none', fontFamily: 'inherit' }}
+              >
+                {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+              <div style={{ fontSize: 11, color: T.muted }}>{account ? fmtPLN(account.balance) : ''}</div>
             </div>
             <div style={{ width: 30, height: 30, borderRadius: '50%', background: T.expenseSoft, display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.expense, fontSize: 16 }}>→</div>
-            <div style={{ background: T.accentLight, borderRadius: 10, padding: '10px 12px', cursor: 'pointer' }}>
-              <div style={{ fontSize: 10, color: T.muted, fontWeight: 500, marginBottom: 2 }}>Kategoria</div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: T.dark }}>{cat ? `${cat.icon} ${cat.name}` : '—'}</div>
-              <div style={{ fontSize: 11, color: T.muted }}>{cat ? fmtPLN(cat.spent) : ''}</div>
+            <div style={{ background: T.accentLight, borderRadius: 10, padding: '10px 12px' }}>
+              <label style={{ fontSize: 10, color: T.muted, fontWeight: 500, marginBottom: 4, display: 'block' }}>
+                {type === 'transfer' ? 'Do konta' : 'Kategoria'}
+              </label>
+              {type === 'transfer' ? (
+                <select
+                  value={effectiveToAccount?.id ?? ''}
+                  onChange={e => setToAccountId(e.target.value)}
+                  style={{ width: '100%', border: 'none', background: 'transparent', fontSize: 13, fontWeight: 700, color: T.dark, outline: 'none', fontFamily: 'inherit' }}
+                >
+                  {accounts.filter(a => a.id !== accountId).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+              ) : (
+                <select
+                  value={category?.id ?? ''}
+                  onChange={e => setCategoryId(e.target.value)}
+                  style={{ width: '100%', border: 'none', background: 'transparent', fontSize: 13, fontWeight: 700, color: T.dark, outline: 'none', fontFamily: 'inherit' }}
+                >
+                  {eligibleCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              )}
+              <div style={{ fontSize: 11, color: T.muted }}>{type === 'transfer' ? (effectiveToAccount ? fmtPLN(effectiveToAccount.balance) : '') : (category ? fmtPLN(category.spent) : '')}</div>
             </div>
           </div>
+
+          <input
+            type="date"
+            value={date}
+            onChange={e => setDate(e.target.value)}
+            style={{ padding: '10px 14px', borderRadius: T.radiusSm, border: `1px solid ${T.border}`, fontSize: 13, color: T.dark, outline: 'none', fontFamily: 'inherit' }}
+          />
 
           {/* Note */}
           <input
@@ -108,17 +186,19 @@ export default function AddTransactionModal({ onClose, accounts, categories }: A
               return (
                 <button
                   key={k}
-                  onClick={() => k === '✓' ? onClose() : handleNum(k)}
+                  disabled={isPending || (k === '✓' && !canSubmit)}
+                  onClick={() => k === '✓' ? submit() : handleNum(k)}
                   style={{
                     padding: '14px 0', borderRadius: T.radiusSm, fontSize: isConfirm ? 20 : 15, fontWeight: 600,
                     background: isConfirm ? T.accent : T.bg,
                     color: isConfirm ? 'white' : isSpecial ? T.muted : T.dark,
                     border: `1px solid ${isConfirm ? T.accent : T.border}`,
                     gridRow: isConfirm ? 'span 2' : 'auto',
-                    cursor: 'pointer',
+                    cursor: isPending || (k === '✓' && !canSubmit) ? 'not-allowed' : 'pointer',
+                    opacity: isPending || (k === '✓' && !canSubmit) ? 0.55 : 1,
                   }}
                 >
-                  {k}
+                  {isConfirm && isPending ? '...' : k}
                 </button>
               );
             })}

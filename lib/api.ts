@@ -2,15 +2,22 @@ import 'server-only';
 import { headers } from 'next/headers';
 import { SyncResponse } from './api-types';
 import { parseSyncResponse } from './schemas/sync';
+import { getSession } from './session';
 
 const API_URL = process.env.API_URL!;
 
 async function getAccessToken(): Promise<string | null> {
   const h = await headers();
-  return h.get('x-access-token');
+  const headerToken = h.get('x-access-token');
+  if (headerToken) return headerToken;
+  return (await getSession())?.accessToken ?? null;
 }
 
 export async function fetchSync(): Promise<SyncResponse | null> {
+  return postSyncChanges({});
+}
+
+export async function postSyncChanges(changes: Record<string, unknown>): Promise<SyncResponse | null> {
   const accessToken = await getAccessToken();
   if (!accessToken) return null;
 
@@ -24,11 +31,14 @@ export async function fetchSync(): Promise<SyncResponse | null> {
       client_id: 'web-client',
       request_id: crypto.randomUUID(),
       last_sync_token: null,
-      changes: {},
+      changes,
     }),
     cache: 'no-store',
   });
 
-  if (!res.ok) return null;
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(body || `Sync failed with ${res.status}`);
+  }
   return parseSyncResponse(await res.json()) as SyncResponse;
 }

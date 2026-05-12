@@ -1,19 +1,29 @@
 'use client';
 import { createContext, useContext } from 'react';
-import { Account, Category, Transaction } from '@/lib/data';
+import { Account, Category, OverallBudget, Transaction } from '@/lib/data';
 
 export interface AppData {
   accounts: Account[];
   categories: Category[];
   transactions: Transaction[];
+  allTransactions: Transaction[];
   overallBudget: number | null;
+  overallBudgetRecord: OverallBudget | null;
+  yearMonth: string;
+  syncError: string | null;
+  userEmail: string | null;
 }
 
 const AppDataContext = createContext<AppData>({
   accounts: [],
   categories: [],
   transactions: [],
+  allTransactions: [],
   overallBudget: null,
+  overallBudgetRecord: null,
+  yearMonth: '',
+  syncError: null,
+  userEmail: null,
 });
 
 export function AppDataProvider({ data, children }: { data: AppData; children: React.ReactNode }) {
