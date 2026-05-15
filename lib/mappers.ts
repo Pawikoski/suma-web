@@ -1,5 +1,5 @@
 import { SyncServerChanges } from './api-types';
-import { Account, Category, OverallBudget, RecurringTransaction, Transaction } from './data';
+import { Account, Category, OverallBudget, RecurringTransaction, Settlement, Transaction } from './data';
 
 const TYPE_LABELS: Record<string, string> = {
   CASH: 'Gotówka',
@@ -26,6 +26,7 @@ export interface MappedData {
   transactions: Transaction[];
   allTransactions: Transaction[];
   recurringTransactions: RecurringTransaction[];
+  settlements: Settlement[];
   overallBudget: number | null;
   overallBudgetRecord: OverallBudget | null;
   yearMonth: string;
@@ -203,6 +204,67 @@ export function mapSyncData(data: SyncServerChanges, yearMonth: string): MappedD
       } satisfies RecurringTransaction;
     });
 
+  const paymentAccountById = new Map(accounts.map(account => [account.id, account]));
+  const paymentsBySettlementId = new Map<string, Settlement['payments']>();
+  for (const payment of (data.settlement_payments ?? []).filter(payment => !payment.deleted_at)) {
+    if (!payment.settlement_id) continue;
+    const account = payment.account_id ? paymentAccountById.get(payment.account_id) : null;
+    const mapped = {
+      id: payment.id,
+      settlementId: payment.settlement_id,
+      accountId: payment.account_id,
+      accountName: account?.name ?? null,
+      transactionId: payment.transaction_id,
+      amount: parseFloat(payment.amount),
+      paidAt: payment.paid_at,
+      note: payment.note,
+      updatedAt: payment.updated_at,
+      deletedAt: payment.deleted_at,
+      version: payment.version,
+    };
+    const entries = paymentsBySettlementId.get(payment.settlement_id) ?? [];
+    entries.push(mapped);
+    paymentsBySettlementId.set(payment.settlement_id, entries);
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const settlements: Settlement[] = (data.settlements ?? [])
+    .filter(settlement => !settlement.deleted_at)
+    .map(settlement => {
+      const payments = paymentsBySettlementId.get(settlement.id) ?? [];
+      const account = settlement.account_id ? paymentAccountById.get(settlement.account_id) : null;
+      const repaidAmount = payments.reduce((sum, payment) => sum + payment.amount, 0);
+      const totalAmount = parseFloat(settlement.total_amount);
+      const remainingAmount = Math.max(totalAmount - repaidAmount, 0);
+      const dueDate = settlement.due_date ? settlement.due_date.slice(0, 10) : null;
+      return {
+        id: settlement.id,
+        direction: settlement.direction,
+        accountId: settlement.account_id,
+        accountName: account?.name ?? null,
+        transactionId: settlement.transaction_id,
+        counterpartyName: settlement.counterparty_name,
+        counterpartyEmail: settlement.counterparty_email,
+        totalAmount,
+        repaidAmount,
+        remainingAmount,
+        currency: settlement.currency,
+        note: settlement.note,
+        dueDate,
+        reminderDaysBefore: settlement.reminder_days_before,
+        status: settlement.status,
+        isOverdue: settlement.status === 'ACTIVE' && remainingAmount > 0 && dueDate !== null && dueDate < today,
+        payments: payments.sort((a, b) => b.paidAt.localeCompare(a.paidAt)),
+        updatedAt: settlement.updated_at,
+        deletedAt: settlement.deleted_at,
+        version: settlement.version,
+      } satisfies Settlement;
+    })
+    .sort((a, b) => {
+      if (a.status !== b.status) return a.status === 'ACTIVE' ? -1 : 1;
+      return (a.dueDate ?? '9999-12-31').localeCompare(b.dueDate ?? '9999-12-31');
+    });
+
   const activeOverallBudgets = data.overall_budgets.filter(b => !b.deleted_at);
   const activeOverallBudget = activeOverallBudgets[0] ?? null;
   const overallBudgetRecord = activeOverallBudget
@@ -216,7 +278,7 @@ export function mapSyncData(data: SyncServerChanges, yearMonth: string): MappedD
     : null;
   const overallBudget = overallBudgetRecord?.amount ?? null;
 
-  return { accounts, categories, transactions, allTransactions, recurringTransactions, overallBudget, overallBudgetRecord, yearMonth };
+  return { accounts, categories, transactions, allTransactions, recurringTransactions, settlements, overallBudget, overallBudgetRecord, yearMonth };
 }
 
 export function currentYearMonth(): string {

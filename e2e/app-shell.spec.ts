@@ -69,6 +69,15 @@ test('opens recurring payments from navigation', async ({ page }) => {
   await expect(page.getByText(/Miesięczne obciążenie|Brak opłat stałych/)).toBeVisible();
 });
 
+test('opens settlements from navigation', async ({ page }) => {
+  await login(page);
+
+  await page.getByRole('link', { name: 'Rozliczenia' }).click();
+
+  await expect(page).toHaveURL(/\/settlements\?month=2026-05/);
+  await expect(page.getByText(/Bilans rozliczeń|Brak rozliczeń/)).toBeVisible();
+});
+
 test('opens import and export workspace from navigation', async ({ page }) => {
   await login(page);
 

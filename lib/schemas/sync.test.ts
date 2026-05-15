@@ -86,4 +86,49 @@ describe('parseSyncResponse', () => {
       skipped_occurrence_dates: ['2026-06-01'],
     });
   });
+
+  it('validates settlements at the sync boundary', () => {
+    const result = parseSyncResponse({
+      ...baseSyncResponse,
+      server_changes: {
+        ...baseSyncResponse.server_changes,
+        settlements: [
+          {
+            id: 'settlement-1',
+            direction: 'LENT',
+            account_id: 'acc-1',
+            transaction_id: null,
+            counterparty_name: 'Marek',
+            counterparty_email: 'marek@example.com',
+            total_amount: '100.00',
+            currency: 'PLN',
+            note: null,
+            due_date: '2026-05-20T12:00:00Z',
+            reminder_days_before: '1',
+            status: 'ACTIVE',
+            updated_at: '2026-05-01T10:00:00Z',
+            deleted_at: null,
+            version: 1,
+          },
+        ],
+        settlement_payments: [
+          {
+            id: 'payment-1',
+            settlement_id: 'settlement-1',
+            account_id: 'acc-1',
+            transaction_id: null,
+            amount: '25.00',
+            paid_at: '2026-05-10T10:00:00Z',
+            note: null,
+            updated_at: '2026-05-10T10:00:00Z',
+            deleted_at: null,
+            version: 1,
+          },
+        ],
+      },
+    });
+
+    expect(result.server_changes.settlements[0]).toMatchObject({ direction: 'LENT', total_amount: '100.00' });
+    expect(result.server_changes.settlement_payments[0]).toMatchObject({ amount: '25.00' });
+  });
 });

@@ -3,7 +3,7 @@
 import { Command } from 'cmdk';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useRouter } from 'next/navigation';
-import { BarChart2, ClipboardList, Home, Repeat2, Search, Tag, UploadCloud, Wallet } from 'lucide-react';
+import { BarChart2, ClipboardList, HandCoins, Home, Repeat2, Search, Tag, UploadCloud, Wallet } from 'lucide-react';
 import { useActiveMonthData } from '@/lib/useActiveMonthData';
 import { useSumaUiStore } from '@/lib/stores/ui-store';
 import { fmtPLN } from '@/lib/utils';
@@ -12,6 +12,7 @@ const QUICK_LINKS = [
   { label: 'Home', href: '/', Icon: Home },
   { label: 'Transakcje', href: '/transactions', Icon: ClipboardList },
   { label: 'Opłaty stałe', href: '/recurring', Icon: Repeat2 },
+  { label: 'Rozliczenia', href: '/settlements', Icon: HandCoins },
   { label: 'Kategorie', href: '/categories', Icon: Tag },
   { label: 'Konta', href: '/accounts', Icon: Wallet },
   { label: 'Budżet', href: '/budget', Icon: BarChart2 },

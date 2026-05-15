@@ -122,3 +122,43 @@ export interface RecurringTransaction {
   deletedAt: string | null;
   version: number;
 }
+
+export type SettlementDirection = 'LENT' | 'BORROWED';
+export type SettlementStatus = 'ACTIVE' | 'SETTLED';
+
+export interface SettlementPayment {
+  id: string;
+  settlementId: string | null;
+  accountId: string | null;
+  accountName: string | null;
+  transactionId: string | null;
+  amount: number;
+  paidAt: string;
+  note: string | null;
+  updatedAt: string;
+  deletedAt: string | null;
+  version: number;
+}
+
+export interface Settlement {
+  id: string;
+  direction: SettlementDirection;
+  accountId: string | null;
+  accountName: string | null;
+  transactionId: string | null;
+  counterpartyName: string;
+  counterpartyEmail: string | null;
+  totalAmount: number;
+  repaidAmount: number;
+  remainingAmount: number;
+  currency: string;
+  note: string | null;
+  dueDate: string | null;
+  reminderDaysBefore: string;
+  status: SettlementStatus;
+  isOverdue: boolean;
+  payments: SettlementPayment[];
+  updatedAt: string;
+  deletedAt: string | null;
+  version: number;
+}

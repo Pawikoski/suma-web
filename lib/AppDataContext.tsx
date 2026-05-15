@@ -1,6 +1,6 @@
 'use client';
 import { createContext, useContext } from 'react';
-import { Account, Category, OverallBudget, RecurringTransaction, Transaction } from '@/lib/data';
+import { Account, Category, OverallBudget, RecurringTransaction, Settlement, Transaction } from '@/lib/data';
 
 export interface AppData {
   accounts: Account[];
@@ -8,6 +8,7 @@ export interface AppData {
   transactions: Transaction[];
   allTransactions: Transaction[];
   recurringTransactions: RecurringTransaction[];
+  settlements: Settlement[];
   overallBudget: number | null;
   overallBudgetRecord: OverallBudget | null;
   yearMonth: string;
@@ -21,6 +22,7 @@ const AppDataContext = createContext<AppData>({
   transactions: [],
   allTransactions: [],
   recurringTransactions: [],
+  settlements: [],
   overallBudget: null,
   overallBudgetRecord: null,
   yearMonth: '',

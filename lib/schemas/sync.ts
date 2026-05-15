@@ -126,6 +126,31 @@ export const syncOverallBudgetSchema = z.object({
   budget_amount: decimalLike,
 });
 
+export const syncSettlementSchema = z.object({
+  ...syncBaseFields,
+  direction: z.enum(['LENT', 'BORROWED']),
+  account_id: optionalNullableString.default(null),
+  transaction_id: optionalNullableString.default(null),
+  counterparty_name: z.string(),
+  counterparty_email: optionalNullableString.default(null),
+  total_amount: decimalLike,
+  currency: z.string().optional().default('PLN'),
+  note: optionalNullableString.default(null),
+  due_date: optionalNullableString.default(null),
+  reminder_days_before: z.string().optional().default('1'),
+  status: z.enum(['ACTIVE', 'SETTLED']).optional().default('ACTIVE'),
+});
+
+export const syncSettlementPaymentSchema = z.object({
+  ...syncBaseFields,
+  settlement_id: optionalNullableString.default(null),
+  account_id: optionalNullableString.default(null),
+  transaction_id: optionalNullableString.default(null),
+  amount: decimalLike,
+  paid_at: z.string(),
+  note: optionalNullableString.default(null),
+});
+
 const syncAppliedItemSchema = z.object({
   id: z.string(),
   status: z.string(),
@@ -172,8 +197,8 @@ export const syncResponseSchema = z.object({
     investment_holdings: z.array(z.unknown()).optional().default([]),
     investment_transactions: z.array(z.unknown()).optional().default([]),
     account_interest: z.array(z.unknown()).optional().default([]),
-    settlements: z.array(z.unknown()).optional().default([]),
-    settlement_payments: z.array(z.unknown()).optional().default([]),
+    settlements: z.array(syncSettlementSchema).optional().default([]),
+    settlement_payments: z.array(syncSettlementPaymentSchema).optional().default([]),
   }),
 });
 

@@ -160,6 +160,37 @@ export interface SyncOverallBudget {
   version: number;
 }
 
+export interface SyncSettlement {
+  id: string;
+  direction: 'LENT' | 'BORROWED';
+  account_id: string | null;
+  transaction_id: string | null;
+  counterparty_name: string;
+  counterparty_email: string | null;
+  total_amount: string;
+  currency: string;
+  note: string | null;
+  due_date: string | null;
+  reminder_days_before: string;
+  status: 'ACTIVE' | 'SETTLED';
+  updated_at: string;
+  deleted_at: string | null;
+  version: number;
+}
+
+export interface SyncSettlementPayment {
+  id: string;
+  settlement_id: string | null;
+  account_id: string | null;
+  transaction_id: string | null;
+  amount: string;
+  paid_at: string;
+  note: string | null;
+  updated_at: string;
+  deleted_at: string | null;
+  version: number;
+}
+
 export interface SyncServerChanges {
   accounts: SyncAccount[];
   account_budgets?: unknown[];
@@ -175,8 +206,8 @@ export interface SyncServerChanges {
   investment_holdings?: unknown[];
   investment_transactions?: unknown[];
   account_interest?: unknown[];
-  settlements?: unknown[];
-  settlement_payments?: unknown[];
+  settlements?: SyncSettlement[];
+  settlement_payments?: SyncSettlementPayment[];
 }
 
 export type SyncResponse = ParsedSyncResponse;

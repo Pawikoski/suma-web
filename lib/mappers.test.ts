@@ -162,6 +162,35 @@ function syncFixture(): SyncServerChanges {
         is_active: true,
       },
     ],
+    settlements: [
+      {
+        ...baseChange,
+        id: 'settlement-1',
+        direction: 'LENT',
+        account_id: 'acc-cash',
+        transaction_id: null,
+        counterparty_name: 'Marek',
+        counterparty_email: 'marek@example.com',
+        total_amount: '100.00',
+        currency: 'PLN',
+        note: 'Dinner',
+        due_date: '2026-05-20T12:00:00Z',
+        reminder_days_before: '1',
+        status: 'ACTIVE',
+      },
+    ],
+    settlement_payments: [
+      {
+        ...baseChange,
+        id: 'settlement-payment-1',
+        settlement_id: 'settlement-1',
+        account_id: 'acc-cash',
+        transaction_id: null,
+        amount: '30.00',
+        paid_at: '2026-05-11T12:00:00Z',
+        note: null,
+      },
+    ],
   };
 }
 
@@ -196,6 +225,20 @@ describe('mapSyncData', () => {
       frequency: 'MONTHLY',
       recurringCategory: 'RENTAL',
       categorySplits: [{ categoryId: 'cat-food', amount: 1200 }],
+    });
+  });
+
+  it('maps settlement summaries with repaid and remaining amounts', () => {
+    const data = mapSyncData(syncFixture(), '2026-05');
+
+    expect(data.settlements[0]).toMatchObject({
+      id: 'settlement-1',
+      counterpartyName: 'Marek',
+      accountName: 'Cash',
+      totalAmount: 100,
+      repaidAmount: 30,
+      remainingAmount: 70,
+      payments: [{ amount: 30, accountName: 'Cash' }],
     });
   });
 });
