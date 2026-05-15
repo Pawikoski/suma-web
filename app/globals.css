@@ -178,6 +178,30 @@ button {
     height: 64px !important;
     padding-left: 16px !important;
     padding-right: 12px !important;
+    gap: 8px !important;
+  }
+
+  .topbar > div:first-child {
+    flex: 0 1 auto !important;
+    min-width: 56px;
+  }
+
+  .month-switcher {
+    gap: 2px !important;
+  }
+
+  .month-switcher button {
+    width: 28px !important;
+    height: 28px !important;
+  }
+
+  .month-switcher button[aria-label="Wybierz wszystkie miesiące"] {
+    width: auto !important;
+    min-width: 84px !important;
+    max-width: 96px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .mobile-bottom-nav {

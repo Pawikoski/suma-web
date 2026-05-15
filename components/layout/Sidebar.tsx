@@ -6,8 +6,7 @@ import { format, parse } from 'date-fns';
 import { pl } from 'date-fns/locale';
 import { logout } from '@/app/actions/auth';
 import { T } from '@/lib/tokens';
-import { useAppData } from '@/lib/AppDataContext';
-import { useSumaUiStore } from '@/lib/stores/ui-store';
+import { useActiveMonthData } from '@/lib/useActiveMonthData';
 
 const NAV = [
   { href: '/',              label: 'Home',       Icon: Home },
@@ -23,11 +22,13 @@ interface SidebarProps {
 
 export default function Sidebar({ onAdd }: SidebarProps) {
   const pathname = usePathname();
-  const { userEmail } = useAppData();
-  const activeMonth = useSumaUiStore(state => state.activeMonth);
-  const activeMonthLabel = format(parse(activeMonth, 'yyyy-MM', new Date()), 'LLLL yyyy', { locale: pl });
+  const { userEmail, activeMonth } = useActiveMonthData();
+  const activeMonthLabel = activeMonth === 'all'
+    ? 'wszystkie miesiące'
+    : format(parse(activeMonth, 'yyyy-MM', new Date()), 'LLLL yyyy', { locale: pl });
   const displayEmail = userEmail ?? 'Konto Suma';
   const initials = displayEmail.slice(0, 2).toUpperCase();
+  const navHref = (href: string) => `${href}?month=${encodeURIComponent(activeMonth)}`;
 
   return (
     <div className="app-sidebar" style={{
@@ -56,7 +57,7 @@ export default function Sidebar({ onAdd }: SidebarProps) {
           return (
             <Link
               key={href}
-              href={href}
+              href={navHref(href)}
               style={{
                 display: 'flex', alignItems: 'center', gap: 12,
                 padding: '11px 12px', borderRadius: T.radiusSm,

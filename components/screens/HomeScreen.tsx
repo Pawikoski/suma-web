@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { ChevronRight, Sparkles } from 'lucide-react';
 import { T } from '@/lib/tokens';
 import { fmtShort } from '@/lib/utils';
-import { useAppData } from '@/lib/AppDataContext';
+import { useActiveMonthData } from '@/lib/useActiveMonthData';
 import Card from '@/components/ui/Card';
 import StatPill from '@/components/ui/StatPill';
 import Bar from '@/components/ui/Bar';
@@ -15,7 +15,7 @@ import PrivacyAmount from '@/components/ui/PrivacyAmount';
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { accounts, categories, transactions, overallBudget } = useAppData();
+  const { accounts, categories, transactions, overallBudget, activeMonth } = useActiveMonthData();
 
   const totalBalance = accounts.filter(a => a.includeInNetWorth).reduce((s, a) => s + a.balance, 0);
   const income = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
@@ -65,7 +65,7 @@ export default function HomeScreen() {
           <div style={{ padding: '18px 22px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ fontWeight: 700, fontSize: 18, color: T.dark }}>Ostatnie transakcje</div>
             <Link
-              href="/transactions"
+              href={`/transactions?month=${activeMonth}`}
               style={{ fontSize: 14, color: T.accent, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4, textDecoration: 'none' }}
             >
               Wszystkie <ChevronRight size={16} color={T.accent} />
@@ -77,7 +77,7 @@ export default function HomeScreen() {
           {transactions.slice(0, 7).map((tx, i) => (
             <div
               key={tx.id}
-              onClick={() => router.push(`/transactions?id=${tx.id}`)}
+              onClick={() => router.push(`/transactions?id=${tx.id}&month=${activeMonth}`)}
               style={{ padding: '16px 22px', display: 'flex', alignItems: 'center', gap: 14, borderBottom: i < Math.min(6, transactions.length - 1) ? `1px solid ${T.border}` : 'none', cursor: 'pointer', transition: 'background .1s' }}
               onMouseEnter={e => (e.currentTarget.style.background = T.bg)}
               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
@@ -134,7 +134,7 @@ export default function HomeScreen() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <div style={{ fontWeight: 700, fontSize: 18, color: T.dark }}>Konta</div>
           <Link
-            href="/accounts"
+            href={`/accounts?month=${activeMonth}`}
             style={{ fontSize: 14, color: T.accent, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4, textDecoration: 'none' }}
           >
             Wszystkie <ChevronRight size={16} color={T.accent} />

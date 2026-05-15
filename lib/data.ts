@@ -60,9 +60,16 @@ export interface Transaction {
   loc?: string;
   countInSummary: boolean;
   splitIds: string[];
+  splits: TransactionSplitSummary[];
   updatedAt: string;
   deletedAt: string | null;
   version: number;
+}
+
+export interface TransactionSplitSummary {
+  id: string;
+  categoryId: string | null;
+  amount: number;
 }
 
 export interface OverallBudget {

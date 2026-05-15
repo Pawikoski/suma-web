@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ClipboardList } from 'lucide-react';
 import { T } from '@/lib/tokens';
-import { useAppData } from '@/lib/AppDataContext';
+import { useActiveMonthData } from '@/lib/useActiveMonthData';
 import Card from '@/components/ui/Card';
 import Sparkline from '@/components/ui/Sparkline';
 import Icon from '@/components/ui/Icon';
@@ -11,7 +11,7 @@ import PrivacyAmount from '@/components/ui/PrivacyAmount';
 
 export default function AccountsScreen() {
   const router = useRouter();
-  const { accounts, transactions } = useAppData();
+  const { accounts, transactions, activeMonth } = useActiveMonthData();
   const [selected, setSelected] = useState(accounts[0] ?? null);
 
   const totalBalance = accounts.filter(a => a.includeInNetWorth).reduce((s, a) => s + a.balance, 0);
@@ -64,7 +64,7 @@ export default function AccountsScreen() {
             {accTxs.map((tx, i) => (
               <div
                 key={tx.id}
-                onClick={() => router.push(`/transactions?id=${tx.id}`)}
+                onClick={() => router.push(`/transactions?id=${tx.id}&month=${activeMonth}`)}
                 style={{ padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: i < accTxs.length - 1 ? `1px solid ${T.border}` : 'none', cursor: 'pointer' }}
                 onMouseEnter={e => (e.currentTarget.style.background = T.bg)}
                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}

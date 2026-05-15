@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { BarChart2, ClipboardList, Home, Plus, Tag, Wallet } from 'lucide-react';
 import { T } from '@/lib/tokens';
+import { useActiveMonthData } from '@/lib/useActiveMonthData';
 
 const NAV = [
   { href: '/', label: 'Home', Icon: Home },
@@ -15,6 +16,8 @@ const NAV = [
 
 export default function MobileBottomNav({ onAdd }: { onAdd: () => void }) {
   const pathname = usePathname();
+  const { activeMonth } = useActiveMonthData();
+  const navHref = (href: string) => `${href}?month=${encodeURIComponent(activeMonth)}`;
   const left = NAV.slice(0, 2);
   const right = NAV.slice(2);
 
@@ -23,7 +26,7 @@ export default function MobileBottomNav({ onAdd }: { onAdd: () => void }) {
       {[...left].map(({ href, label, Icon }) => {
         const active = pathname === href;
         return (
-          <Link key={href} href={href} className={`mobile-nav-item${active ? ' active' : ''}`} aria-label={label}>
+          <Link key={href} href={navHref(href)} className={`mobile-nav-item${active ? ' active' : ''}`} aria-label={label}>
             <Icon size={active ? 22 : 24} color={active ? T.accent : T.muted} />
             {active && <span>{label}</span>}
           </Link>
@@ -37,7 +40,7 @@ export default function MobileBottomNav({ onAdd }: { onAdd: () => void }) {
       {[...right].map(({ href, label, Icon }) => {
         const active = pathname === href;
         return (
-          <Link key={href} href={href} className={`mobile-nav-item${active ? ' active' : ''}`} aria-label={label}>
+          <Link key={href} href={navHref(href)} className={`mobile-nav-item${active ? ' active' : ''}`} aria-label={label}>
             <Icon size={active ? 22 : 24} color={active ? T.accent : T.muted} />
             {active && <span>{label}</span>}
           </Link>

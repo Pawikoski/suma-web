@@ -153,6 +153,11 @@ export function mapSyncData(data: SyncServerChanges, yearMonth: string): MappedD
         loc: t.location_name ?? undefined,
         countInSummary: t.count_in_summary,
         splitIds: splits.map(s => s.id),
+        splits: splits.map(s => ({
+          id: s.id,
+          categoryId: s.category_id,
+          amount: parseFloat(s.amount),
+        })),
         updatedAt: t.updated_at,
         deletedAt: t.deleted_at,
         version: t.version,

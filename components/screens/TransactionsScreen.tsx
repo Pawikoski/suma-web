@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import { deleteTransactionAction, deleteTransactionsAction } from '@/app/actions/sync';
 import { T } from '@/lib/tokens';
 import { Transaction } from '@/lib/data';
-import { useAppData } from '@/lib/AppDataContext';
+import { useActiveMonthData } from '@/lib/useActiveMonthData';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import Icon from '@/components/ui/Icon';
@@ -257,10 +257,9 @@ const TransactionsTable = memo(function TransactionsTable({ transactions, onSele
 
 export default function TransactionsScreen() {
   const router = useRouter();
-  const { accounts, categories, allTransactions, yearMonth } = useAppData();
+  const { accounts, categories, allTransactions, activeMonth, setActiveMonthParam, availableMonths } = useActiveMonthData();
   const [filter, setFilter] = useQueryState('type', parseAsStringLiteral(TX_FILTERS).withDefault('all'));
   const [selectedId, setSelectedId] = useQueryState('id');
-  const [month, setMonth] = useQueryState('month', parseAsString.withDefault(yearMonth));
   const [accountId, setAccountId] = useQueryState('account', parseAsString.withDefault('all'));
   const [categoryId, setCategoryId] = useQueryState('category', parseAsString.withDefault('all'));
   const [query, setQuery] = useQueryState('q', parseAsString.withDefault(''));
@@ -275,7 +274,7 @@ export default function TransactionsScreen() {
   const filtered = useMemo(() => {
     const textQuery = query.trim().toLocaleLowerCase('pl-PL');
     return allTransactions.filter(t => {
-      if (month !== 'all' && !t.date.startsWith(month)) return false;
+      if (activeMonth !== 'all' && !t.date.startsWith(activeMonth)) return false;
       if (filter !== 'all' && t.type !== filter) return false;
       if (accountId !== 'all' && t.accountId !== accountId && t.toAccountId !== accountId) return false;
       if (categoryId !== 'all' && t.categoryId !== categoryId) return false;
@@ -284,12 +283,7 @@ export default function TransactionsScreen() {
         .filter(Boolean)
         .some(value => String(value).toLocaleLowerCase('pl-PL').includes(textQuery));
     });
-  }, [accountId, allTransactions, categoryId, filter, month, query]);
-
-  const months = useMemo(
-    () => Array.from(new Set(allTransactions.map(t => t.date.slice(0, 7)))).sort((a, b) => b.localeCompare(a)),
-    [allTransactions]
-  );
+  }, [accountId, activeMonth, allTransactions, categoryId, filter, query]);
   const income = filtered.filter(t => t.type === 'income').reduce((sum, tx) => sum + tx.amount, 0);
   const expense = Math.abs(filtered.filter(t => t.type === 'expense').reduce((sum, tx) => sum + tx.amount, 0));
   const selectedTransactions = useMemo(
@@ -318,10 +312,10 @@ export default function TransactionsScreen() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `suma-transakcje-${month}.csv`;
+    link.download = `suma-transakcje-${activeMonth}.csv`;
     link.click();
     URL.revokeObjectURL(url);
-  }, [filtered, month]);
+  }, [activeMonth, filtered]);
 
   const setTypedFilter = useCallback((value: TxFilter) => {
     void setFilter(value);
@@ -397,9 +391,9 @@ export default function TransactionsScreen() {
               placeholder="Szukaj po opisie, kategorii, koncie..."
               style={{ height: 38, border: `1px solid ${T.border}`, borderRadius: T.radiusSm, padding: '0 12px', font: 'inherit', color: T.dark, outline: 'none' }}
             />
-            <select value={month} onChange={e => void setMonth(e.target.value)} style={selectStyle}>
+            <select value={activeMonth} onChange={e => void setActiveMonthParam(e.target.value)} style={selectStyle}>
               <option value="all">Wszystkie miesiące</option>
-              {months.map(m => <option key={m} value={m}>{m}</option>)}
+              {availableMonths.map(m => <option key={m} value={m}>{m}</option>)}
             </select>
             <select value={accountId} onChange={e => void setAccountId(e.target.value)} style={selectStyle}>
               <option value="all">Wszystkie konta</option>

@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { T } from '@/lib/tokens';
 import { fmtPLN } from '@/lib/utils';
-import { useAppData } from '@/lib/AppDataContext';
+import { useActiveMonthData } from '@/lib/useActiveMonthData';
 import Card from '@/components/ui/Card';
 import Bar from '@/components/ui/Bar';
 import Donut from '@/components/ui/Donut';
@@ -17,14 +17,14 @@ const VIEWS = [
 
 export default function CategoriesScreen() {
   const [view, setView] = useState<string>('all');
-  const { categories } = useAppData();
+  const { categories, activeMonth } = useActiveMonthData();
   const visibleCategories = categories.filter(c => {
     if (view === 'all') return true;
     return c.types.includes(view.toUpperCase());
   });
   const totalSpent = visibleCategories.reduce((s, c) => s + c.spent, 0);
 
-  const now = new Date();
+  const now = new Date(`${activeMonth}-15T12:00:00`);
   const monthLabel = now.toLocaleString('pl-PL', { month: 'long', year: 'numeric' });
 
   return (

@@ -4,7 +4,7 @@ import { Command } from 'cmdk';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useRouter } from 'next/navigation';
 import { BarChart2, ClipboardList, Home, Search, Tag, Wallet } from 'lucide-react';
-import { useAppData } from '@/lib/AppDataContext';
+import { useActiveMonthData } from '@/lib/useActiveMonthData';
 import { useSumaUiStore } from '@/lib/stores/ui-store';
 import { fmtPLN } from '@/lib/utils';
 
@@ -18,13 +18,16 @@ const QUICK_LINKS = [
 
 export default function CommandPalette() {
   const router = useRouter();
-  const { accounts, categories, allTransactions } = useAppData();
+  const { accounts, categories, allTransactions, activeMonth } = useActiveMonthData();
   const open = useSumaUiStore(state => state.isCommandOpen);
   const close = useSumaUiStore(state => state.closeCommand);
+  const navHref = (href: string) => href.includes('?')
+    ? `${href}&month=${encodeURIComponent(activeMonth)}`
+    : `${href}?month=${encodeURIComponent(activeMonth)}`;
 
   const run = (href: string) => {
     close();
-    router.push(href);
+    router.push(navHref(href));
   };
 
   return (

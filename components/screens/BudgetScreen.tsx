@@ -7,14 +7,14 @@ import { upsertCategoryBudgetAction, upsertOverallBudgetAction } from '@/app/act
 import { T } from '@/lib/tokens';
 import { fmtPLN } from '@/lib/utils';
 import { Category } from '@/lib/data';
-import { useAppData } from '@/lib/AppDataContext';
+import { useActiveMonthData } from '@/lib/useActiveMonthData';
 import Card from '@/components/ui/Card';
 import Bar from '@/components/ui/Bar';
 import Icon from '@/components/ui/Icon';
 import PrivacyAmount from '@/components/ui/PrivacyAmount';
 
 export default function BudgetScreen() {
-  const { categories, overallBudget } = useAppData();
+  const { categories, overallBudget, activeMonth } = useActiveMonthData();
   const router = useRouter();
   const [overallDraft, setOverallDraft] = useState(String(overallBudget ?? ''));
   const [overallPending, startOverallTransition] = useTransition();
@@ -23,7 +23,7 @@ export default function BudgetScreen() {
   const totalBudget = overallBudget ?? 0;
   const pct = totalBudget > 0 ? (spent / totalBudget * 100) : 0;
 
-  const now = new Date();
+  const now = new Date(`${activeMonth}-15T12:00:00`);
   const monthLabel = now.toLocaleString('pl-PL', { month: 'long', year: 'numeric' });
   const daysLeft = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate() - now.getDate();
 

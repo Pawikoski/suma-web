@@ -26,6 +26,16 @@ test('command search navigates to app views', async ({ page }) => {
   await page.getByRole('combobox', { name: 'Szukaj w Suma' }).fill('budżet');
   await page.locator('[cmdk-item][data-value="widok Budżet"]').click();
 
-  await expect(page).toHaveURL(/\/budget$/);
+  await expect(page).toHaveURL(/\/budget\?month=2026-05$/);
   await expect(page.getByText('Budżet ogólny')).toBeVisible();
+});
+
+test('persists selected month in the URL', async ({ page }) => {
+  await login(page);
+
+  await page.getByRole('button', { name: 'Poprzedni miesiąc' }).click();
+
+  await expect(page).toHaveURL(/month=2026-04/);
+  await page.getByRole('link', { name: 'Budżet' }).click();
+  await expect(page).toHaveURL(/\/budget\?month=2026-04/);
 });
