@@ -2,13 +2,14 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BarChart2, ClipboardList, Home, Plus, Tag, Wallet } from 'lucide-react';
+import { BarChart2, ClipboardList, Home, Plus, Repeat2, Tag, Wallet } from 'lucide-react';
 import { T } from '@/lib/tokens';
 import { useActiveMonthData } from '@/lib/useActiveMonthData';
 
 const NAV = [
   { href: '/', label: 'Home', Icon: Home },
   { href: '/transactions', label: 'Transakcje', Icon: ClipboardList },
+  { href: '/recurring', label: 'Stałe', Icon: Repeat2 },
   { href: '/categories', label: 'Kategorie', Icon: Tag },
   { href: '/accounts', label: 'Konta', Icon: Wallet },
   { href: '/budget', label: 'Budżet', Icon: BarChart2 },

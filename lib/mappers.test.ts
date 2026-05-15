@@ -129,6 +129,39 @@ function syncFixture(): SyncServerChanges {
         budget_amount: '500.00',
       },
     ],
+    recurring_transactions: [
+      {
+        ...baseChange,
+        id: 'rec-rent',
+        from_account_id: 'acc-cash',
+        to_account_id: null,
+        type: 'EXPENSE',
+        total_amount: '1200.00',
+        account_currency: 'PLN',
+        transaction_amount: '1200.00',
+        transaction_currency: 'PLN',
+        exchange_rate: 1,
+        to_account_amount: null,
+        to_account_currency: null,
+        notes: 'Rent',
+        location_lat: null,
+        location_lng: null,
+        location_name: null,
+        location_address: null,
+        count_in_summary: true,
+        summary_amount: null,
+        frequency: 'MONTHLY',
+        interval_value: 1,
+        start_date: '2026-05-01',
+        end_date: null,
+        last_generated_date: '2026-05-01',
+        skipped_occurrence_dates: [],
+        category_splits: [{ category_id: 'cat-food', amount: '1200.00' }],
+        recurring_category: 'RENTAL',
+        recurring_category_label: null,
+        is_active: true,
+      },
+    ],
   };
 }
 
@@ -151,5 +184,18 @@ describe('mapSyncData', () => {
       txCount: 1,
     });
     expect(data.overallBudgetRecord).toMatchObject({ id: 'overall', amount: 500 });
+  });
+
+  it('maps recurring transactions from the sync contract', () => {
+    const data = mapSyncData(syncFixture(), '2026-05');
+
+    expect(data.recurringTransactions[0]).toMatchObject({
+      id: 'rec-rent',
+      amount: 1200,
+      fromAccountName: 'Cash',
+      frequency: 'MONTHLY',
+      recurringCategory: 'RENTAL',
+      categorySplits: [{ categoryId: 'cat-food', amount: 1200 }],
+    });
   });
 });

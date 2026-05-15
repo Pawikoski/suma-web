@@ -78,6 +78,42 @@ export const syncTransactionSplitSchema = z.object({
   unit_price: decimalLike.nullable().optional().default(null),
 });
 
+export const syncRecurringCategorySplitSchema = z.object({
+  category_id: z.string(),
+  amount: decimalLike,
+});
+
+export const syncRecurringTransactionSchema = z.object({
+  ...syncBaseFields,
+  from_account_id: optionalNullableString.default(null),
+  to_account_id: optionalNullableString.default(null),
+  type: z.enum(['EXPENSE', 'INCOME', 'TRANSFER']),
+  total_amount: decimalLike.nullable().optional().default(null),
+  account_currency: z.string().optional().default('PLN'),
+  transaction_amount: decimalLike.nullable().optional().default(null),
+  transaction_currency: optionalNullableString.default(null),
+  exchange_rate: z.number().nullable().optional().default(null),
+  to_account_amount: decimalLike.nullable().optional().default(null),
+  to_account_currency: optionalNullableString.default(null),
+  notes: optionalNullableString.default(null),
+  location_lat: z.number().nullable().optional().default(null),
+  location_lng: z.number().nullable().optional().default(null),
+  location_name: optionalNullableString.default(null),
+  location_address: optionalNullableString.default(null),
+  count_in_summary: z.boolean().optional().default(true),
+  summary_amount: decimalLike.nullable().optional().default(null),
+  frequency: z.enum(['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY']),
+  interval_value: z.number().int().positive().optional().default(1),
+  start_date: z.string(),
+  end_date: optionalNullableString.default(null),
+  last_generated_date: optionalNullableString.default(null),
+  skipped_occurrence_dates: z.array(z.string()).optional().default([]),
+  category_splits: z.array(syncRecurringCategorySplitSchema).optional().default([]),
+  recurring_category: z.enum(['FIXED_ACCOUNT_FEE', 'SUBSCRIPTION', 'BILL', 'INSURANCE', 'LOAN', 'SAVINGS', 'RENTAL', 'OTHER']).optional().default('OTHER'),
+  recurring_category_label: optionalNullableString.default(null),
+  is_active: z.boolean().optional().default(true),
+});
+
 export const syncCategoryBudgetSchema = z.object({
   ...syncBaseFields,
   category_id: z.string().nullable(),
@@ -125,7 +161,7 @@ export const syncResponseSchema = z.object({
     accounts: z.array(syncAccountSchema),
     account_budgets: z.array(z.unknown()).optional().default([]),
     categories: z.array(syncCategorySchema),
-    recurring_transactions: z.array(z.unknown()).optional().default([]),
+    recurring_transactions: z.array(syncRecurringTransactionSchema).optional().default([]),
     transactions: z.array(syncTransactionSchema),
     transaction_splits: z.array(syncTransactionSplitSchema),
     transaction_photos: z.array(z.unknown()).optional().default([]),

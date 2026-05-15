@@ -1,5 +1,5 @@
 import { SyncServerChanges } from './api-types';
-import { Account, Category, OverallBudget, Transaction } from './data';
+import { Account, Category, OverallBudget, RecurringTransaction, Transaction } from './data';
 
 const TYPE_LABELS: Record<string, string> = {
   CASH: 'Gotówka',
@@ -25,6 +25,7 @@ export interface MappedData {
   categories: Category[];
   transactions: Transaction[];
   allTransactions: Transaction[];
+  recurringTransactions: RecurringTransaction[];
   overallBudget: number | null;
   overallBudgetRecord: OverallBudget | null;
   yearMonth: string;
@@ -165,6 +166,43 @@ export function mapSyncData(data: SyncServerChanges, yearMonth: string): MappedD
     });
   const transactions = allTransactions.filter(t => t.date.startsWith(yearMonth));
 
+  const recurringTransactions: RecurringTransaction[] = (data.recurring_transactions ?? [])
+    .filter(r => !r.deleted_at)
+    .sort((a, b) => a.start_date.localeCompare(b.start_date))
+    .map(r => {
+      const fromAccount = r.from_account_id ? accountById.get(r.from_account_id) : null;
+      const toAccount = r.to_account_id ? accountById.get(r.to_account_id) : null;
+      return {
+        id: r.id,
+        type: r.type === 'EXPENSE' ? 'expense' : r.type === 'INCOME' ? 'income' : 'transfer',
+        rawType: r.type,
+        amount: r.total_amount === null ? null : parseFloat(r.total_amount),
+        currency: r.account_currency || fromAccount?.currency || 'PLN',
+        fromAccountId: r.from_account_id,
+        fromAccountName: fromAccount?.name ?? null,
+        toAccountId: r.to_account_id,
+        toAccountName: toAccount?.name ?? null,
+        notes: r.notes ?? '',
+        locationName: r.location_name,
+        frequency: r.frequency,
+        intervalValue: r.interval_value,
+        startDate: r.start_date.slice(0, 10),
+        endDate: r.end_date ? r.end_date.slice(0, 10) : null,
+        lastGeneratedDate: r.last_generated_date ? r.last_generated_date.slice(0, 10) : null,
+        skippedOccurrenceDates: r.skipped_occurrence_dates.map(date => date.slice(0, 10)),
+        categorySplits: r.category_splits.map(split => ({
+          categoryId: split.category_id,
+          amount: parseFloat(split.amount),
+        })),
+        recurringCategory: r.recurring_category,
+        recurringCategoryLabel: r.recurring_category_label?.trim() || null,
+        isActive: r.is_active,
+        updatedAt: r.updated_at,
+        deletedAt: r.deleted_at,
+        version: r.version,
+      } satisfies RecurringTransaction;
+    });
+
   const activeOverallBudgets = data.overall_budgets.filter(b => !b.deleted_at);
   const activeOverallBudget = activeOverallBudgets[0] ?? null;
   const overallBudgetRecord = activeOverallBudget
@@ -178,7 +216,7 @@ export function mapSyncData(data: SyncServerChanges, yearMonth: string): MappedD
     : null;
   const overallBudget = overallBudgetRecord?.amount ?? null;
 
-  return { accounts, categories, transactions, allTransactions, overallBudget, overallBudgetRecord, yearMonth };
+  return { accounts, categories, transactions, allTransactions, recurringTransactions, overallBudget, overallBudgetRecord, yearMonth };
 }
 
 export function currentYearMonth(): string {

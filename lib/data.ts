@@ -79,3 +79,46 @@ export interface OverallBudget {
   deletedAt: string | null;
   version: number;
 }
+
+export type RecurringFrequency = 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY';
+export type RecurringCategory =
+  | 'FIXED_ACCOUNT_FEE'
+  | 'SUBSCRIPTION'
+  | 'BILL'
+  | 'INSURANCE'
+  | 'LOAN'
+  | 'SAVINGS'
+  | 'RENTAL'
+  | 'OTHER';
+
+export interface RecurringSplitSummary {
+  categoryId: string;
+  amount: number;
+}
+
+export interface RecurringTransaction {
+  id: string;
+  type: 'expense' | 'income' | 'transfer';
+  rawType: 'EXPENSE' | 'INCOME' | 'TRANSFER';
+  amount: number | null;
+  currency: string;
+  fromAccountId: string | null;
+  fromAccountName: string | null;
+  toAccountId: string | null;
+  toAccountName: string | null;
+  notes: string;
+  locationName: string | null;
+  frequency: RecurringFrequency;
+  intervalValue: number;
+  startDate: string;
+  endDate: string | null;
+  lastGeneratedDate: string | null;
+  skippedOccurrenceDates: string[];
+  categorySplits: RecurringSplitSummary[];
+  recurringCategory: RecurringCategory;
+  recurringCategoryLabel: string | null;
+  isActive: boolean;
+  updatedAt: string;
+  deletedAt: string | null;
+  version: number;
+}

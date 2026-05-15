@@ -103,6 +103,45 @@ export interface SyncTransactionSplit {
   version: number;
 }
 
+export interface SyncRecurringCategorySplit {
+  category_id: string;
+  amount: string;
+}
+
+export interface SyncRecurringTransaction {
+  id: string;
+  from_account_id: string | null;
+  to_account_id: string | null;
+  type: 'EXPENSE' | 'INCOME' | 'TRANSFER';
+  total_amount: string | null;
+  account_currency: string;
+  transaction_amount: string | null;
+  transaction_currency: string | null;
+  exchange_rate: number | null;
+  to_account_amount: string | null;
+  to_account_currency: string | null;
+  notes: string | null;
+  location_lat: number | null;
+  location_lng: number | null;
+  location_name: string | null;
+  location_address: string | null;
+  count_in_summary: boolean;
+  summary_amount: string | null;
+  frequency: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY';
+  interval_value: number;
+  start_date: string;
+  end_date: string | null;
+  last_generated_date: string | null;
+  skipped_occurrence_dates: string[];
+  category_splits: SyncRecurringCategorySplit[];
+  recurring_category: 'FIXED_ACCOUNT_FEE' | 'SUBSCRIPTION' | 'BILL' | 'INSURANCE' | 'LOAN' | 'SAVINGS' | 'RENTAL' | 'OTHER';
+  recurring_category_label: string | null;
+  is_active: boolean;
+  updated_at: string;
+  deleted_at: string | null;
+  version: number;
+}
+
 export interface SyncCategoryBudget {
   id: string;
   category_id: string | null;
@@ -125,7 +164,7 @@ export interface SyncServerChanges {
   accounts: SyncAccount[];
   account_budgets?: unknown[];
   categories: SyncCategory[];
-  recurring_transactions?: unknown[];
+  recurring_transactions?: SyncRecurringTransaction[];
   transactions: SyncTransaction[];
   transaction_splits: SyncTransactionSplit[];
   transaction_photos?: unknown[];

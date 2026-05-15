@@ -215,7 +215,7 @@ button {
     bottom: 0;
     z-index: 120;
     display: grid;
-    grid-template-columns: repeat(2, 1fr) 72px repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr) 72px repeat(4, 1fr);
     align-items: center;
     min-height: 72px;
     padding: 8px 8px max(8px, env(safe-area-inset-bottom));
@@ -286,7 +286,10 @@ button {
   .accounts-detail-grid,
   .budget-summary-grid,
   .budget-category-grid,
-  .categories-layout-grid {
+  .categories-layout-grid,
+  .recurring-summary-grid,
+  .recurring-upcoming-row,
+  .recurring-list-grid {
     grid-template-columns: 1fr !important;
   }
 

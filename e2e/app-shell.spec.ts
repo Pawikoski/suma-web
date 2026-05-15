@@ -60,6 +60,15 @@ test('opens transactions filtered by category from categories screen', async ({ 
   await expect(page).toHaveURL(/\/transactions\?category=.*&month=2026-05/);
 });
 
+test('opens recurring payments from navigation', async ({ page }) => {
+  await login(page);
+
+  await page.getByRole('link', { name: 'Opłaty stałe' }).click();
+
+  await expect(page).toHaveURL(/\/recurring\?month=2026-05/);
+  await expect(page.getByText(/Miesięczne obciążenie|Brak opłat stałych/)).toBeVisible();
+});
+
 test('opens account details from command search with URL state', async ({ page }) => {
   await login(page);
 

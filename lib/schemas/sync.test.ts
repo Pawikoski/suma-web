@@ -48,4 +48,42 @@ describe('parseSyncResponse', () => {
       },
     })).toThrow();
   });
+
+  it('validates recurring transactions at the sync boundary', () => {
+    const result = parseSyncResponse({
+      ...baseSyncResponse,
+      server_changes: {
+        ...baseSyncResponse.server_changes,
+        recurring_transactions: [
+          {
+            id: 'rec-1',
+            from_account_id: 'acc-1',
+            to_account_id: null,
+            type: 'EXPENSE',
+            total_amount: '49.99',
+            account_currency: 'PLN',
+            frequency: 'MONTHLY',
+            interval_value: 1,
+            start_date: '2026-05-01',
+            end_date: null,
+            last_generated_date: null,
+            skipped_occurrence_dates: ['2026-06-01'],
+            category_splits: [{ category_id: 'cat-1', amount: '49.99' }],
+            recurring_category: 'SUBSCRIPTION',
+            recurring_category_label: null,
+            is_active: true,
+            updated_at: '2026-05-01T10:00:00Z',
+            deleted_at: null,
+            version: 1,
+          },
+        ],
+      },
+    });
+
+    expect(result.server_changes.recurring_transactions[0]).toMatchObject({
+      id: 'rec-1',
+      frequency: 'MONTHLY',
+      skipped_occurrence_dates: ['2026-06-01'],
+    });
+  });
 });
