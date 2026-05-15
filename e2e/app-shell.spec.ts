@@ -69,6 +69,17 @@ test('opens recurring payments from navigation', async ({ page }) => {
   await expect(page.getByText(/Miesięczne obciążenie|Brak opłat stałych/)).toBeVisible();
 });
 
+test('opens recurring payment creation dialog', async ({ page }) => {
+  await login(page);
+  await page.goto('/recurring?month=2026-05');
+
+  await page.getByRole('button', { name: 'Dodaj opłatę stałą' }).click();
+
+  await expect(page.getByRole('dialog', { name: 'Nowa opłata stała' })).toBeVisible();
+  await expect(page.getByLabel('Kwota opłaty stałej')).toBeVisible();
+  await expect(page.getByLabel('Częstotliwość opłaty stałej')).toBeVisible();
+});
+
 test('opens settlements from navigation', async ({ page }) => {
   await login(page);
 

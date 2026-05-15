@@ -7,6 +7,7 @@ import {
   SyncAccount,
   SyncCategoryBudget,
   SyncOverallBudget,
+  SyncRecurringTransaction,
   SyncServerChanges,
   SyncSettlement,
   SyncSettlementPayment,
@@ -57,6 +58,20 @@ const settleSettlementInputSchema = z.object({
   settlementId: z.string().min(1),
   accountId: z.string().min(1),
   paidAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
+
+const recurringInputSchema = z.object({
+  type: z.enum(['expense', 'income']),
+  amount: z.coerce.number().positive('Podaj kwotę większą od zera.'),
+  accountId: z.string().min(1),
+  categoryId: z.string().min(1),
+  frequency: z.enum(['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY']),
+  intervalValue: z.coerce.number().int().positive().max(99).optional().default(1),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  notes: z.string().trim().max(500).optional().default(''),
+  recurringCategory: z.enum(['FIXED_ACCOUNT_FEE', 'SUBSCRIPTION', 'BILL', 'INSURANCE', 'LOAN', 'SAVINGS', 'RENTAL', 'OTHER']).optional().default('OTHER'),
+  recurringCategoryLabel: z.string().trim().max(120).optional().default(''),
 });
 
 const money = (value: number) => value.toFixed(2);
@@ -354,6 +369,42 @@ function cloneSettlementPaymentForDeletion(payment: SyncSettlementPayment, updat
     updated_at: updatedAt,
     deleted_at: updatedAt,
     version: payment.version,
+  };
+}
+
+function cloneRecurringForDeletion(recurring: SyncRecurringTransaction, updatedAt: string) {
+  return {
+    id: recurring.id,
+    from_account_id: recurring.from_account_id,
+    to_account_id: recurring.to_account_id,
+    type: recurring.type,
+    total_amount: recurring.total_amount,
+    account_currency: recurring.account_currency,
+    transaction_amount: recurring.transaction_amount,
+    transaction_currency: recurring.transaction_currency,
+    exchange_rate: recurring.exchange_rate,
+    to_account_amount: recurring.to_account_amount,
+    to_account_currency: recurring.to_account_currency,
+    notes: recurring.notes,
+    location_lat: recurring.location_lat,
+    location_lng: recurring.location_lng,
+    location_name: recurring.location_name,
+    location_address: recurring.location_address,
+    count_in_summary: recurring.count_in_summary,
+    summary_amount: recurring.summary_amount,
+    frequency: recurring.frequency,
+    interval_value: recurring.interval_value,
+    start_date: recurring.start_date,
+    end_date: recurring.end_date,
+    last_generated_date: recurring.last_generated_date,
+    skipped_occurrence_dates: recurring.skipped_occurrence_dates,
+    category_splits: recurring.category_splits,
+    recurring_category: recurring.recurring_category,
+    recurring_category_label: recurring.recurring_category_label,
+    is_active: recurring.is_active,
+    updated_at: updatedAt,
+    deleted_at: updatedAt,
+    version: recurring.version,
   };
 }
 
@@ -825,6 +876,98 @@ export async function deleteSettlementAction(settlementId: string): Promise<Acti
 
   revalidateFinancePaths();
   return { ok: true, id: settlement.id, message: 'Rozliczenie zostało usunięte.' };
+}
+
+export async function createRecurringTransactionAction(input: unknown): Promise<ActionResult> {
+  const parsed = recurringInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0]?.message ?? 'Niepoprawne dane opłaty stałej.' };
+  }
+
+  const data = parsed.data;
+  const changes = await getServerChanges();
+  if (!changes) return { ok: false, message: 'Nie udało się pobrać aktualnych danych.' };
+
+  const account = changes.accounts.find(a => a.id === data.accountId && !a.deleted_at && a.is_active);
+  if (!account) return { ok: false, message: 'Wybierz aktywne konto.' };
+
+  const expectedCategoryType = data.type === 'income' ? 'INCOME' : 'EXPENSE';
+  const category = changes.categories.find(c => c.id === data.categoryId && !c.deleted_at);
+  if (!category || (category.types.length > 0 && !category.types.includes(expectedCategoryType))) {
+    return { ok: false, message: 'Wybierz kategorię zgodną z typem opłaty.' };
+  }
+
+  const updatedAt = nowIso();
+  const amount = money(data.amount);
+  const recurringId = crypto.randomUUID();
+  const sync = await postSyncChanges({
+    recurring_transactions: [
+      {
+        id: recurringId,
+        from_account_id: account.id,
+        to_account_id: null,
+        type: data.type.toUpperCase(),
+        total_amount: amount,
+        account_currency: account.currency,
+        transaction_amount: amount,
+        transaction_currency: account.currency,
+        exchange_rate: 1,
+        to_account_amount: null,
+        to_account_currency: null,
+        notes: data.notes || null,
+        location_lat: null,
+        location_lng: null,
+        location_name: null,
+        location_address: null,
+        count_in_summary: true,
+        summary_amount: null,
+        frequency: data.frequency,
+        interval_value: data.intervalValue,
+        start_date: data.startDate,
+        end_date: data.endDate || null,
+        last_generated_date: null,
+        skipped_occurrence_dates: [],
+        category_splits: [{ category_id: category.id, amount }],
+        recurring_category: data.recurringCategory,
+        recurring_category_label: data.recurringCategoryLabel || null,
+        is_active: true,
+        updated_at: updatedAt,
+        deleted_at: null,
+        version: 1,
+      },
+    ],
+  });
+
+  const failure = sync ? syncFailureMessage(sync.errors, sync.conflicts) : 'Nie udało się zapisać opłaty stałej.';
+  if (failure) return { ok: false, message: failure };
+
+  revalidatePath('/recurring');
+  revalidatePath('/');
+  revalidatePath('/reports');
+  return { ok: true, id: recurringId, message: 'Opłata stała została zapisana.' };
+}
+
+export async function deleteRecurringTransactionAction(recurringId: string): Promise<ActionResult> {
+  if (!recurringId) return { ok: false, message: 'Nie wybrano opłaty stałej.' };
+
+  const changes = await getServerChanges();
+  if (!changes) return { ok: false, message: 'Nie udało się pobrać aktualnych danych.' };
+
+  const recurring = (changes.recurring_transactions ?? []).find(item => item.id === recurringId && !item.deleted_at);
+  if (!recurring) return { ok: false, message: 'Nie znaleziono opłaty stałej.' };
+
+  const updatedAt = nowIso();
+  const sync = await postSyncChanges({
+    recurring_transactions: [cloneRecurringForDeletion(recurring, updatedAt)],
+  });
+
+  const failure = sync ? syncFailureMessage(sync.errors, sync.conflicts) : 'Nie udało się usunąć opłaty stałej.';
+  if (failure) return { ok: false, message: failure };
+
+  revalidatePath('/recurring');
+  revalidatePath('/');
+  revalidatePath('/reports');
+  return { ok: true, id: recurring.id, message: 'Opłata stała została usunięta.' };
 }
 
 const budgetInputSchema = z.object({

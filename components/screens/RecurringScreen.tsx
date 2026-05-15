@@ -1,12 +1,15 @@
 'use client';
 
-import { CSSProperties, ReactNode, useMemo } from 'react';
+import { CSSProperties, ReactNode, useMemo, useState, useTransition } from 'react';
 import { parseAsString, useQueryState } from 'nuqs';
-import { AlarmClock, CalendarDays, Repeat2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { AlarmClock, CalendarDays, Plus, Repeat2, Save, Trash2, X } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { pl } from 'date-fns/locale';
+import { toast } from 'sonner';
+import { createRecurringTransactionAction, deleteRecurringTransactionAction } from '@/app/actions/sync';
 import { T } from '@/lib/tokens';
-import { RecurringTransaction } from '@/lib/data';
+import { Account, Category, RecurringCategory, RecurringFrequency, RecurringTransaction } from '@/lib/data';
 import { useActiveMonthData } from '@/lib/useActiveMonthData';
 import { daysUntil, monthlyRecurringCost, nextRecurringDate, recurringCategoryLabel, recurringFrequencyLabel, RECURRING_CATEGORY_META } from '@/lib/recurring';
 import { fmtPLN } from '@/lib/utils';
@@ -34,8 +37,9 @@ function accountLabel(recurring: RecurringTransaction) {
 }
 
 export default function RecurringScreen() {
-  const { recurringTransactions } = useActiveMonthData();
+  const { recurringTransactions, accounts, categories } = useActiveMonthData();
   const [category, setCategory] = useQueryState('category', parseAsString.withDefault(ALL_CATEGORY));
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
   const today = useMemo(() => new Date(), []);
   const activeRecurring = recurringTransactions.filter(item => item.isActive);
   const categoryKeys = Array.from(new Set(activeRecurring.map(item => item.recurringCategory)));
@@ -62,8 +66,12 @@ export default function RecurringScreen() {
             <Repeat2 size={34} color={T.accent} />
           </div>
           <h1 style={{ fontSize: 24, color: T.dark, marginBottom: 8 }}>Brak opłat stałych</h1>
-          <p style={{ fontSize: 14, color: T.muted, lineHeight: 1.5 }}>Dodaj transakcję w aplikacji mobilnej i włącz powtarzanie, żeby web pokazał harmonogram oraz obciążenie miesięczne.</p>
+          <p style={{ fontSize: 14, color: T.muted, lineHeight: 1.5, marginBottom: 18 }}>Dodaj transakcję w aplikacji mobilnej i włącz powtarzanie, żeby web pokazał harmonogram oraz obciążenie miesięczne.</p>
+          <button onClick={() => setIsCreateOpen(true)} style={primaryButtonStyle}>
+            <Plus size={16} color="white" /> Dodaj opłatę stałą
+          </button>
         </div>
+        {isCreateOpen && <RecurringFormModal accounts={accounts} categories={categories} onClose={() => setIsCreateOpen(false)} />}
       </div>
     );
   }
@@ -98,22 +106,27 @@ export default function RecurringScreen() {
         </section>
       )}
 
-      <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 2 }}>
-        <button
-          onClick={() => void setCategory(ALL_CATEGORY)}
-          style={chipStyle(category === ALL_CATEGORY)}
-        >
-          Wszystkie
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 2 }}>
+          <button
+            onClick={() => void setCategory(ALL_CATEGORY)}
+            style={chipStyle(category === ALL_CATEGORY)}
+          >
+            Wszystkie
+          </button>
+          {categoryKeys.map(key => {
+            const meta = RECURRING_CATEGORY_META[key];
+            return (
+              <button key={key} onClick={() => void setCategory(key)} style={chipStyle(category === key)}>
+                <Icon name={meta.icon} size={16} color={category === key ? 'white' : meta.color} />
+                {meta.label}
+              </button>
+            );
+          })}
+        </div>
+        <button aria-label="Dodaj opłatę stałą" onClick={() => setIsCreateOpen(true)} style={{ ...primaryButtonStyle, height: 36, padding: '0 14px', flexShrink: 0 }}>
+          <Plus size={16} color="white" /> Dodaj
         </button>
-        {categoryKeys.map(key => {
-          const meta = RECURRING_CATEGORY_META[key];
-          return (
-            <button key={key} onClick={() => void setCategory(key)} style={chipStyle(category === key)}>
-              <Icon name={meta.icon} size={16} color={category === key ? 'white' : meta.color} />
-              {meta.label}
-            </button>
-          );
-        })}
       </div>
 
       <div className="recurring-list-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -121,6 +134,111 @@ export default function RecurringScreen() {
           <RecurringCard key={item.id} recurring={item} nextDate={nextDate} today={today} />
         ))}
       </div>
+      {isCreateOpen && <RecurringFormModal accounts={accounts} categories={categories} onClose={() => setIsCreateOpen(false)} />}
+    </div>
+  );
+}
+
+function RecurringFormModal({ accounts, categories, onClose }: { accounts: Account[]; categories: Category[]; onClose: () => void }) {
+  const router = useRouter();
+  const [type, setType] = useState<'expense' | 'income'>('expense');
+  const [amount, setAmount] = useState('');
+  const [accountId, setAccountId] = useState(accounts[0]?.id ?? '');
+  const [categoryId, setCategoryId] = useState('');
+  const [frequency, setFrequency] = useState<RecurringFrequency>('MONTHLY');
+  const [intervalValue, setIntervalValue] = useState('1');
+  const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [endDate, setEndDate] = useState('');
+  const [recurringCategory, setRecurringCategory] = useState<RecurringCategory>('BILL');
+  const [label, setLabel] = useState('');
+  const [notes, setNotes] = useState('');
+  const [isPending, startTransition] = useTransition();
+  const targetType = type === 'income' ? 'INCOME' : 'EXPENSE';
+  const eligibleCategories = categories.filter(item => item.types.length === 0 || item.types.includes(targetType));
+  const effectiveCategoryId = categoryId || eligibleCategories[0]?.id || '';
+  const amountValue = Number(amount);
+  const canSubmit = amountValue > 0 && !!accountId && !!effectiveCategoryId && Number(intervalValue) > 0;
+
+  const submit = () => {
+    startTransition(async () => {
+      const result = await createRecurringTransactionAction({
+        type,
+        amount: amountValue,
+        accountId,
+        categoryId: effectiveCategoryId,
+        frequency,
+        intervalValue: Number(intervalValue),
+        startDate,
+        endDate: endDate || null,
+        notes,
+        recurringCategory,
+        recurringCategoryLabel: label,
+      });
+
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
+
+      toast.success(result.message);
+      onClose();
+      router.refresh();
+    });
+  };
+
+  return (
+    <div role="dialog" aria-modal="true" aria-label="Nowa opłata stała" style={{
+      position: 'fixed', inset: 0, background: 'rgba(15,23,42,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 210, backdropFilter: 'blur(4px)', padding: 16,
+    }}>
+      <Card style={{ width: 480, maxWidth: '100%', maxHeight: '90vh', overflowY: 'auto', padding: 0, boxShadow: '0 20px 60px rgba(0,0,0,.2)' }}>
+        <div style={{ padding: '18px 20px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ fontWeight: 850, fontSize: 16, color: T.dark }}>Nowa opłata stała</div>
+          <button aria-label="Zamknij" onClick={onClose} style={{ color: T.muted, padding: 4, border: 'none', background: 'none', cursor: 'pointer' }}>
+            <X size={18} />
+          </button>
+        </div>
+        <div style={{ padding: 20, display: 'grid', gap: 12 }}>
+          <div style={{ display: 'flex', gap: 6, background: T.bg, borderRadius: T.radiusSm, padding: 4 }}>
+            {(['expense', 'income'] as const).map(item => (
+              <button
+                key={item}
+                onClick={() => { setType(item); setCategoryId(''); }}
+                style={{ flex: 1, padding: '8px 10px', borderRadius: 6, background: type === item ? T.card : 'transparent', color: type === item ? T.accent : T.muted, fontWeight: 850, boxShadow: type === item ? '0 1px 4px rgba(0,0,0,.1)' : 'none' }}
+              >
+                {item === 'expense' ? 'Wydatek' : 'Przychód'}
+              </button>
+            ))}
+          </div>
+          <input aria-label="Kwota opłaty stałej" placeholder="Kwota" type="number" min="0.01" step="0.01" value={amount} onChange={event => setAmount(event.target.value)} style={inputStyle} />
+          <select aria-label="Konto opłaty stałej" value={accountId} onChange={event => setAccountId(event.target.value)} style={inputStyle}>
+            {accounts.map(account => <option key={account.id} value={account.id}>{account.name} · {account.currency}</option>)}
+          </select>
+          <select aria-label="Kategoria opłaty stałej" value={effectiveCategoryId} onChange={event => setCategoryId(event.target.value)} style={inputStyle}>
+            {eligibleCategories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
+          </select>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 96px', gap: 10 }}>
+            <select aria-label="Częstotliwość opłaty stałej" value={frequency} onChange={event => setFrequency(event.target.value as RecurringFrequency)} style={inputStyle}>
+              <option value="DAILY">Codziennie</option>
+              <option value="WEEKLY">Co tydzień</option>
+              <option value="MONTHLY">Co miesiąc</option>
+              <option value="YEARLY">Co rok</option>
+            </select>
+            <input aria-label="Interwał opłaty stałej" type="number" min="1" max="99" value={intervalValue} onChange={event => setIntervalValue(event.target.value)} style={inputStyle} />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <input aria-label="Start opłaty stałej" type="date" value={startDate} onChange={event => setStartDate(event.target.value)} style={inputStyle} />
+            <input aria-label="Koniec opłaty stałej" type="date" value={endDate} onChange={event => setEndDate(event.target.value)} style={inputStyle} />
+          </div>
+          <select aria-label="Typ opłaty stałej" value={recurringCategory} onChange={event => setRecurringCategory(event.target.value as RecurringCategory)} style={inputStyle}>
+            {(Object.keys(RECURRING_CATEGORY_META) as RecurringCategory[]).map(key => <option key={key} value={key}>{RECURRING_CATEGORY_META[key].label}</option>)}
+          </select>
+          <input aria-label="Nazwa opłaty stałej" placeholder="Nazwa" value={label} onChange={event => setLabel(event.target.value)} style={inputStyle} />
+          <input aria-label="Notatka opłaty stałej" placeholder="Notatka" value={notes} onChange={event => setNotes(event.target.value)} style={inputStyle} />
+          <button onClick={submit} disabled={!canSubmit || isPending} style={{ ...primaryButtonStyle, height: 42, opacity: !canSubmit || isPending ? 0.55 : 1 }}>
+            <Save size={16} color="white" /> {isPending ? 'Zapisywanie...' : 'Zapisz opłatę stałą'}
+          </button>
+        </div>
+      </Card>
     </div>
   );
 }
@@ -171,8 +289,25 @@ function UpcomingCard({ recurring, nextDate, today }: { recurring: RecurringTran
 }
 
 function RecurringCard({ recurring, nextDate, today }: { recurring: RecurringTransaction; nextDate: string | null; today: Date }) {
+  const router = useRouter();
+  const [isDeleting, startDeleteTransition] = useTransition();
   const meta = RECURRING_CATEGORY_META[recurring.recurringCategory];
   const days = nextDate ? daysUntil(nextDate, today) : null;
+  const deleteRecurring = () => {
+    if (!window.confirm('Usunąć opłatę stałą?')) return;
+
+    startDeleteTransition(async () => {
+      const result = await deleteRecurringTransactionAction(recurring.id);
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
+
+      toast.success(result.message);
+      router.refresh();
+    });
+  };
+
   return (
     <Card style={{ padding: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -192,9 +327,14 @@ function RecurringCard({ recurring, nextDate, today }: { recurring: RecurringTra
           <div style={{ fontSize: 11, color: T.faint }}>{fmtPLN(monthlyRecurringCost(recurring))}/mc</div>
         </div>
       </div>
-      <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', gap: 8, color: days !== null && days <= 3 ? T.expense : T.muted, fontSize: 12, fontWeight: 700 }}>
-        <CalendarDays size={14} />
-        {nextDate ? `${format(parseISO(nextDate), 'd MMMM yyyy', { locale: pl })}${days === 0 ? ' · dzisiaj' : days === 1 ? ' · jutro' : days !== null ? ` · za ${days} dni` : ''}` : 'Brak kolejnej daty'}
+      <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: days !== null && days <= 3 ? T.expense : T.muted, fontSize: 12, fontWeight: 700 }}>
+          <CalendarDays size={14} />
+          {nextDate ? `${format(parseISO(nextDate), 'd MMMM yyyy', { locale: pl })}${days === 0 ? ' · dzisiaj' : days === 1 ? ' · jutro' : days !== null ? ` · za ${days} dni` : ''}` : 'Brak kolejnej daty'}
+        </div>
+        <button aria-label={`Usuń opłatę stałą ${recurringCategoryLabel(recurring)}`} onClick={deleteRecurring} disabled={isDeleting} style={{ ...smallIconButtonStyle, opacity: isDeleting ? 0.55 : 1 }}>
+          <Trash2 size={14} />
+        </button>
       </div>
     </Card>
   );
@@ -216,3 +356,44 @@ function chipStyle(active: boolean): CSSProperties {
     whiteSpace: 'nowrap',
   };
 }
+
+const inputStyle: CSSProperties = {
+  height: 40,
+  padding: '0 12px',
+  borderRadius: T.radiusSm,
+  border: `1px solid ${T.border}`,
+  background: T.card,
+  color: T.dark,
+  fontSize: 13,
+  fontFamily: 'inherit',
+  outline: 'none',
+};
+
+const primaryButtonStyle: CSSProperties = {
+  border: 'none',
+  borderRadius: T.radiusSm,
+  background: T.accent,
+  color: 'white',
+  fontWeight: 850,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 8,
+  height: 40,
+  padding: '0 16px',
+  cursor: 'pointer',
+};
+
+const smallIconButtonStyle: CSSProperties = {
+  width: 30,
+  height: 30,
+  border: 'none',
+  borderRadius: 8,
+  background: T.expenseSoft,
+  color: T.expense,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  cursor: 'pointer',
+  flexShrink: 0,
+};
