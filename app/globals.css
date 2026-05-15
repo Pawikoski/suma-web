@@ -312,7 +312,8 @@ button {
   .budget-screen,
   .calendar-screen,
   .category-detail-screen,
-  .categories-screen {
+  .categories-screen,
+  .settings-screen {
     padding: 16px !important;
   }
 
@@ -337,6 +338,10 @@ button {
   .import-export-grid,
   .import-preview-header,
   .import-preview-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .settings-data-grid {
     grid-template-columns: 1fr !important;
   }
 

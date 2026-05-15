@@ -20,6 +20,7 @@ const TITLES: Record<string, string> = {
   '/budget':        'Budżet',
   '/reports':       'Raporty',
   '/import-export': 'Import/eksport',
+  '/settings':      'Ustawienia',
 };
 
 interface TopbarProps {

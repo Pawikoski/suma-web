@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { BarChart2, CalendarDays, ClipboardList, HandCoins, Home, LineChart, MoreHorizontal, Plus, Repeat2, Tag, UploadCloud, Wallet } from 'lucide-react';
+import { BarChart2, CalendarDays, ClipboardList, HandCoins, Home, LineChart, MoreHorizontal, Plus, Repeat2, Settings, Tag, UploadCloud, Wallet } from 'lucide-react';
 import { T } from '@/lib/tokens';
 import { useActiveMonthData } from '@/lib/useActiveMonthData';
 
@@ -22,6 +22,7 @@ const MORE_NAV = [
   { href: '/investments', label: 'Inwestycje', Icon: LineChart },
   { href: '/reports', label: 'Raporty', Icon: BarChart2 },
   { href: '/import-export', label: 'Import/eksport', Icon: UploadCloud },
+  { href: '/settings', label: 'Ustawienia', Icon: Settings },
 ] as const;
 
 export default function MobileBottomNav({ onAdd }: { onAdd: () => void }) {

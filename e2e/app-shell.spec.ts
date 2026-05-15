@@ -180,6 +180,18 @@ test('opens import and export workspace from navigation', async ({ page }) => {
   await expect(page.getByText('Wybierz plik')).toBeVisible();
 });
 
+test('opens settings workspace from navigation', async ({ page }) => {
+  await login(page);
+
+  await page.getByRole('link', { name: 'Ustawienia' }).click();
+
+  await expect(page).toHaveURL(/\/settings\?month=2026-05/);
+  await expect(page.getByText('Konto i synchronizacja')).toBeVisible();
+  await expect(page.getByText('Prywatność i bezpieczeństwo')).toBeVisible();
+  await page.getByRole('button', { name: /Ukrywanie kwot/ }).click();
+  await expect(page.getByText('Włączone')).toBeVisible();
+});
+
 test('previews analyzed import rows without saving them', async ({ page }) => {
   await login(page);
   await page.route('**/api/imports/analyze', async route => {

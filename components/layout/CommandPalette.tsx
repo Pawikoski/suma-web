@@ -3,7 +3,7 @@
 import { Command } from 'cmdk';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useRouter } from 'next/navigation';
-import { BarChart2, CalendarDays, ClipboardList, HandCoins, Home, LineChart, Repeat2, Search, Tag, UploadCloud, Wallet } from 'lucide-react';
+import { BarChart2, CalendarDays, ClipboardList, HandCoins, Home, LineChart, Repeat2, Search, Settings, Tag, UploadCloud, Wallet } from 'lucide-react';
 import { useActiveMonthData } from '@/lib/useActiveMonthData';
 import { useSumaUiStore } from '@/lib/stores/ui-store';
 import { fmtPLN } from '@/lib/utils';
@@ -20,6 +20,7 @@ const QUICK_LINKS = [
   { label: 'Budżet', href: '/budget', Icon: BarChart2 },
   { label: 'Raporty', href: '/reports', Icon: BarChart2 },
   { label: 'Import/eksport', href: '/import-export', Icon: UploadCloud },
+  { label: 'Ustawienia', href: '/settings', Icon: Settings },
 ] as const;
 
 export default function CommandPalette() {
