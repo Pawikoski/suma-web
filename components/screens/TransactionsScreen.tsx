@@ -7,12 +7,12 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { deleteTransactionAction } from '@/app/actions/sync';
 import { T } from '@/lib/tokens';
-import { fmtPLN } from '@/lib/utils';
 import { Transaction } from '@/lib/data';
 import { useAppData } from '@/lib/AppDataContext';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import Icon from '@/components/ui/Icon';
+import PrivacyAmount from '@/components/ui/PrivacyAmount';
 
 const TX_FILTERS = ['all', 'expense', 'income', 'transfer'] as const;
 type TxFilter = typeof TX_FILTERS[number];
@@ -49,7 +49,7 @@ function TxDetailPanel({ tx, onClose }: { tx: Transaction; onClose: () => void }
         </div>
         <Badge type={tx.type} />
         <div style={{ fontSize: 34, fontWeight: 800, color: amtColor, marginTop: 10, letterSpacing: '-1px' }}>
-          {tx.type === 'expense' ? '-' : tx.type === 'income' ? '+' : ''}{fmtPLN(Math.abs(tx.amount))}
+          <PrivacyAmount amount={Math.abs(tx.amount)} prefix={tx.type === 'expense' ? '-' : tx.type === 'income' ? '+' : ''} style={{ font: 'inherit' }} />
         </div>
         <div style={{ fontSize: 15, color: T.muted, marginTop: 4 }}>{tx.cat}</div>
       </Card>
@@ -136,7 +136,7 @@ const TransactionsTable = memo(function TransactionsTable({ transactions, onSele
         const tx = row.original;
         return (
           <span style={{ fontSize: 16, fontWeight: 800, color: tx.type === 'expense' ? T.expense : tx.type === 'income' ? T.income : T.mid }}>
-            {tx.type === 'expense' ? '-' : tx.type === 'income' ? '+' : ''}{fmtPLN(Math.abs(tx.amount))}
+            <PrivacyAmount amount={Math.abs(tx.amount)} prefix={tx.type === 'expense' ? '-' : tx.type === 'income' ? '+' : ''} style={{ font: 'inherit' }} />
           </span>
         );
       },
@@ -293,7 +293,7 @@ export default function TransactionsScreen() {
   }, [setSelectedId]);
 
   return (
-    <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
+    <div className="transactions-layout" style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
       <div style={{ flex: 1, overflowY: 'auto', padding: 28 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -314,7 +314,7 @@ export default function TransactionsScreen() {
             ))}
           </div>
 
-          <Card style={{ padding: 12, display: 'grid', gridTemplateColumns: '1.2fr .8fr .9fr .9fr auto auto', gap: 10, alignItems: 'center' }}>
+          <Card className="transaction-filter-card" style={{ padding: 12, display: 'grid', gridTemplateColumns: '1.2fr .8fr .9fr .9fr auto auto', gap: 10, alignItems: 'center' }}>
             <input
               value={query}
               onChange={e => void setQuery(e.target.value)}
@@ -348,13 +348,13 @@ export default function TransactionsScreen() {
           </Card>
         </div>
 
-        <Card style={{ padding: 0, overflow: 'hidden' }}>
+        <Card className="transaction-table-card" style={{ padding: 0, overflow: 'hidden' }}>
           <TransactionsTable transactions={filtered} onSelect={selectTx} />
         </Card>
       </div>
 
       {selectedTx && (
-        <div style={{ width: 340, borderLeft: `1px solid ${T.border}`, overflowY: 'auto', background: T.card }}>
+        <div className="transaction-detail-sidebar" style={{ width: 340, borderLeft: `1px solid ${T.border}`, overflowY: 'auto', background: T.card }}>
           <TxDetailPanel tx={selectedTx} onClose={deselectTx} />
         </div>
       )}

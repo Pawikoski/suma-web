@@ -12,7 +12,7 @@ function toMaterialName(name: string): string {
 }
 
 function isMaterialIconName(name: string): boolean {
-  return /^[A-Za-z][A-Za-z0-9]*$/.test(name);
+  return /^[A-Za-z][A-Za-z0-9_]*$/.test(name);
 }
 
 export default function Icon({ name, size = 20, color, className }: IconProps) {

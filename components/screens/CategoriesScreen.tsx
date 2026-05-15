@@ -7,6 +7,7 @@ import Card from '@/components/ui/Card';
 import Bar from '@/components/ui/Bar';
 import Donut from '@/components/ui/Donut';
 import Icon from '@/components/ui/Icon';
+import PrivacyAmount from '@/components/ui/PrivacyAmount';
 
 const VIEWS = [
   { id: 'all', label: 'Wszystkie' },
@@ -27,7 +28,7 @@ export default function CategoriesScreen() {
   const monthLabel = now.toLocaleString('pl-PL', { month: 'long', year: 'numeric' });
 
   return (
-    <div style={{ padding: 24 }}>
+    <div className="screen categories-screen" style={{ padding: 24 }}>
       <div style={{ display: 'flex', gap: 6, marginBottom: 20 }}>
         {VIEWS.map(v => (
           <button
@@ -46,7 +47,7 @@ export default function CategoriesScreen() {
         ))}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+      <div className="categories-layout-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {visibleCategories.length === 0 && (
             <div style={{ textAlign: 'center', fontSize: 13, color: T.faint, padding: 32 }}>Brak kategorii</div>
@@ -65,7 +66,7 @@ export default function CategoriesScreen() {
                     <div style={{ fontSize: 12, color: T.muted }}>{c.txCount} transakcji</div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: over ? T.expense : T.dark }}>{fmtPLN(c.spent)}</div>
+                    <PrivacyAmount amount={c.spent} style={{ display: 'block', fontSize: 15, fontWeight: 700, color: over ? T.expense : T.dark }} />
                     {c.budget && <div style={{ fontSize: 11, color: T.faint }}>z {fmtPLN(c.budget)}</div>}
                   </div>
                 </div>
@@ -90,7 +91,7 @@ export default function CategoriesScreen() {
                 <div style={{ width: 130, height: 130, borderRadius: '50%', background: T.bg }} />
               )}
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 28, fontWeight: 800, color: T.dark, letterSpacing: '-1px', marginBottom: 4 }}>{fmtPLN(totalSpent)}</div>
+                <PrivacyAmount amount={totalSpent} style={{ display: 'block', fontSize: 28, fontWeight: 800, color: T.dark, marginBottom: 4 }} />
                 <div style={{ fontSize: 12, color: T.muted }}>{monthLabel}</div>
                 <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {visibleCategories.slice(0, 4).map(c => (

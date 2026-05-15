@@ -30,7 +30,7 @@ export default function Sidebar({ onAdd }: SidebarProps) {
   const initials = displayEmail.slice(0, 2).toUpperCase();
 
   return (
-    <div style={{
+    <div className="app-sidebar" style={{
       width: T.sidebarW, background: T.sidebar,
       borderRight: `1px solid ${T.border}`,
       display: 'flex', flexDirection: 'column',

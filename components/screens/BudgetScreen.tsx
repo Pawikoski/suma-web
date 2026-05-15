@@ -11,6 +11,7 @@ import { useAppData } from '@/lib/AppDataContext';
 import Card from '@/components/ui/Card';
 import Bar from '@/components/ui/Bar';
 import Icon from '@/components/ui/Icon';
+import PrivacyAmount from '@/components/ui/PrivacyAmount';
 
 export default function BudgetScreen() {
   const { categories, overallBudget } = useAppData();
@@ -45,8 +46,8 @@ export default function BudgetScreen() {
   };
 
   return (
-    <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
+    <div className="screen budget-screen" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div className="budget-summary-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
         <Card style={{ padding: 20, gridColumn: 'span 2' }}>
           <div style={{ fontSize: 13, color: T.muted, fontWeight: 500, marginBottom: 8 }}>
             Budżet ogólny — {monthLabel}
@@ -55,7 +56,7 @@ export default function BudgetScreen() {
             <>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 12 }}>
                 <div>
-                  <span style={{ fontSize: 32, fontWeight: 800, color: T.dark, letterSpacing: '-1px' }}>{fmtPLN(spent)}</span>
+                  <PrivacyAmount amount={spent} style={{ fontSize: 32, fontWeight: 800, color: T.dark }} />
                   <span style={{ fontSize: 15, color: T.muted, fontWeight: 400 }}> / {fmtPLN(totalBudget)}</span>
                 </div>
                 <span style={{ fontSize: 20, fontWeight: 700, color: pct > 100 ? T.expense : T.accent }}>{Math.round(pct)}%</span>
@@ -63,7 +64,7 @@ export default function BudgetScreen() {
               <Bar pct={pct} color={pct > 100 ? T.expense : T.accent} height={10} />
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
                 <span style={{ fontSize: 12, color: T.muted }}>
-                  Pozostało: <strong style={{ color: T.income }}>{fmtPLN(Math.max(totalBudget - spent, 0))}</strong>
+                  Pozostało: <strong style={{ color: T.income }}><PrivacyAmount amount={Math.max(totalBudget - spent, 0)} /></strong>
                 </span>
                 <span style={{ fontSize: 12, color: T.muted }}>{daysLeft} dni do końca miesiąca</span>
               </div>
@@ -105,7 +106,7 @@ export default function BudgetScreen() {
         </Card>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <div className="budget-category-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         {categories.map(c => {
           const catPct = c.budget ? c.spent / c.budget * 100 : 0;
           const over = catPct > 100;
@@ -146,7 +147,7 @@ function CategoryBudgetCard({ category: c, catPct, over }: { category: Category;
                   <div style={{ fontSize: 12, color: T.muted }}>{c.txCount} transakcji</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: over ? T.expense : T.dark }}>{fmtPLN(c.spent)}</div>
+                  <PrivacyAmount amount={c.spent} style={{ display: 'block', fontSize: 14, fontWeight: 700, color: over ? T.expense : T.dark }} />
                   <div style={{ fontSize: 11, color: T.faint }}>{c.budget ? `z ${fmtPLN(c.budget)}` : 'bez budżetu'}</div>
                 </div>
               </div>

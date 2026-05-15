@@ -3,11 +3,11 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ClipboardList } from 'lucide-react';
 import { T } from '@/lib/tokens';
-import { fmtPLN } from '@/lib/utils';
 import { useAppData } from '@/lib/AppDataContext';
 import Card from '@/components/ui/Card';
 import Sparkline from '@/components/ui/Sparkline';
 import Icon from '@/components/ui/Icon';
+import PrivacyAmount from '@/components/ui/PrivacyAmount';
 
 export default function AccountsScreen() {
   const router = useRouter();
@@ -21,13 +21,13 @@ export default function AccountsScreen() {
   const accExpense = Math.abs(accTxs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0));
 
   return (
-    <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div className="screen accounts-screen" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div>
         <div style={{ fontSize: 12, color: T.muted, fontWeight: 500 }}>Łączny majątek</div>
-        <div style={{ fontSize: 28, fontWeight: 800, color: T.dark, letterSpacing: '-1px' }}>{fmtPLN(totalBalance)}</div>
+        <PrivacyAmount amount={totalBalance} style={{ display: 'block', fontSize: 28, fontWeight: 800, color: T.dark }} />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
+      <div className="account-card-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
         {accounts.map(a => (
           <Card
             key={a.id}
@@ -43,14 +43,14 @@ export default function AccountsScreen() {
               <div style={{ fontSize: 13, fontWeight: 600, color: selected?.id === a.id ? 'rgba(255,255,255,.9)' : T.mid }}>{a.name}</div>
               <Icon name={a.icon} size={20} color={selected?.id === a.id ? 'rgba(255,255,255,.85)' : a.color} />
             </div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: selected?.id === a.id ? 'white' : T.dark, letterSpacing: '-0.5px' }}>{fmtPLN(a.balance)}</div>
+            <PrivacyAmount amount={a.balance} style={{ display: 'block', fontSize: 20, fontWeight: 800, color: selected?.id === a.id ? 'white' : T.dark }} />
             <div style={{ fontSize: 11, color: selected?.id === a.id ? 'rgba(255,255,255,.65)' : T.faint, marginTop: 4 }}>{a.type}</div>
           </Card>
         ))}
       </div>
 
       {selected && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 16 }}>
+        <div className="accounts-detail-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 16 }}>
           <Card style={{ padding: 0, overflow: 'hidden' }}>
             <div style={{ padding: '14px 20px', borderBottom: `1px solid ${T.border}`, fontWeight: 600, fontSize: 14, color: T.dark }}>
               Historia — {selected.name}
@@ -78,7 +78,7 @@ export default function AccountsScreen() {
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: tx.type === 'expense' ? T.expense : tx.type === 'income' ? T.income : T.mid }}>
-                    {tx.type === 'expense' ? '-' : tx.type === 'income' ? '+' : ''}{fmtPLN(Math.abs(tx.amount))}
+                    <PrivacyAmount amount={Math.abs(tx.amount)} prefix={tx.type === 'expense' ? '-' : tx.type === 'income' ? '+' : ''} style={{ font: 'inherit' }} />
                   </div>
                   <div style={{ fontSize: 11, color: T.faint }}>{tx.date.slice(5).replace('-', '.')}</div>
                 </div>
@@ -91,16 +91,16 @@ export default function AccountsScreen() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div style={{ padding: 14, borderRadius: 10, background: T.incomeSoft }}>
                 <div style={{ fontSize: 12, color: T.income, fontWeight: 500 }}>Przychody</div>
-                <div style={{ fontSize: 20, fontWeight: 700, color: T.income }}>+{fmtPLN(accIncome)}</div>
+                <PrivacyAmount amount={accIncome} prefix="+" style={{ display: 'block', fontSize: 20, fontWeight: 700, color: T.income }} />
               </div>
               <div style={{ padding: 14, borderRadius: 10, background: T.expenseSoft }}>
                 <div style={{ fontSize: 12, color: T.expense, fontWeight: 500 }}>Wydatki</div>
-                <div style={{ fontSize: 20, fontWeight: 700, color: T.expense }}>-{fmtPLN(accExpense)}</div>
+                <PrivacyAmount amount={accExpense} prefix="-" style={{ display: 'block', fontSize: 20, fontWeight: 700, color: T.expense }} />
               </div>
               <div style={{ padding: 14, borderRadius: 10, background: T.bg }}>
                 <div style={{ fontSize: 12, color: T.muted, fontWeight: 500 }}>Bilans</div>
                 <div style={{ fontSize: 20, fontWeight: 700, color: accIncome - accExpense >= 0 ? T.income : T.expense }}>
-                  {fmtPLN(accIncome - accExpense, true)}
+                  <PrivacyAmount amount={accIncome - accExpense} signed style={{ font: 'inherit' }} />
                 </div>
               </div>
             </div>

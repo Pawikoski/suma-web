@@ -1,6 +1,6 @@
 'use client';
 import { T } from '@/lib/tokens';
-import { fmtPLN } from '@/lib/utils';
+import PrivacyAmount from '@/components/ui/PrivacyAmount';
 
 interface StatPillProps {
   label: string;
@@ -19,7 +19,7 @@ export default function StatPill({ label, amount, type }: StatPillProps) {
       <span style={{ fontSize: 15, color: isIncome ? T.income : T.expense }}>{isIncome ? '↑' : '↓'}</span>
       <div>
         <div style={{ fontSize: 12, color: isIncome ? T.income : T.expense, fontWeight: 500 }}>{label}</div>
-        <div style={{ fontSize: 15, fontWeight: 700, color: isIncome ? T.income : T.expense }}>{fmtPLN(amount)}</div>
+        <PrivacyAmount amount={amount} style={{ display: 'block', fontSize: 15, fontWeight: 700, color: isIncome ? T.income : T.expense }} />
       </div>
     </div>
   );
