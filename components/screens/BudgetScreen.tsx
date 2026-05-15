@@ -3,10 +3,10 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Save } from 'lucide-react';
-import { upsertCategoryBudgetAction, upsertOverallBudgetAction } from '@/app/actions/sync';
+import { upsertAccountBudgetAction, upsertCategoryBudgetAction, upsertOverallBudgetAction } from '@/app/actions/sync';
 import { T } from '@/lib/tokens';
 import { fmtPLN } from '@/lib/utils';
-import { Category } from '@/lib/data';
+import { Account, AccountBudget, Category, Transaction } from '@/lib/data';
 import { useActiveMonthData } from '@/lib/useActiveMonthData';
 import Card from '@/components/ui/Card';
 import Bar from '@/components/ui/Bar';
@@ -14,7 +14,7 @@ import Icon from '@/components/ui/Icon';
 import PrivacyAmount from '@/components/ui/PrivacyAmount';
 
 export default function BudgetScreen() {
-  const { categories, overallBudget, activeMonth } = useActiveMonthData();
+  const { accounts, accountBudgets, categories, overallBudget, activeMonth, transactions } = useActiveMonthData();
   const router = useRouter();
   const [overallDraft, setOverallDraft] = useState(String(overallBudget ?? ''));
   const [overallPending, startOverallTransition] = useTransition();
@@ -35,7 +35,7 @@ export default function BudgetScreen() {
 
   const saveOverall = () => {
     startOverallTransition(async () => {
-      const result = await upsertOverallBudgetAction({ amount: Number(overallDraft || 0) });
+      const result = await upsertOverallBudgetAction({ amount: Number(overallDraft || 0), yearMonth: activeMonth });
       if (!result.ok) {
         toast.error(result.message);
         return;
@@ -106,6 +106,26 @@ export default function BudgetScreen() {
         </Card>
       </div>
 
+      <div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-end', marginBottom: 10 }}>
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 850, color: T.dark }}>Budżety kont</div>
+            <div style={{ fontSize: 12, color: T.muted }}>Limity wydatków przypisane do kont w wybranym miesiącu</div>
+          </div>
+        </div>
+        <div className="budget-account-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          {accounts.map(account => (
+            <AccountBudgetCard
+              key={account.id}
+              account={account}
+              activeMonth={activeMonth}
+              budget={accountBudgets.find(item => item.accountId === account.id) ?? null}
+              spent={accountSpent(transactions, account.id)}
+            />
+          ))}
+        </div>
+      </div>
+
       <div className="budget-category-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         {categories.map(c => {
           const catPct = c.budget ? c.spent / c.budget * 100 : 0;
@@ -116,6 +136,87 @@ export default function BudgetScreen() {
         })}
       </div>
     </div>
+  );
+}
+
+function accountSpent(transactions: Transaction[], accountId: string) {
+  return transactions
+    .filter(transaction => transaction.type === 'expense' && transaction.accountId === accountId)
+    .reduce((sum, transaction) => sum + transaction.rawAmount, 0);
+}
+
+function AccountBudgetCard({ account, activeMonth, budget, spent }: { account: Account; activeMonth: string; budget: AccountBudget | null; spent: number }) {
+  const router = useRouter();
+  const [draft, setDraft] = useState(budget ? String(budget.amount) : '');
+  const [pending, startTransition] = useTransition();
+  const amount = budget?.amount ?? 0;
+  const pct = amount > 0 ? (spent / amount * 100) : 0;
+  const over = pct > 100;
+
+  const save = () => {
+    startTransition(async () => {
+      const result = await upsertAccountBudgetAction({
+        accountId: account.id,
+        amount: Number(draft || 0),
+        yearMonth: activeMonth,
+      });
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
+      toast.success(result.message);
+      router.refresh();
+    });
+  };
+
+  return (
+    <Card style={{ padding: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+        <div style={{ width: 38, height: 38, borderRadius: 10, background: account.color, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
+          <Icon name={account.icon} size={20} color="white" />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: T.dark, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{account.name}</div>
+          <div style={{ fontSize: 12, color: T.muted }}>{account.type}</div>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <PrivacyAmount amount={spent} style={{ display: 'block', fontSize: 14, fontWeight: 800, color: over ? T.expense : T.dark }} />
+          <div style={{ fontSize: 11, color: T.faint }}>{amount > 0 ? `z ${fmtPLN(amount)}` : 'bez limitu'}</div>
+        </div>
+      </div>
+      {amount > 0 ? (
+        <>
+          <Bar pct={pct} color={over ? T.expense : account.color} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
+            <span style={{ fontSize: 11, color: over ? T.expense : T.muted }}>
+              {over ? `Przekroczono o ${fmtPLN(spent - amount)}` : `Pozostało ${fmtPLN(amount - spent)}`}
+            </span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: over ? T.expense : T.accent }}>{Math.round(pct)}%</span>
+          </div>
+        </>
+      ) : (
+        <div style={{ height: 8, borderRadius: 999, background: T.bg }} />
+      )}
+      <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+        <input
+          aria-label={`Budżet konta ${account.name}`}
+          type="number"
+          min="0"
+          step="0.01"
+          value={draft}
+          onChange={event => setDraft(event.target.value)}
+          placeholder="Budżet konta"
+          style={{ flex: 1, height: 34, border: `1px solid ${T.border}`, borderRadius: T.radiusSm, padding: '0 10px', font: 'inherit', fontSize: 13, outline: 'none', color: T.dark }}
+        />
+        <button
+          onClick={save}
+          disabled={pending}
+          style={{ height: 34, padding: '0 10px', borderRadius: T.radiusSm, background: T.dark, color: 'white', fontWeight: 700, fontSize: 13, opacity: pending ? 0.65 : 1 }}
+        >
+          Zapisz
+        </button>
+      </div>
+    </Card>
   );
 }
 

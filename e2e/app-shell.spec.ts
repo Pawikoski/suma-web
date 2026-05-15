@@ -40,6 +40,8 @@ test('command search navigates to app views', async ({ page }) => {
 
   await expect(page).toHaveURL(/\/budget\?month=2026-05$/);
   await expect(page.getByText('Budżet ogólny')).toBeVisible();
+  await expect(page.getByText('Budżety kont')).toBeVisible();
+  await expect(page.locator('input[aria-label^="Budżet konta"]').first()).toBeVisible();
 });
 
 test('persists selected month in the URL', async ({ page }) => {

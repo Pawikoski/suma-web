@@ -5,12 +5,15 @@ import { z } from 'zod';
 import { fetchSync, postSyncChanges } from '@/lib/api';
 import {
   SyncAccount,
+  SyncAccountBudget,
+  SyncAccountBudgetOverride,
   SyncCategory,
   SyncCategoryBudget,
   SyncAccountInterest,
   SyncInvestmentHolding,
   SyncInvestmentTransaction,
   SyncOverallBudget,
+  SyncOverallBudgetOverride,
   SyncRecurringTransaction,
   SyncServerChanges,
   SyncSettlement,
@@ -1687,6 +1690,7 @@ export async function deleteCategoryAction(categoryId: string): Promise<ActionRe
 
 const budgetInputSchema = z.object({
   amount: z.coerce.number().min(0),
+  yearMonth: z.string().regex(/^\d{4}-\d{2}$/).optional(),
 });
 
 function overallBudgetPayload(existing: SyncOverallBudget | undefined, amount: number, updatedAt: string) {
@@ -1699,6 +1703,17 @@ function overallBudgetPayload(existing: SyncOverallBudget | undefined, amount: n
   };
 }
 
+function overallBudgetOverridePayload(existing: SyncOverallBudgetOverride | undefined, yearMonth: string, amount: number, updatedAt: string) {
+  return {
+    id: existing?.id ?? crypto.randomUUID(),
+    year_month: yearMonth,
+    budget_amount: money(amount),
+    updated_at: updatedAt,
+    deleted_at: null,
+    version: existing?.version ?? 1,
+  };
+}
+
 export async function upsertOverallBudgetAction(input: unknown): Promise<ActionResult> {
   const parsed = budgetInputSchema.safeParse(input);
   if (!parsed.success) return { ok: false, message: 'Podaj poprawną kwotę budżetu.' };
@@ -1706,13 +1721,25 @@ export async function upsertOverallBudgetAction(input: unknown): Promise<ActionR
   const changes = await getServerChanges();
   if (!changes) return { ok: false, message: 'Nie udało się pobrać aktualnych danych.' };
 
-  const existing = changes.overall_budgets.find(b => !b.deleted_at);
-  if (!existing && parsed.data.amount <= 0) return { ok: true, message: 'Budżet jest wyłączony.' };
-
   const updatedAt = nowIso();
-  const sync = await postSyncChanges({
-    overall_budgets: [overallBudgetPayload(existing, parsed.data.amount, updatedAt)],
-  });
+  const sync = parsed.data.yearMonth
+    ? await postSyncChanges({
+        overall_budget_overrides: [
+          overallBudgetOverridePayload(
+            (changes.overall_budget_overrides ?? []).find(
+              budget => budget.year_month === parsed.data.yearMonth && !budget.deleted_at
+            ),
+            parsed.data.yearMonth,
+            parsed.data.amount,
+            updatedAt
+          ),
+        ],
+      })
+    : await postSyncChanges({
+        overall_budgets: [
+          overallBudgetPayload(changes.overall_budgets.find(b => !b.deleted_at), parsed.data.amount, updatedAt),
+        ],
+      });
 
   const failure = sync ? syncFailureMessage(sync.errors, sync.conflicts) : 'Nie udało się zapisać budżetu.';
   if (failure) return { ok: false, message: failure };
@@ -1724,6 +1751,10 @@ export async function upsertOverallBudgetAction(input: unknown): Promise<ActionR
 
 const categoryBudgetInputSchema = budgetInputSchema.extend({
   categoryId: z.string().min(1),
+});
+
+const accountBudgetInputSchema = budgetInputSchema.extend({
+  accountId: z.string().min(1),
 });
 
 function categoryBudgetPayload(existing: SyncCategoryBudget | undefined, categoryId: string, amount: number, updatedAt: string) {
@@ -1765,6 +1796,74 @@ export async function upsertCategoryBudgetAction(input: unknown): Promise<Action
   revalidatePath('/categories');
   revalidatePath('/');
   return { ok: true, message: parsed.data.amount > 0 ? 'Budżet kategorii został zapisany.' : 'Budżet kategorii został wyłączony.' };
+}
+
+function accountBudgetPayload(existing: SyncAccountBudget | undefined, accountId: string, amount: number, updatedAt: string) {
+  return {
+    id: existing?.id ?? crypto.randomUUID(),
+    account_id: accountId,
+    budget_amount: money(amount),
+    updated_at: updatedAt,
+    deleted_at: amount > 0 ? null : updatedAt,
+    version: existing?.version ?? 1,
+  };
+}
+
+function accountBudgetOverridePayload(existing: SyncAccountBudgetOverride | undefined, accountId: string, yearMonth: string, amount: number, updatedAt: string) {
+  return {
+    id: existing?.id ?? crypto.randomUUID(),
+    account_id: accountId,
+    year_month: yearMonth,
+    budget_amount: money(amount),
+    updated_at: updatedAt,
+    deleted_at: null,
+    version: existing?.version ?? 1,
+  };
+}
+
+export async function upsertAccountBudgetAction(input: unknown): Promise<ActionResult> {
+  const parsed = accountBudgetInputSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: 'Podaj poprawny budżet konta.' };
+
+  const changes = await getServerChanges();
+  if (!changes) return { ok: false, message: 'Nie udało się pobrać aktualnych danych.' };
+
+  const account = changes.accounts.find(item => item.id === parsed.data.accountId && !item.deleted_at && item.is_active);
+  if (!account) return { ok: false, message: 'Nie znaleziono konta.' };
+
+  const existing = (changes.account_budgets ?? []).find(
+    budget => budget.account_id === account.id && !budget.deleted_at
+  );
+  const updatedAt = nowIso();
+
+  const sync = parsed.data.yearMonth
+    ? await postSyncChanges({
+        account_budgets: existing || parsed.data.amount <= 0
+          ? []
+          : [accountBudgetPayload(existing, account.id, parsed.data.amount, updatedAt)],
+        account_budget_overrides: [
+          accountBudgetOverridePayload(
+            (changes.account_budget_overrides ?? []).find(
+              budget => budget.account_id === account.id && budget.year_month === parsed.data.yearMonth && !budget.deleted_at
+            ),
+            account.id,
+            parsed.data.yearMonth,
+            parsed.data.amount,
+            updatedAt
+          ),
+        ],
+      })
+    : await postSyncChanges({
+        account_budgets: [accountBudgetPayload(existing, account.id, parsed.data.amount, updatedAt)],
+      });
+
+  const failure = sync ? syncFailureMessage(sync.errors, sync.conflicts) : 'Nie udało się zapisać budżetu konta.';
+  if (failure) return { ok: false, message: failure };
+
+  revalidatePath('/budget');
+  revalidatePath('/accounts');
+  revalidatePath('/');
+  return { ok: true, message: parsed.data.amount > 0 ? 'Budżet konta został zapisany.' : 'Budżet konta został wyłączony dla miesiąca.' };
 }
 
 function normalizeName(value: string): string {
