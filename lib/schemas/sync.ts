@@ -126,6 +126,30 @@ export const syncOverallBudgetSchema = z.object({
   budget_amount: decimalLike,
 });
 
+export const syncInvestmentHoldingSchema = z.object({
+  ...syncBaseFields,
+  account_id: optionalNullableString.default(null),
+  symbol: z.string(),
+  name: z.string(),
+  investment_type: z.enum(['STOCK', 'ETF', 'CRYPTO', 'PRECIOUS_METAL']),
+  quantity: z.number(),
+  unit_price: decimalLike,
+  currency: z.string(),
+  purchase_currency: z.string(),
+  notes: z.string().optional().default(''),
+});
+
+export const syncInvestmentTransactionSchema = z.object({
+  ...syncBaseFields,
+  holding_id: optionalNullableString.default(null),
+  type: z.enum(['BUY', 'SELL']),
+  quantity: z.number(),
+  unit_price: decimalLike,
+  currency: z.string(),
+  date: z.string(),
+  notes: z.string().optional().default(''),
+});
+
 export const syncSettlementSchema = z.object({
   ...syncBaseFields,
   direction: z.enum(['LENT', 'BORROWED']),
@@ -194,8 +218,8 @@ export const syncResponseSchema = z.object({
     overall_budgets: z.array(syncOverallBudgetSchema),
     account_budget_overrides: z.array(z.unknown()).optional().default([]),
     overall_budget_overrides: z.array(z.unknown()).optional().default([]),
-    investment_holdings: z.array(z.unknown()).optional().default([]),
-    investment_transactions: z.array(z.unknown()).optional().default([]),
+    investment_holdings: z.array(syncInvestmentHoldingSchema).optional().default([]),
+    investment_transactions: z.array(syncInvestmentTransactionSchema).optional().default([]),
     account_interest: z.array(z.unknown()).optional().default([]),
     settlements: z.array(syncSettlementSchema).optional().default([]),
     settlement_payments: z.array(syncSettlementPaymentSchema).optional().default([]),

@@ -142,6 +142,36 @@ export interface SyncRecurringTransaction {
   version: number;
 }
 
+export interface SyncInvestmentHolding {
+  id: string;
+  account_id: string | null;
+  symbol: string;
+  name: string;
+  investment_type: 'STOCK' | 'ETF' | 'CRYPTO' | 'PRECIOUS_METAL';
+  quantity: number;
+  unit_price: string;
+  currency: string;
+  purchase_currency: string;
+  notes: string;
+  updated_at: string;
+  deleted_at: string | null;
+  version: number;
+}
+
+export interface SyncInvestmentTransaction {
+  id: string;
+  holding_id: string | null;
+  type: 'BUY' | 'SELL';
+  quantity: number;
+  unit_price: string;
+  currency: string;
+  date: string;
+  notes: string;
+  updated_at: string;
+  deleted_at: string | null;
+  version: number;
+}
+
 export interface SyncCategoryBudget {
   id: string;
   category_id: string | null;
@@ -203,8 +233,8 @@ export interface SyncServerChanges {
   overall_budgets: SyncOverallBudget[];
   account_budget_overrides?: unknown[];
   overall_budget_overrides?: unknown[];
-  investment_holdings?: unknown[];
-  investment_transactions?: unknown[];
+  investment_holdings?: SyncInvestmentHolding[];
+  investment_transactions?: SyncInvestmentTransaction[];
   account_interest?: unknown[];
   settlements?: SyncSettlement[];
   settlement_payments?: SyncSettlementPayment[];

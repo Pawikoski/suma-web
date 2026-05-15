@@ -123,6 +123,42 @@ export interface RecurringTransaction {
   version: number;
 }
 
+export type InvestmentType = 'STOCK' | 'ETF' | 'CRYPTO' | 'PRECIOUS_METAL';
+export type InvestmentTransactionType = 'BUY' | 'SELL';
+
+export interface InvestmentTransaction {
+  id: string;
+  holdingId: string | null;
+  type: InvestmentTransactionType;
+  quantity: number;
+  unitPrice: number;
+  currency: string;
+  date: string;
+  notes: string;
+  updatedAt: string;
+  deletedAt: string | null;
+  version: number;
+}
+
+export interface InvestmentHolding {
+  id: string;
+  accountId: string | null;
+  accountName: string | null;
+  symbol: string;
+  name: string;
+  investmentType: InvestmentType;
+  quantity: number;
+  unitPrice: number;
+  value: number;
+  currency: string;
+  purchaseCurrency: string;
+  notes: string;
+  transactions: InvestmentTransaction[];
+  updatedAt: string;
+  deletedAt: string | null;
+  version: number;
+}
+
 export type SettlementDirection = 'LENT' | 'BORROWED';
 export type SettlementStatus = 'ACTIVE' | 'SETTLED';
 

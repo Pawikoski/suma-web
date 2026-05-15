@@ -3,7 +3,7 @@
 import { Command } from 'cmdk';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useRouter } from 'next/navigation';
-import { BarChart2, ClipboardList, HandCoins, Home, Repeat2, Search, Tag, UploadCloud, Wallet } from 'lucide-react';
+import { BarChart2, ClipboardList, HandCoins, Home, LineChart, Repeat2, Search, Tag, UploadCloud, Wallet } from 'lucide-react';
 import { useActiveMonthData } from '@/lib/useActiveMonthData';
 import { useSumaUiStore } from '@/lib/stores/ui-store';
 import { fmtPLN } from '@/lib/utils';
@@ -15,6 +15,7 @@ const QUICK_LINKS = [
   { label: 'Rozliczenia', href: '/settlements', Icon: HandCoins },
   { label: 'Kategorie', href: '/categories', Icon: Tag },
   { label: 'Konta', href: '/accounts', Icon: Wallet },
+  { label: 'Inwestycje', href: '/investments', Icon: LineChart },
   { label: 'Budżet', href: '/budget', Icon: BarChart2 },
   { label: 'Raporty', href: '/reports', Icon: BarChart2 },
   { label: 'Import/eksport', href: '/import-export', Icon: UploadCloud },
@@ -22,7 +23,7 @@ const QUICK_LINKS = [
 
 export default function CommandPalette() {
   const router = useRouter();
-  const { accounts, categories, allTransactions, activeMonth } = useActiveMonthData();
+  const { accounts, categories, allTransactions, investmentHoldings, activeMonth } = useActiveMonthData();
   const open = useSumaUiStore(state => state.isCommandOpen);
   const close = useSumaUiStore(state => state.closeCommand);
   const navHref = (href: string) => href.includes('?')
@@ -87,6 +88,17 @@ export default function CommandPalette() {
                 <span>{category.name}</span>
                 <small>{category.txCount} transakcji</small>
                 <strong>{fmtPLN(category.spent)}</strong>
+              </Command.Item>
+            ))}
+          </Command.Group>
+
+          <Command.Group heading="Inwestycje">
+            {investmentHoldings.slice(0, 12).map(holding => (
+              <Command.Item key={holding.id} value={`inwestycja ${holding.symbol} ${holding.name}`} onSelect={() => run('/investments')}>
+                <LineChart size={18} />
+                <span>{holding.symbol}</span>
+                <small>{holding.accountName ?? holding.name}</small>
+                <strong>{fmtPLN(holding.value)}</strong>
               </Command.Item>
             ))}
           </Command.Group>

@@ -1,5 +1,5 @@
 import { SyncServerChanges } from './api-types';
-import { Account, Category, OverallBudget, RecurringTransaction, Settlement, Transaction } from './data';
+import { Account, Category, InvestmentHolding, OverallBudget, RecurringTransaction, Settlement, Transaction } from './data';
 
 const TYPE_LABELS: Record<string, string> = {
   CASH: 'Gotówka',
@@ -26,6 +26,7 @@ export interface MappedData {
   transactions: Transaction[];
   allTransactions: Transaction[];
   recurringTransactions: RecurringTransaction[];
+  investmentHoldings: InvestmentHolding[];
   settlements: Settlement[];
   overallBudget: number | null;
   overallBudgetRecord: OverallBudget | null;
@@ -204,6 +205,54 @@ export function mapSyncData(data: SyncServerChanges, yearMonth: string): MappedD
       } satisfies RecurringTransaction;
     });
 
+  const investmentTransactionsByHoldingId = new Map<string, InvestmentHolding['transactions']>();
+  for (const tx of (data.investment_transactions ?? []).filter(tx => !tx.deleted_at)) {
+    if (!tx.holding_id) continue;
+    const mapped = {
+      id: tx.id,
+      holdingId: tx.holding_id,
+      type: tx.type,
+      quantity: tx.quantity,
+      unitPrice: parseFloat(tx.unit_price),
+      currency: tx.currency,
+      date: tx.date.slice(0, 10),
+      notes: tx.notes,
+      updatedAt: tx.updated_at,
+      deletedAt: tx.deleted_at,
+      version: tx.version,
+    };
+    const entries = investmentTransactionsByHoldingId.get(tx.holding_id) ?? [];
+    entries.push(mapped);
+    investmentTransactionsByHoldingId.set(tx.holding_id, entries);
+  }
+
+  const investmentHoldings: InvestmentHolding[] = (data.investment_holdings ?? [])
+    .filter(holding => !holding.deleted_at)
+    .map(holding => {
+      const account = holding.account_id ? mappedAccountById.get(holding.account_id) : null;
+      const unitPrice = parseFloat(holding.unit_price);
+      const transactions = investmentTransactionsByHoldingId.get(holding.id) ?? [];
+      return {
+        id: holding.id,
+        accountId: holding.account_id,
+        accountName: account?.name ?? null,
+        symbol: holding.symbol,
+        name: holding.name,
+        investmentType: holding.investment_type,
+        quantity: holding.quantity,
+        unitPrice,
+        value: holding.quantity * unitPrice,
+        currency: holding.currency,
+        purchaseCurrency: holding.purchase_currency,
+        notes: holding.notes,
+        transactions: transactions.sort((a, b) => b.date.localeCompare(a.date)),
+        updatedAt: holding.updated_at,
+        deletedAt: holding.deleted_at,
+        version: holding.version,
+      } satisfies InvestmentHolding;
+    })
+    .sort((a, b) => (a.accountName ?? '').localeCompare(b.accountName ?? '') || a.symbol.localeCompare(b.symbol));
+
   const paymentAccountById = new Map(accounts.map(account => [account.id, account]));
   const paymentsBySettlementId = new Map<string, Settlement['payments']>();
   for (const payment of (data.settlement_payments ?? []).filter(payment => !payment.deleted_at)) {
@@ -278,7 +327,7 @@ export function mapSyncData(data: SyncServerChanges, yearMonth: string): MappedD
     : null;
   const overallBudget = overallBudgetRecord?.amount ?? null;
 
-  return { accounts, categories, transactions, allTransactions, recurringTransactions, settlements, overallBudget, overallBudgetRecord, yearMonth };
+  return { accounts, categories, transactions, allTransactions, recurringTransactions, investmentHoldings, settlements, overallBudget, overallBudgetRecord, yearMonth };
 }
 
 export function currentYearMonth(): string {

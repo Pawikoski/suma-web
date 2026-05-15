@@ -125,6 +125,15 @@ test('opens reports from navigation', async ({ page }) => {
   await expect(page.getByText('Kategorie wydatków')).toBeVisible();
 });
 
+test('opens investments from navigation', async ({ page }) => {
+  await login(page);
+
+  await page.getByRole('link', { name: 'Inwestycje' }).click();
+
+  await expect(page).toHaveURL(/\/investments\?month=2026-05/);
+  await expect(page.getByText(/Wartość portfela|Brak inwestycji/)).toBeVisible();
+});
+
 test('opens import and export workspace from navigation', async ({ page }) => {
   await login(page);
 

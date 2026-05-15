@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, ClipboardList, Tag, Wallet, BarChart2, Plus, LogOut, Repeat2, UploadCloud, HandCoins } from 'lucide-react';
+import { Home, ClipboardList, Tag, Wallet, BarChart2, Plus, LogOut, Repeat2, UploadCloud, HandCoins, LineChart } from 'lucide-react';
 import { format, parse } from 'date-fns';
 import { pl } from 'date-fns/locale';
 import { logout } from '@/app/actions/auth';
@@ -15,6 +15,7 @@ const NAV = [
   { href: '/settlements',   label: 'Rozliczenia', Icon: HandCoins },
   { href: '/categories',    label: 'Kategorie',  Icon: Tag },
   { href: '/accounts',      label: 'Konta',      Icon: Wallet },
+  { href: '/investments',   label: 'Inwestycje', Icon: LineChart },
   { href: '/budget',        label: 'Budżet',     Icon: BarChart2 },
   { href: '/reports',       label: 'Raporty',    Icon: BarChart2 },
   { href: '/import-export', label: 'Import/eksport', Icon: UploadCloud },
