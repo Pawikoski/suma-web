@@ -113,7 +113,7 @@ test('opens settlements from navigation', async ({ page }) => {
   await page.getByRole('link', { name: 'Rozliczenia' }).click();
 
   await expect(page).toHaveURL(/\/settlements\?month=2026-05/);
-  await expect(page.getByText(/Bilans rozliczeń|Brak rozliczeń/)).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Brak rozliczeń' }).or(page.getByText('Bilans rozliczeń'))).toBeVisible();
 });
 
 test('opens settlement creation dialog', async ({ page }) => {

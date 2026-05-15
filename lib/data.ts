@@ -159,6 +159,28 @@ export interface InvestmentHolding {
   version: number;
 }
 
+export interface AccountInterest {
+  id: string;
+  accountId: string | null;
+  accountName: string | null;
+  annualRatePercent: number;
+  baseAmount: number | null;
+  effectiveBaseAmount: number;
+  startDate: string;
+  endDate: string;
+  taxRatePercent: number;
+  afterMaturityAction: 'DISABLE' | 'TRANSFER';
+  targetAccountId: string | null;
+  targetAccountName: string | null;
+  isActive: boolean;
+  interestCategoryId: string | null;
+  monthlyPayment: number | null;
+  originalLoanAmount: number | null;
+  updatedAt: string;
+  deletedAt: string | null;
+  version: number;
+}
+
 export type SettlementDirection = 'LENT' | 'BORROWED';
 export type SettlementStatus = 'ACTIVE' | 'SETTLED';
 

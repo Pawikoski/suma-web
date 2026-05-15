@@ -162,6 +162,24 @@ function syncFixture(): SyncServerChanges {
         is_active: true,
       },
     ],
+    account_interest: [
+      {
+        ...baseChange,
+        id: 'interest-cash',
+        account_id: 'acc-cash',
+        annual_rate_percent: 6.5,
+        base_amount: null,
+        start_date: '2026-05-01T00:00:00Z',
+        end_date: '2026-08-01T00:00:00Z',
+        tax_rate_percent: 19,
+        after_maturity_action: 'DISABLE',
+        target_account_id: null,
+        is_active: true,
+        interest_category_id: null,
+        monthly_payment: null,
+        original_loan_amount: null,
+      },
+    ],
     settlements: [
       {
         ...baseChange,
@@ -239,6 +257,19 @@ describe('mapSyncData', () => {
       repaidAmount: 30,
       remainingAmount: 70,
       payments: [{ amount: 30, accountName: 'Cash' }],
+    });
+  });
+
+  it('maps account interest settings from the sync contract', () => {
+    const data = mapSyncData(syncFixture(), '2026-05');
+
+    expect(data.accountInterest[0]).toMatchObject({
+      id: 'interest-cash',
+      accountName: 'Cash',
+      annualRatePercent: 6.5,
+      effectiveBaseAmount: 100,
+      startDate: '2026-05-01',
+      endDate: '2026-08-01',
     });
   });
 });

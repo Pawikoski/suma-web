@@ -131,4 +131,38 @@ describe('parseSyncResponse', () => {
     expect(result.server_changes.settlements[0]).toMatchObject({ direction: 'LENT', total_amount: '100.00' });
     expect(result.server_changes.settlement_payments[0]).toMatchObject({ amount: '25.00' });
   });
+
+  it('validates account interest at the sync boundary', () => {
+    const result = parseSyncResponse({
+      ...baseSyncResponse,
+      server_changes: {
+        ...baseSyncResponse.server_changes,
+        account_interest: [
+          {
+            id: 'interest-1',
+            account_id: 'acc-1',
+            annual_rate_percent: 6.5,
+            base_amount: null,
+            start_date: '2026-05-01T00:00:00Z',
+            end_date: '2026-08-01T00:00:00Z',
+            tax_rate_percent: 19,
+            after_maturity_action: 'DISABLE',
+            target_account_id: null,
+            is_active: true,
+            interest_category_id: null,
+            monthly_payment: null,
+            original_loan_amount: null,
+            updated_at: '2026-05-01T00:00:00Z',
+            deleted_at: null,
+            version: 1,
+          },
+        ],
+      },
+    });
+
+    expect(result.server_changes.account_interest[0]).toMatchObject({
+      annual_rate_percent: 6.5,
+      after_maturity_action: 'DISABLE',
+    });
+  });
 });

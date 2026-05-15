@@ -150,6 +150,22 @@ export const syncInvestmentTransactionSchema = z.object({
   notes: z.string().optional().default(''),
 });
 
+export const syncAccountInterestSchema = z.object({
+  ...syncBaseFields,
+  account_id: optionalNullableString.default(null),
+  annual_rate_percent: z.number(),
+  base_amount: decimalLike.nullable().optional().default(null),
+  start_date: z.string(),
+  end_date: z.string(),
+  tax_rate_percent: z.number().optional().default(19),
+  after_maturity_action: z.enum(['DISABLE', 'TRANSFER']).optional().default('DISABLE'),
+  target_account_id: optionalNullableString.default(null),
+  is_active: z.boolean().optional().default(true),
+  interest_category_id: optionalNullableString.default(null),
+  monthly_payment: decimalLike.nullable().optional().default(null),
+  original_loan_amount: decimalLike.nullable().optional().default(null),
+});
+
 export const syncSettlementSchema = z.object({
   ...syncBaseFields,
   direction: z.enum(['LENT', 'BORROWED']),
@@ -220,7 +236,7 @@ export const syncResponseSchema = z.object({
     overall_budget_overrides: z.array(z.unknown()).optional().default([]),
     investment_holdings: z.array(syncInvestmentHoldingSchema).optional().default([]),
     investment_transactions: z.array(syncInvestmentTransactionSchema).optional().default([]),
-    account_interest: z.array(z.unknown()).optional().default([]),
+    account_interest: z.array(syncAccountInterestSchema).optional().default([]),
     settlements: z.array(syncSettlementSchema).optional().default([]),
     settlement_payments: z.array(syncSettlementPaymentSchema).optional().default([]),
   }),

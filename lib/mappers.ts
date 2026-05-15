@@ -1,5 +1,5 @@
 import { SyncServerChanges } from './api-types';
-import { Account, Category, InvestmentHolding, OverallBudget, RecurringTransaction, Settlement, Transaction } from './data';
+import { Account, AccountInterest, Category, InvestmentHolding, OverallBudget, RecurringTransaction, Settlement, Transaction } from './data';
 
 const TYPE_LABELS: Record<string, string> = {
   CASH: 'Gotówka',
@@ -27,6 +27,7 @@ export interface MappedData {
   allTransactions: Transaction[];
   recurringTransactions: RecurringTransaction[];
   investmentHoldings: InvestmentHolding[];
+  accountInterest: AccountInterest[];
   settlements: Settlement[];
   overallBudget: number | null;
   overallBudgetRecord: OverallBudget | null;
@@ -253,6 +254,36 @@ export function mapSyncData(data: SyncServerChanges, yearMonth: string): MappedD
     })
     .sort((a, b) => (a.accountName ?? '').localeCompare(b.accountName ?? '') || a.symbol.localeCompare(b.symbol));
 
+  const accountInterest: AccountInterest[] = (data.account_interest ?? [])
+    .filter(interest => !interest.deleted_at && interest.is_active)
+    .map(interest => {
+      const account = interest.account_id ? mappedAccountById.get(interest.account_id) : null;
+      const targetAccount = interest.target_account_id ? mappedAccountById.get(interest.target_account_id) : null;
+      const baseAmount = interest.base_amount === null ? null : parseFloat(interest.base_amount);
+      return {
+        id: interest.id,
+        accountId: interest.account_id,
+        accountName: account?.name ?? null,
+        annualRatePercent: interest.annual_rate_percent,
+        baseAmount,
+        effectiveBaseAmount: baseAmount ?? account?.balance ?? 0,
+        startDate: interest.start_date.slice(0, 10),
+        endDate: interest.end_date.slice(0, 10),
+        taxRatePercent: interest.tax_rate_percent,
+        afterMaturityAction: interest.after_maturity_action,
+        targetAccountId: interest.target_account_id,
+        targetAccountName: targetAccount?.name ?? null,
+        isActive: interest.is_active,
+        interestCategoryId: interest.interest_category_id,
+        monthlyPayment: interest.monthly_payment === null ? null : parseFloat(interest.monthly_payment),
+        originalLoanAmount: interest.original_loan_amount === null ? null : parseFloat(interest.original_loan_amount),
+        updatedAt: interest.updated_at,
+        deletedAt: interest.deleted_at,
+        version: interest.version,
+      } satisfies AccountInterest;
+    })
+    .sort((a, b) => a.endDate.localeCompare(b.endDate));
+
   const paymentAccountById = new Map(accounts.map(account => [account.id, account]));
   const paymentsBySettlementId = new Map<string, Settlement['payments']>();
   for (const payment of (data.settlement_payments ?? []).filter(payment => !payment.deleted_at)) {
@@ -327,7 +358,7 @@ export function mapSyncData(data: SyncServerChanges, yearMonth: string): MappedD
     : null;
   const overallBudget = overallBudgetRecord?.amount ?? null;
 
-  return { accounts, categories, transactions, allTransactions, recurringTransactions, investmentHoldings, settlements, overallBudget, overallBudgetRecord, yearMonth };
+  return { accounts, categories, transactions, allTransactions, recurringTransactions, investmentHoldings, accountInterest, settlements, overallBudget, overallBudgetRecord, yearMonth };
 }
 
 export function currentYearMonth(): string {

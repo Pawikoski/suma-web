@@ -172,6 +172,25 @@ export interface SyncInvestmentTransaction {
   version: number;
 }
 
+export interface SyncAccountInterest {
+  id: string;
+  account_id: string | null;
+  annual_rate_percent: number;
+  base_amount: string | null;
+  start_date: string;
+  end_date: string;
+  tax_rate_percent: number;
+  after_maturity_action: 'DISABLE' | 'TRANSFER';
+  target_account_id: string | null;
+  is_active: boolean;
+  interest_category_id: string | null;
+  monthly_payment: string | null;
+  original_loan_amount: string | null;
+  updated_at: string;
+  deleted_at: string | null;
+  version: number;
+}
+
 export interface SyncCategoryBudget {
   id: string;
   category_id: string | null;
@@ -235,7 +254,7 @@ export interface SyncServerChanges {
   overall_budget_overrides?: unknown[];
   investment_holdings?: SyncInvestmentHolding[];
   investment_transactions?: SyncInvestmentTransaction[];
-  account_interest?: unknown[];
+  account_interest?: SyncAccountInterest[];
   settlements?: SyncSettlement[];
   settlement_payments?: SyncSettlementPayment[];
 }

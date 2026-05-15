@@ -2,12 +2,12 @@
 import { CSSProperties, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { parseAsString, useQueryState } from 'nuqs';
-import { ClipboardList, Pencil, Plus, Save, Trash2, X } from 'lucide-react';
+import { CalendarClock, ClipboardList, Pencil, Percent, Plus, Save, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { createAccountAction, deleteAccountAction, updateAccountAction } from '@/app/actions/sync';
 import { T } from '@/lib/tokens';
 import { useActiveMonthData } from '@/lib/useActiveMonthData';
-import { Account } from '@/lib/data';
+import { Account, AccountInterest } from '@/lib/data';
 import Card from '@/components/ui/Card';
 import Sparkline from '@/components/ui/Sparkline';
 import Icon from '@/components/ui/Icon';
@@ -15,7 +15,7 @@ import PrivacyAmount from '@/components/ui/PrivacyAmount';
 
 export default function AccountsScreen() {
   const router = useRouter();
-  const { accounts, transactions, activeMonth } = useActiveMonthData();
+  const { accounts, transactions, accountInterest, activeMonth } = useActiveMonthData();
   const [selectedAccountId, setSelectedAccountId] = useQueryState('account', parseAsString.withDefault(accounts[0]?.id ?? ''));
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
@@ -29,6 +29,7 @@ export default function AccountsScreen() {
   const accTxs = selected ? transactions.filter(t => t.acc === selected.name) : [];
   const accIncome = accTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
   const accExpense = Math.abs(accTxs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0));
+  const selectedInterest = selected ? accountInterest.find(interest => interest.accountId === selected.id) ?? null : null;
 
   return (
     <div className="screen accounts-screen" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -112,6 +113,7 @@ export default function AccountsScreen() {
               </div>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {selectedInterest && <AccountInterestCard interest={selectedInterest} currency={selected.currency} />}
               <div style={{ padding: 14, borderRadius: 10, background: T.incomeSoft }}>
                 <div style={{ fontSize: 12, color: T.income, fontWeight: 500 }}>Przychody</div>
                 <PrivacyAmount amount={accIncome} prefix="+" style={{ display: 'block', fontSize: 20, fontWeight: 700, color: T.income }} />
@@ -161,6 +163,62 @@ function DeleteAccountButton({ account }: { account: Account }) {
     <button aria-label="Usuń konto" onClick={deleteAccount} disabled={isPending} style={{ ...iconButtonStyle, color: T.expense, background: T.expenseSoft, opacity: isPending ? 0.55 : 1 }}>
       <Trash2 size={15} />
     </button>
+  );
+}
+
+function AccountInterestCard({ interest, currency }: { interest: AccountInterest; currency: string }) {
+  const start = new Date(`${interest.startDate}T00:00:00`);
+  const end = new Date(`${interest.endDate}T00:00:00`);
+  const now = new Date();
+  const dayMs = 24 * 60 * 60 * 1000;
+  const totalDays = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / dayMs));
+  const elapsedDays = Math.min(totalDays, Math.max(0, Math.floor((now.getTime() - start.getTime()) / dayMs)));
+  const daysLeft = Math.max(0, totalDays - elapsedDays);
+  const grossAccrued = interest.effectiveBaseAmount * interest.annualRatePercent / 100 / 365 * elapsedDays;
+  const netAccrued = grossAccrued * (1 - interest.taxRatePercent / 100);
+  const progress = totalDays > 0 ? Math.min(100, Math.max(0, elapsedDays / totalDays * 100)) : 0;
+  const isLoan = interest.monthlyPayment !== null || interest.originalLoanAmount !== null;
+
+  return (
+    <div style={{ padding: 14, borderRadius: 12, background: 'linear-gradient(135deg,#4f46e5,#7c3aed)', color: 'white' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start', marginBottom: 12 }}>
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 750, opacity: 0.78 }}>{isLoan ? 'Oprocentowanie zobowiązania' : 'Aktywne oprocentowanie'}</div>
+          <div style={{ fontSize: 16, fontWeight: 850 }}>{interest.annualRatePercent.toFixed(2)}% rocznie</div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px', borderRadius: 999, background: 'rgba(255,255,255,.16)', fontSize: 12, fontWeight: 850 }}>
+          <Percent size={14} /> {interest.taxRatePercent.toFixed(0)}% podatku
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
+        <div>
+          <div style={{ fontSize: 11, opacity: 0.7 }}>Naliczono netto</div>
+          <PrivacyAmount amount={netAccrued} prefix="+" style={{ display: 'block', fontSize: 18, fontWeight: 850 }} />
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ fontSize: 11, opacity: 0.7 }}>Baza</div>
+          <PrivacyAmount amount={interest.effectiveBaseAmount} style={{ display: 'block', fontSize: 18, fontWeight: 850 }} />
+        </div>
+      </div>
+
+      <div style={{ height: 6, borderRadius: 999, background: 'rgba(255,255,255,.2)', overflow: 'hidden', marginBottom: 8 }}>
+        <div style={{ height: '100%', width: `${progress}%`, background: 'white' }} />
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 11, fontWeight: 750, opacity: 0.78 }}>
+        <span>{interest.startDate}</span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          <CalendarClock size={13} /> {daysLeft === 0 ? 'zakończone' : `${daysLeft} dni`}
+        </span>
+        <span>{interest.endDate}</span>
+      </div>
+      {interest.afterMaturityAction === 'TRANSFER' && interest.targetAccountName && (
+        <div style={{ marginTop: 10, fontSize: 11, opacity: 0.82 }}>Po zapadalności transfer na: {interest.targetAccountName}</div>
+      )}
+      {interest.monthlyPayment !== null && (
+        <div style={{ marginTop: 10, fontSize: 11, opacity: 0.82 }}>Rata miesięczna: {interest.monthlyPayment.toLocaleString('pl-PL', { style: 'currency', currency })}</div>
+      )}
+    </div>
   );
 }
 
