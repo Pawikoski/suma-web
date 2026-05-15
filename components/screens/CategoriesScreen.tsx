@@ -1,8 +1,11 @@
 'use client';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { T } from '@/lib/tokens';
 import { fmtPLN } from '@/lib/utils';
 import { useActiveMonthData } from '@/lib/useActiveMonthData';
+import { Category } from '@/lib/data';
+import { groupCategoriesForView } from '@/lib/category-hierarchy';
 import Card from '@/components/ui/Card';
 import Bar from '@/components/ui/Bar';
 import Donut from '@/components/ui/Donut';
@@ -16,13 +19,16 @@ const VIEWS = [
 ] as const;
 
 export default function CategoriesScreen() {
+  const router = useRouter();
   const [view, setView] = useState<string>('all');
   const { categories, activeMonth } = useActiveMonthData();
   const visibleCategories = categories.filter(c => {
     if (view === 'all') return true;
     return c.types.includes(view.toUpperCase());
   });
+  const categoryGroups = groupCategoriesForView(categories, view);
   const totalSpent = visibleCategories.reduce((s, c) => s + c.spent, 0);
+  const topCategories = [...visibleCategories].sort((a, b) => b.spent - a.spent);
 
   const now = new Date(`${activeMonth}-15T12:00:00`);
   const monthLabel = now.toLocaleString('pl-PL', { month: 'long', year: 'numeric' });
@@ -49,32 +55,43 @@ export default function CategoriesScreen() {
 
       <div className="categories-layout-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {visibleCategories.length === 0 && (
+          {categoryGroups.length === 0 && (
             <div style={{ textAlign: 'center', fontSize: 13, color: T.faint, padding: 32 }}>Brak kategorii</div>
           )}
-          {visibleCategories.map(c => {
-            const pct = c.budget ? (c.spent / c.budget * 100) : null;
+          {categoryGroups.map(group => {
+            const c = group.category;
+            const pct = group.totalBudget ? (group.totalSpent / group.totalBudget * 100) : null;
             const over = pct !== null && pct > 100;
             return (
-              <Card key={c.id} style={{ padding: 16, cursor: 'pointer' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: c.budget ? 10 : 0 }}>
-                  <div style={{ width: 40, height: 40, borderRadius: 12, background: c.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <Icon name={c.icon} size={20} color={c.color} />
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: T.dark }}>{c.name}</div>
-                    <div style={{ fontSize: 12, color: T.muted }}>{c.txCount} transakcji</div>
-                  </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <PrivacyAmount amount={c.spent} style={{ display: 'block', fontSize: 15, fontWeight: 700, color: over ? T.expense : T.dark }} />
-                    {c.budget && <div style={{ fontSize: 11, color: T.faint }}>z {fmtPLN(c.budget)}</div>}
-                  </div>
-                </div>
-                {c.budget && pct !== null && (
-                  <>
+              <Card key={c.id} style={{ padding: 0, overflow: 'hidden' }}>
+                <CategoryRow
+                  category={c}
+                  amount={group.totalSpent}
+                  txCount={group.totalTxCount}
+                  budget={group.totalBudget}
+                  childCount={group.children.length}
+                  onClick={() => router.push(`/transactions?category=${c.id}&month=${activeMonth}`)}
+                />
+                {group.totalBudget && pct !== null && (
+                  <div style={{ padding: '0 16px 12px' }}>
                     <Bar pct={pct} color={over ? T.expense : c.color} />
-                    {over && <div style={{ fontSize: 11, color: T.expense, marginTop: 4, fontWeight: 500 }}>Przekroczono budżet o {fmtPLN(c.spent - c.budget!)}</div>}
-                  </>
+                    {over && <div style={{ fontSize: 11, color: T.expense, marginTop: 4, fontWeight: 500 }}>Przekroczono budżet o {fmtPLN(group.totalSpent - group.totalBudget)}</div>}
+                  </div>
+                )}
+                {group.children.length > 0 && (
+                  <div style={{ borderTop: `1px solid ${T.border}` }}>
+                    {group.children.map(child => (
+                      <CategoryRow
+                        key={child.id}
+                        category={child}
+                        amount={child.spent}
+                        txCount={child.txCount}
+                        budget={child.budget}
+                        child
+                        onClick={() => router.push(`/transactions?category=${child.id}&month=${activeMonth}`)}
+                      />
+                    ))}
+                  </div>
                 )}
               </Card>
             );
@@ -86,7 +103,7 @@ export default function CategoriesScreen() {
             <div style={{ fontWeight: 600, fontSize: 14, color: T.dark, marginBottom: 16 }}>Łącznie wydane</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
               {totalSpent > 0 ? (
-                <Donut data={visibleCategories.map(c => ({ value: c.spent, color: c.color }))} size={130} />
+                <Donut data={topCategories.map(c => ({ value: c.spent, color: c.color }))} size={130} />
               ) : (
                 <div style={{ width: 130, height: 130, borderRadius: '50%', background: T.bg }} />
               )}
@@ -94,7 +111,7 @@ export default function CategoriesScreen() {
                 <PrivacyAmount amount={totalSpent} style={{ display: 'block', fontSize: 28, fontWeight: 800, color: T.dark, marginBottom: 4 }} />
                 <div style={{ fontSize: 12, color: T.muted }}>{monthLabel}</div>
                 <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {visibleCategories.slice(0, 4).map(c => (
+                  {topCategories.slice(0, 4).map(c => (
                     <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <div style={{ width: 10, height: 10, borderRadius: '50%', background: c.color, flexShrink: 0 }} />
                       <span style={{ fontSize: 12, color: T.muted, flex: 1 }}>{c.name}</span>
@@ -111,7 +128,7 @@ export default function CategoriesScreen() {
           {visibleCategories.some(c => c.budget) && (
             <Card style={{ padding: 16, background: T.accentLight }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: T.accent, marginBottom: 8 }}>Podsumowanie budżetów</div>
-              {visibleCategories.filter(c => c.budget).map(c => {
+              {topCategories.filter(c => c.budget).map(c => {
                 const pct = c.spent / c.budget! * 100;
                 return (
                   <div key={c.id} style={{ marginBottom: 10 }}>
@@ -129,6 +146,49 @@ export default function CategoriesScreen() {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function CategoryRow({
+  category: c,
+  amount,
+  txCount,
+  budget,
+  childCount = 0,
+  child = false,
+  onClick,
+}: {
+  category: Category;
+  amount: number;
+  txCount: number;
+  budget: number | null;
+  childCount?: number;
+  child?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <div
+      onClick={onClick}
+      style={{ padding: child ? '12px 16px 12px 34px' : 16, cursor: 'pointer' }}
+      onMouseEnter={e => (e.currentTarget.style.background = T.bg)}
+      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 12, background: c.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Icon name={c.icon} size={20} color={c.color} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: T.dark }}>{c.name}</div>
+          <div style={{ fontSize: 12, color: T.muted }}>
+            {txCount} transakcji{childCount > 0 ? `, ${childCount} podkategorii` : ''}
+          </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+          <PrivacyAmount amount={amount} style={{ display: 'block', fontSize: 15, fontWeight: 700, color: budget && amount > budget ? T.expense : T.dark }} />
+          {budget && <div style={{ fontSize: 11, color: T.faint }}>z {fmtPLN(budget)}</div>}
+                  </div>
+                </div>
     </div>
   );
 }

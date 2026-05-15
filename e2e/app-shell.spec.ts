@@ -50,3 +50,12 @@ test('opens add transaction sheet in the selected month', async ({ page }) => {
   await expect(page.getByRole('dialog', { name: 'Nowa transakcja' })).toBeVisible();
   await expect(page.getByLabel('Data transakcji')).toHaveValue('2026-04-15');
 });
+
+test('opens transactions filtered by category from categories screen', async ({ page }) => {
+  await login(page);
+
+  await page.goto('/categories?month=2026-05');
+  await page.getByText('Other').first().click();
+
+  await expect(page).toHaveURL(/\/transactions\?category=.*&month=2026-05/);
+});
