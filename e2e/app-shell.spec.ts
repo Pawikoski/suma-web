@@ -223,4 +223,5 @@ test('opens account creation and edit dialogs', async ({ page }) => {
   await page.getByRole('button', { name: 'Edytuj konto' }).click();
   await expect(page.getByRole('dialog', { name: 'Edycja konta' })).toBeVisible();
   await expect(page.getByLabel('Saldo konta')).toBeVisible();
+  await expect(page.getByLabel('Włącz oprocentowanie')).toBeVisible();
 });

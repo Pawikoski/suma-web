@@ -7,6 +7,7 @@ import {
   SyncAccount,
   SyncCategory,
   SyncCategoryBudget,
+  SyncAccountInterest,
   SyncInvestmentHolding,
   SyncInvestmentTransaction,
   SyncOverallBudget,
@@ -125,6 +126,23 @@ const investmentTradeInputSchema = z.object({
   quantity: z.coerce.number().positive('Podaj ilość większą od zera.'),
   unitPrice: z.coerce.number().positive('Podaj cenę większą od zera.'),
   notes: z.string().trim().max(500).optional().default(''),
+});
+
+const accountInterestInputSchema = z.object({
+  accountId: z.string().min(1),
+  annualRatePercent: z.coerce.number().min(0).max(100),
+  baseAmount: z.coerce.number().positive().nullable().optional(),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  taxRatePercent: z.coerce.number().min(0).max(100).optional().default(19),
+  afterMaturityAction: z.enum(['DISABLE', 'TRANSFER']).optional().default('DISABLE'),
+  targetAccountId: z.string().nullable().optional(),
+  interestCategoryId: z.string().nullable().optional(),
+  monthlyPayment: z.coerce.number().positive().nullable().optional(),
+  originalLoanAmount: z.coerce.number().positive().nullable().optional(),
+}).refine(data => data.endDate >= data.startDate, {
+  message: 'Data końca musi być późniejsza niż data startu.',
+  path: ['endDate'],
 });
 
 const money = (value: number) => value.toFixed(2);
@@ -614,6 +632,32 @@ function cloneInvestmentTransactionForDeletion(transaction: SyncInvestmentTransa
     updated_at: updatedAt,
     deleted_at: updatedAt,
     version: transaction.version,
+  };
+}
+
+function accountInterestPayload(
+  data: z.infer<typeof accountInterestInputSchema>,
+  existing: SyncAccountInterest | undefined,
+  updatedAt: string,
+  deletedAt: string | null = null
+) {
+  return {
+    id: existing?.id ?? crypto.randomUUID(),
+    account_id: data.accountId,
+    annual_rate_percent: data.annualRatePercent,
+    base_amount: data.baseAmount === null || data.baseAmount === undefined ? null : money(data.baseAmount),
+    start_date: dateToNoonUtc(data.startDate),
+    end_date: dateToNoonUtc(data.endDate),
+    tax_rate_percent: data.taxRatePercent,
+    after_maturity_action: data.afterMaturityAction,
+    target_account_id: data.afterMaturityAction === 'TRANSFER' ? data.targetAccountId || null : null,
+    is_active: deletedAt === null,
+    interest_category_id: data.interestCategoryId || null,
+    monthly_payment: data.monthlyPayment === null || data.monthlyPayment === undefined ? null : money(data.monthlyPayment),
+    original_loan_amount: data.originalLoanAmount === null || data.originalLoanAmount === undefined ? null : money(data.originalLoanAmount),
+    updated_at: updatedAt,
+    deleted_at: deletedAt,
+    version: existing?.version ?? 1,
   };
 }
 
@@ -1266,6 +1310,75 @@ export async function deleteAccountAction(accountId: string): Promise<ActionResu
   revalidatePath('/transactions');
   revalidatePath('/reports');
   return { ok: true, id: existing.id, message: 'Konto zostało usunięte.' };
+}
+
+export async function upsertAccountInterestAction(input: unknown): Promise<ActionResult> {
+  const parsed = accountInterestInputSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? 'Niepoprawne ustawienia oprocentowania.' };
+
+  const changes = await getServerChanges();
+  if (!changes) return { ok: false, message: 'Nie udało się pobrać aktualnych danych.' };
+
+  const account = changes.accounts.find(account => account.id === parsed.data.accountId && !account.deleted_at && account.is_active);
+  if (!account) return { ok: false, message: 'Nie znaleziono konta.' };
+
+  if (parsed.data.afterMaturityAction === 'TRANSFER') {
+    const targetAccount = changes.accounts.find(account => account.id === parsed.data.targetAccountId && !account.deleted_at && account.is_active);
+    if (!targetAccount) return { ok: false, message: 'Wybierz konto docelowe transferu odsetek.' };
+    if (targetAccount.id === account.id) return { ok: false, message: 'Konto docelowe musi być inne niż konto oprocentowane.' };
+  }
+
+  if (parsed.data.interestCategoryId) {
+    const category = changes.categories.find(category => category.id === parsed.data.interestCategoryId && !category.deleted_at);
+    if (!category || !category.types.includes('INCOME')) return { ok: false, message: 'Wybierz kategorię przychodową dla odsetek.' };
+  }
+
+  const existing = (changes.account_interest ?? []).find(interest => interest.account_id === account.id && !interest.deleted_at);
+  const updatedAt = nowIso();
+  const payload = accountInterestPayload(parsed.data, existing, updatedAt);
+  const sync = await postSyncChanges({ account_interest: [payload] });
+
+  const failure = sync ? syncFailureMessage(sync.errors, sync.conflicts) : 'Nie udało się zapisać oprocentowania.';
+  if (failure) return { ok: false, message: failure };
+
+  revalidatePath('/accounts');
+  revalidatePath('/');
+  revalidatePath('/reports');
+  return { ok: true, id: payload.id, message: 'Oprocentowanie zostało zapisane.' };
+}
+
+export async function deleteAccountInterestAction(accountId: string): Promise<ActionResult> {
+  if (!accountId) return { ok: false, message: 'Nie wybrano konta.' };
+
+  const changes = await getServerChanges();
+  if (!changes) return { ok: false, message: 'Nie udało się pobrać aktualnych danych.' };
+
+  const existing = (changes.account_interest ?? []).find(interest => interest.account_id === accountId && !interest.deleted_at);
+  if (!existing) return { ok: true, message: 'Oprocentowanie jest wyłączone.' };
+
+  const updatedAt = nowIso();
+  const payload = accountInterestPayload({
+    accountId: existing.account_id ?? accountId,
+    annualRatePercent: existing.annual_rate_percent,
+    baseAmount: existing.base_amount === null ? null : parseFloat(existing.base_amount),
+    startDate: existing.start_date.slice(0, 10),
+    endDate: existing.end_date.slice(0, 10),
+    taxRatePercent: existing.tax_rate_percent,
+    afterMaturityAction: existing.after_maturity_action,
+    targetAccountId: existing.target_account_id,
+    interestCategoryId: existing.interest_category_id,
+    monthlyPayment: existing.monthly_payment === null ? null : parseFloat(existing.monthly_payment),
+    originalLoanAmount: existing.original_loan_amount === null ? null : parseFloat(existing.original_loan_amount),
+  }, existing, updatedAt, updatedAt);
+  const sync = await postSyncChanges({ account_interest: [payload] });
+
+  const failure = sync ? syncFailureMessage(sync.errors, sync.conflicts) : 'Nie udało się wyłączyć oprocentowania.';
+  if (failure) return { ok: false, message: failure };
+
+  revalidatePath('/accounts');
+  revalidatePath('/');
+  revalidatePath('/reports');
+  return { ok: true, id: existing.id, message: 'Oprocentowanie zostało wyłączone.' };
 }
 
 export async function createInvestmentHoldingAction(input: unknown): Promise<ActionResult> {

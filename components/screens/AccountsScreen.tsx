@@ -4,7 +4,13 @@ import { useRouter } from 'next/navigation';
 import { parseAsString, useQueryState } from 'nuqs';
 import { CalendarClock, ClipboardList, Pencil, Percent, Plus, Save, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { createAccountAction, deleteAccountAction, updateAccountAction } from '@/app/actions/sync';
+import {
+  createAccountAction,
+  deleteAccountAction,
+  deleteAccountInterestAction,
+  updateAccountAction,
+  upsertAccountInterestAction,
+} from '@/app/actions/sync';
 import { T } from '@/lib/tokens';
 import { useActiveMonthData } from '@/lib/useActiveMonthData';
 import { Account, AccountInterest } from '@/lib/data';
@@ -224,6 +230,8 @@ function AccountInterestCard({ interest, currency }: { interest: AccountInterest
 
 function AccountFormModal({ account, onClose }: { account?: Account; onClose: () => void }) {
   const router = useRouter();
+  const { accounts, categories, accountInterest } = useActiveMonthData();
+  const initialInterest = account ? accountInterest.find(interest => interest.accountId === account.id) ?? null : null;
   const [name, setName] = useState(account?.name ?? '');
   const [type, setType] = useState<'CASH' | 'BANK' | 'PROPERTY' | 'INVESTMENT'>((account?.rawType as 'CASH' | 'BANK' | 'PROPERTY' | 'INVESTMENT') ?? 'BANK');
   const [category, setCategory] = useState<'BASIC' | 'SAVINGS' | 'LIABILITY'>((account?.category as 'BASIC' | 'SAVINGS' | 'LIABILITY') ?? 'BASIC');
@@ -231,11 +239,37 @@ function AccountFormModal({ account, onClose }: { account?: Account; onClose: ()
   const [currency, setCurrency] = useState(account?.currency ?? 'PLN');
   const [includeInNetWorth, setIncludeInNetWorth] = useState(account?.includeInNetWorth ?? true);
   const [notes, setNotes] = useState(account?.notes ?? '');
+  const [interestEnabled, setInterestEnabled] = useState(Boolean(initialInterest));
+  const [annualRatePercent, setAnnualRatePercent] = useState(initialInterest ? String(initialInterest.annualRatePercent) : '');
+  const [useFullBalance, setUseFullBalance] = useState(initialInterest?.baseAmount === null);
+  const [baseAmount, setBaseAmount] = useState(initialInterest?.baseAmount === null || initialInterest?.baseAmount === undefined ? '' : String(initialInterest.baseAmount));
+  const [startDate, setStartDate] = useState(() => initialInterest?.startDate ?? new Date().toISOString().slice(0, 10));
+  const [endDate, setEndDate] = useState(() => initialInterest?.endDate ?? new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10));
+  const [taxRatePercent, setTaxRatePercent] = useState(initialInterest ? String(initialInterest.taxRatePercent) : '19');
+  const [afterMaturityAction, setAfterMaturityAction] = useState<'DISABLE' | 'TRANSFER'>(initialInterest?.afterMaturityAction ?? 'DISABLE');
+  const [targetAccountId, setTargetAccountId] = useState(initialInterest?.targetAccountId ?? '');
+  const [interestCategoryId, setInterestCategoryId] = useState(initialInterest?.interestCategoryId ?? '');
+  const [monthlyPayment, setMonthlyPayment] = useState(initialInterest?.monthlyPayment === null || initialInterest?.monthlyPayment === undefined ? '' : String(initialInterest.monthlyPayment));
+  const [originalLoanAmount, setOriginalLoanAmount] = useState(initialInterest?.originalLoanAmount === null || initialInterest?.originalLoanAmount === undefined ? '' : String(initialInterest.originalLoanAmount));
   const [isPending, startTransition] = useTransition();
   const amountValue = Number(balance);
+  const rateValue = Number(annualRatePercent);
+  const taxValue = Number(taxRatePercent);
+  const baseAmountValue = baseAmount.trim() ? Number(baseAmount) : null;
+  const monthlyPaymentValue = monthlyPayment.trim() ? Number(monthlyPayment) : null;
+  const originalLoanAmountValue = originalLoanAmount.trim() ? Number(originalLoanAmount) : null;
   const availableCategories = categoryOptions(type);
+  const incomeCategories = categories.filter(category => category.types.includes('INCOME'));
+  const targetAccounts = accounts.filter(item => item.id !== account?.id);
   const effectiveCategory = availableCategories.some(item => item.value === category) ? category : 'BASIC';
-  const canSubmit = name.trim().length > 0 && Number.isFinite(amountValue) && currency.trim().length >= 3;
+  const interestValid = !interestEnabled || (
+    Number.isFinite(rateValue) && rateValue >= 0 &&
+    Number.isFinite(taxValue) && taxValue >= 0 &&
+    (useFullBalance || (baseAmountValue !== null && Number.isFinite(baseAmountValue) && baseAmountValue > 0)) &&
+    endDate >= startDate &&
+    (afterMaturityAction !== 'TRANSFER' || Boolean(targetAccountId))
+  );
+  const canSubmit = name.trim().length > 0 && Number.isFinite(amountValue) && currency.trim().length >= 3 && interestValid;
 
   const submit = () => {
     startTransition(async () => {
@@ -254,6 +288,31 @@ function AccountFormModal({ account, onClose }: { account?: Account; onClose: ()
       if (!result.ok) {
         toast.error(result.message);
         return;
+      }
+
+      if (account) {
+        const interestResult = interestEnabled
+          ? await upsertAccountInterestAction({
+              accountId: account.id,
+              annualRatePercent: rateValue,
+              baseAmount: useFullBalance ? null : baseAmountValue,
+              startDate,
+              endDate,
+              taxRatePercent: taxValue,
+              afterMaturityAction,
+              targetAccountId: afterMaturityAction === 'TRANSFER' ? targetAccountId : null,
+              interestCategoryId: interestCategoryId || null,
+              monthlyPayment: monthlyPaymentValue,
+              originalLoanAmount: originalLoanAmountValue,
+            })
+          : initialInterest
+            ? await deleteAccountInterestAction(account.id)
+            : null;
+
+        if (interestResult && !interestResult.ok) {
+          toast.error(interestResult.message);
+          return;
+        }
       }
 
       toast.success(result.message);
@@ -294,6 +353,51 @@ function AccountFormModal({ account, onClose }: { account?: Account; onClose: ()
             Wliczaj do majątku
           </label>
           <input aria-label="Notatka konta" placeholder="Notatka" value={notes} onChange={event => setNotes(event.target.value)} style={inputStyle} />
+          {account && (
+            <div style={{ border: `1px solid ${T.border}`, borderRadius: 12, padding: 14, display: 'grid', gap: 12 }}>
+              <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, color: T.dark, fontSize: 13, fontWeight: 850 }}>
+                Oprocentowanie
+                <input aria-label="Włącz oprocentowanie" type="checkbox" checked={interestEnabled} onChange={event => setInterestEnabled(event.target.checked)} />
+              </label>
+              {interestEnabled && (
+                <>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <input aria-label="Oprocentowanie roczne" type="number" min="0" step="0.01" placeholder="% rocznie" value={annualRatePercent} onChange={event => setAnnualRatePercent(event.target.value)} style={inputStyle} />
+                    <input aria-label="Podatek od odsetek" type="number" min="0" step="0.01" placeholder="Podatek %" value={taxRatePercent} onChange={event => setTaxRatePercent(event.target.value)} style={inputStyle} />
+                  </div>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 10, color: T.mid, fontSize: 13, fontWeight: 750 }}>
+                    <input type="checkbox" checked={useFullBalance} onChange={event => setUseFullBalance(event.target.checked)} />
+                    Naliczaj od pełnego salda
+                  </label>
+                  {!useFullBalance && (
+                    <input aria-label="Kwota bazowa oprocentowania" type="number" min="0" step="0.01" placeholder="Kwota bazowa" value={baseAmount} onChange={event => setBaseAmount(event.target.value)} style={inputStyle} />
+                  )}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <input aria-label="Start oprocentowania" type="date" value={startDate} onChange={event => setStartDate(event.target.value)} style={inputStyle} />
+                    <input aria-label="Koniec oprocentowania" type="date" value={endDate} onChange={event => setEndDate(event.target.value)} style={inputStyle} />
+                  </div>
+                  <select aria-label="Akcja po zapadalności" value={afterMaturityAction} onChange={event => setAfterMaturityAction(event.target.value as 'DISABLE' | 'TRANSFER')} style={inputStyle}>
+                    <option value="DISABLE">Wyłącz oprocentowanie</option>
+                    <option value="TRANSFER">Przenieś odsetki na konto</option>
+                  </select>
+                  {afterMaturityAction === 'TRANSFER' && (
+                    <select aria-label="Konto docelowe odsetek" value={targetAccountId} onChange={event => setTargetAccountId(event.target.value)} style={inputStyle}>
+                      <option value="">Wybierz konto docelowe</option>
+                      {targetAccounts.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+                    </select>
+                  )}
+                  <select aria-label="Kategoria odsetek" value={interestCategoryId} onChange={event => setInterestCategoryId(event.target.value)} style={inputStyle}>
+                    <option value="">Bez kategorii odsetek</option>
+                    {incomeCategories.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+                  </select>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <input aria-label="Rata miesięczna" type="number" min="0" step="0.01" placeholder="Rata miesięczna" value={monthlyPayment} onChange={event => setMonthlyPayment(event.target.value)} style={inputStyle} />
+                    <input aria-label="Pierwotna kwota pożyczki" type="number" min="0" step="0.01" placeholder="Kwota pożyczki" value={originalLoanAmount} onChange={event => setOriginalLoanAmount(event.target.value)} style={inputStyle} />
+                  </div>
+                </>
+              )}
+            </div>
+          )}
           <button onClick={submit} disabled={!canSubmit || isPending} style={{ ...primaryButtonStyle, height: 42, opacity: !canSubmit || isPending ? 0.55 : 1 }}>
             <Save size={16} color="white" /> {isPending ? 'Zapisywanie...' : 'Zapisz konto'}
           </button>
