@@ -60,6 +60,21 @@ test('opens transactions filtered by category from categories screen', async ({ 
   await expect(page).toHaveURL(/\/transactions\?category=.*&month=2026-05/);
 });
 
+test('opens category creation and edit dialogs', async ({ page }) => {
+  await login(page);
+  await page.goto('/categories?month=2026-05');
+
+  await page.getByRole('button', { name: 'Dodaj kategorię' }).click();
+  await expect(page.getByRole('dialog', { name: 'Nowa kategoria' })).toBeVisible();
+  await expect(page.getByLabel('Nazwa kategorii')).toBeVisible();
+  await page.getByRole('button', { name: 'Zamknij' }).click();
+
+  const editButton = page.locator('button[aria-label^="Edytuj kategorię"]:not([disabled])').first();
+  await expect(editButton).toBeVisible();
+  await editButton.click();
+  await expect(page.getByRole('dialog', { name: 'Edycja kategorii' })).toBeVisible();
+});
+
 test('opens recurring payments from navigation', async ({ page }) => {
   await login(page);
 

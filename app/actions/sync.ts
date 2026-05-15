@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { fetchSync, postSyncChanges } from '@/lib/api';
 import {
   SyncAccount,
+  SyncCategory,
   SyncCategoryBudget,
   SyncOverallBudget,
   SyncRecurringTransaction,
@@ -88,6 +89,19 @@ const accountUpdateInputSchema = accountInputSchema.extend({
   id: z.string().min(1),
 });
 
+const categoryInputSchema = z.object({
+  name: z.string().trim().min(1, 'Podaj nazwę kategorii.').max(120),
+  types: z.array(z.enum(['EXPENSE', 'INCOME'])).min(1, 'Wybierz typ kategorii.'),
+  iconName: z.string().trim().min(1).max(120).optional().default('category'),
+  iconBg: z.string().trim().min(4).max(16).optional().default('#F3F4F6'),
+  iconColor: z.string().trim().min(4).max(16).optional().default('#6B7280'),
+  parentCategoryId: z.string().nullable().optional(),
+});
+
+const categoryUpdateInputSchema = categoryInputSchema.extend({
+  id: z.string().min(1),
+});
+
 const money = (value: number) => value.toFixed(2);
 const nowIso = () => new Date().toISOString();
 const dateToNoonUtc = (date: string) => `${date}T12:00:00.000Z`;
@@ -167,6 +181,47 @@ function accountPayload(
     updated_at: updatedAt,
     deleted_at: null,
     version: existing?.version ?? 1,
+  };
+}
+
+function categoryPayload(
+  data: z.infer<typeof categoryInputSchema>,
+  existing: SyncCategory | undefined,
+  sortOrder: number,
+  updatedAt: string
+) {
+  return {
+    id: existing?.id ?? crypto.randomUUID(),
+    name: data.name,
+    types: Array.from(new Set(data.types)),
+    icon_name: data.iconName,
+    icon_bg: data.iconBg,
+    icon_color: data.iconColor,
+    sort_order: existing?.sort_order ?? sortOrder,
+    is_default: existing?.is_default ?? false,
+    is_system: existing?.is_system ?? false,
+    parent_category_id: data.parentCategoryId || null,
+    updated_at: updatedAt,
+    deleted_at: null,
+    version: existing?.version ?? 1,
+  };
+}
+
+function cloneCategoryForDeletion(category: SyncCategory, updatedAt: string) {
+  return {
+    id: category.id,
+    name: `${category.name}_deleted_${Date.now()}`,
+    types: category.types,
+    icon_name: category.icon_name,
+    icon_bg: category.icon_bg,
+    icon_color: category.icon_color,
+    sort_order: category.sort_order,
+    is_default: category.is_default,
+    is_system: category.is_system,
+    parent_category_id: category.parent_category_id,
+    updated_at: updatedAt,
+    deleted_at: updatedAt,
+    version: category.version,
   };
 }
 
@@ -1127,6 +1182,140 @@ export async function deleteAccountAction(accountId: string): Promise<ActionResu
   revalidatePath('/transactions');
   revalidatePath('/reports');
   return { ok: true, id: existing.id, message: 'Konto zostało usunięte.' };
+}
+
+function categoryHasDescendant(categories: SyncCategory[], parentId: string, childId: string): boolean {
+  const childrenByParent = new Map<string, SyncCategory[]>();
+  for (const category of categories.filter(item => !item.deleted_at)) {
+    if (!category.parent_category_id) continue;
+    const children = childrenByParent.get(category.parent_category_id) ?? [];
+    children.push(category);
+    childrenByParent.set(category.parent_category_id, children);
+  }
+
+  const stack = [...(childrenByParent.get(parentId) ?? [])];
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    if (current.id === childId) return true;
+    stack.push(...(childrenByParent.get(current.id) ?? []));
+  }
+  return false;
+}
+
+function validateCategoryParent(data: z.infer<typeof categoryInputSchema>, categories: SyncCategory[], editingId?: string) {
+  if (!data.parentCategoryId) return null;
+  if (data.parentCategoryId === editingId) return 'Kategoria nie może być własnym rodzicem.';
+  const parent = categories.find(category => category.id === data.parentCategoryId && !category.deleted_at);
+  if (!parent) return 'Nie znaleziono kategorii nadrzędnej.';
+  if (parent.parent_category_id) return 'Podkategorie mogą mieć tylko kategorię główną jako rodzica.';
+  if (editingId && categoryHasDescendant(categories, editingId, data.parentCategoryId)) {
+    return 'Nie można przenieść kategorii pod jej podkategorię.';
+  }
+  const missingType = data.types.some(type => !parent.types.includes(type));
+  if (missingType) return 'Podkategoria musi mieć typ zgodny z kategorią nadrzędną.';
+  return null;
+}
+
+export async function createCategoryAction(input: unknown): Promise<ActionResult> {
+  const parsed = categoryInputSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? 'Niepoprawne dane kategorii.' };
+
+  const changes = await getServerChanges();
+  if (!changes) return { ok: false, message: 'Nie udało się pobrać aktualnych danych.' };
+
+  const normalizedName = normalizeName(parsed.data.name);
+  if (changes.categories.some(category => !category.deleted_at && normalizeName(category.name) === normalizedName)) {
+    return { ok: false, message: 'Kategoria o tej nazwie już istnieje.' };
+  }
+  const parentError = validateCategoryParent(parsed.data, changes.categories);
+  if (parentError) return { ok: false, message: parentError };
+
+  const updatedAt = nowIso();
+  const maxSort = Math.max(0, ...changes.categories.map(category => category.sort_order));
+  const payload = categoryPayload(parsed.data, undefined, maxSort + 1, updatedAt);
+  const sync = await postSyncChanges({ categories: [payload] });
+
+  const failure = sync ? syncFailureMessage(sync.errors, sync.conflicts) : 'Nie udało się zapisać kategorii.';
+  if (failure) return { ok: false, message: failure };
+
+  revalidatePath('/categories');
+  revalidatePath('/transactions');
+  revalidatePath('/budget');
+  revalidatePath('/reports');
+  return { ok: true, id: payload.id, message: 'Kategoria została zapisana.' };
+}
+
+export async function updateCategoryAction(input: unknown): Promise<ActionResult> {
+  const parsed = categoryUpdateInputSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? 'Niepoprawne dane kategorii.' };
+
+  const changes = await getServerChanges();
+  if (!changes) return { ok: false, message: 'Nie udało się pobrać aktualnych danych.' };
+
+  const existing = changes.categories.find(category => category.id === parsed.data.id && !category.deleted_at);
+  if (!existing) return { ok: false, message: 'Nie znaleziono kategorii.' };
+  if (existing.is_system) return { ok: false, message: 'Kategorii systemowej nie można edytować w webie.' };
+
+  const normalizedName = normalizeName(parsed.data.name);
+  if (changes.categories.some(category => category.id !== existing.id && !category.deleted_at && normalizeName(category.name) === normalizedName)) {
+    return { ok: false, message: 'Kategoria o tej nazwie już istnieje.' };
+  }
+  const parentError = validateCategoryParent(parsed.data, changes.categories, existing.id);
+  if (parentError) return { ok: false, message: parentError };
+
+  const updatedAt = nowIso();
+  const sync = await postSyncChanges({
+    categories: [categoryPayload(parsed.data, existing, existing.sort_order, updatedAt)],
+  });
+
+  const failure = sync ? syncFailureMessage(sync.errors, sync.conflicts) : 'Nie udało się zaktualizować kategorii.';
+  if (failure) return { ok: false, message: failure };
+
+  revalidatePath('/categories');
+  revalidatePath('/transactions');
+  revalidatePath('/budget');
+  revalidatePath('/reports');
+  return { ok: true, id: existing.id, message: 'Kategoria została zaktualizowana.' };
+}
+
+export async function deleteCategoryAction(categoryId: string): Promise<ActionResult> {
+  if (!categoryId) return { ok: false, message: 'Nie wybrano kategorii.' };
+
+  const changes = await getServerChanges();
+  if (!changes) return { ok: false, message: 'Nie udało się pobrać aktualnych danych.' };
+
+  const existing = changes.categories.find(category => category.id === categoryId && !category.deleted_at);
+  if (!existing) return { ok: false, message: 'Nie znaleziono kategorii.' };
+  if (existing.is_system) return { ok: false, message: 'Kategorii systemowej nie można usunąć w webie.' };
+
+  const updatedAt = nowIso();
+  const children = changes.categories.filter(category => category.parent_category_id === existing.id && !category.deleted_at);
+  const payloads = [
+    cloneCategoryForDeletion(existing, updatedAt),
+    ...children.map(child => cloneCategoryForDeletion(child, updatedAt)),
+  ];
+  const relatedBudgetIds = new Set(payloads.map(category => category.id));
+  const budgetPayloads = changes.category_budgets
+    .filter(budget => budget.category_id && relatedBudgetIds.has(budget.category_id) && !budget.deleted_at)
+    .map(budget => ({
+      id: budget.id,
+      category_id: budget.category_id,
+      type: budget.type,
+      budget_amount: budget.budget_amount,
+      updated_at: updatedAt,
+      deleted_at: updatedAt,
+      version: budget.version,
+    }));
+  const sync = await postSyncChanges({ categories: payloads, category_budgets: budgetPayloads });
+
+  const failure = sync ? syncFailureMessage(sync.errors, sync.conflicts) : 'Nie udało się usunąć kategorii.';
+  if (failure) return { ok: false, message: failure };
+
+  revalidatePath('/categories');
+  revalidatePath('/transactions');
+  revalidatePath('/budget');
+  revalidatePath('/reports');
+  return { ok: true, id: existing.id, message: 'Kategoria została usunięta.' };
 }
 
 const budgetInputSchema = z.object({
