@@ -39,3 +39,14 @@ test('persists selected month in the URL', async ({ page }) => {
   await page.getByRole('link', { name: 'Budżet' }).click();
   await expect(page).toHaveURL(/\/budget\?month=2026-04/);
 });
+
+test('opens add transaction sheet in the selected month', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await login(page);
+
+  await page.getByRole('button', { name: 'Poprzedni miesiąc' }).click();
+  await page.getByRole('button', { name: 'Dodaj transakcję' }).click();
+
+  await expect(page.getByRole('dialog', { name: 'Nowa transakcja' })).toBeVisible();
+  await expect(page.getByLabel('Data transakcji')).toHaveValue('2026-04-15');
+});

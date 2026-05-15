@@ -151,6 +151,10 @@ export async function createTransactionAction(input: unknown): Promise<ActionRes
   if (failure) return { ok: false, message: failure };
 
   revalidatePath('/');
+  revalidatePath('/transactions');
+  revalidatePath('/accounts');
+  revalidatePath('/budget');
+  revalidatePath('/categories');
   return { ok: true, id: transactionId, message: 'Transakcja została zapisana.' };
 }
 

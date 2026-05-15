@@ -93,6 +93,10 @@ button {
   box-shadow: 0 24px 80px rgba(15, 23, 42, .24);
 }
 
+.add-transaction-overlay {
+  padding: 16px;
+}
+
 .command-input-row {
   display: flex;
   align-items: center;
@@ -253,6 +257,19 @@ button {
     border-radius: 999px;
     background: #4f46e5;
     box-shadow: 0 8px 20px rgba(99, 102, 241, .34);
+  }
+
+  .add-transaction-overlay {
+    align-items: flex-end !important;
+    justify-content: center !important;
+    padding: 0 !important;
+  }
+
+  .add-transaction-card {
+    width: 100% !important;
+    max-height: min(92vh, 760px) !important;
+    border-radius: 18px 18px 0 0 !important;
+    border-bottom: 0 !important;
   }
 
   .screen,

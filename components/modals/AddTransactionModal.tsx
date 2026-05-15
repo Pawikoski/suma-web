@@ -5,9 +5,10 @@ import { X } from 'lucide-react';
 import { toast } from 'sonner';
 import { createTransactionAction } from '@/app/actions/sync';
 import { T } from '@/lib/tokens';
-import { fmtPLN } from '@/lib/utils';
 import { Account, Category } from '@/lib/data';
+import { useActiveMonthData } from '@/lib/useActiveMonthData';
 import Card from '@/components/ui/Card';
+import PrivacyAmount from '@/components/ui/PrivacyAmount';
 
 type TxType = 'expense' | 'income' | 'transfer';
 
@@ -15,6 +16,13 @@ const TYPE_LABELS: Record<TxType, string> = { expense: 'Wydatek', income: 'Przyc
 const TYPE_COLORS: Record<TxType, string> = { expense: T.expense, income: T.income, transfer: T.accent };
 
 const NUMPAD = ['7', '8', '9', '⌫', '4', '5', '6', '↺', '1', '2', '3', null, 'PLN', '0', '.', '✓'] as const;
+
+function defaultDateForMonth(activeMonth: string): string {
+  const today = new Date();
+  if (activeMonth === 'all') return today.toISOString().slice(0, 10);
+  const daysInMonth = new Date(Number(activeMonth.slice(0, 4)), Number(activeMonth.slice(5, 7)), 0).getDate();
+  return `${activeMonth}-${String(Math.min(today.getDate(), daysInMonth)).padStart(2, '0')}`;
+}
 
 interface AddTransactionModalProps {
   onClose: () => void;
@@ -24,10 +32,11 @@ interface AddTransactionModalProps {
 
 export default function AddTransactionModal({ onClose, accounts, categories }: AddTransactionModalProps) {
   const router = useRouter();
+  const { activeMonth } = useActiveMonthData();
   const [type, setType] = useState<TxType>('expense');
   const [amount, setAmount] = useState('0');
   const [note, setNote] = useState('');
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(() => defaultDateForMonth(activeMonth));
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? '');
   const [toAccountId, setToAccountId] = useState(accounts.find(a => a.id !== accounts[0]?.id)?.id ?? '');
   const [categoryId, setCategoryId] = useState('');
@@ -77,22 +86,22 @@ export default function AddTransactionModal({ onClose, accounts, categories }: A
       toast.success(result.message ?? 'Zapisano transakcję.');
       onClose();
       router.refresh();
-      if (result.id) router.push(`/transactions?id=${result.id}`);
+      if (result.id) router.push(`/transactions?id=${result.id}&month=${activeMonth}`);
     });
   };
 
   const canSubmit = amountNumber > 0 && !!account && (type === 'transfer' ? !!effectiveToAccount && effectiveToAccount.id !== account.id : !!category);
 
   return (
-    <div style={{
+    <div className="add-transaction-overlay" role="dialog" aria-modal="true" aria-label="Nowa transakcja" style={{
       position: 'fixed', inset: 0, background: 'rgba(15,23,42,.4)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       zIndex: 200, backdropFilter: 'blur(4px)',
     }}>
-      <Card style={{ width: 480, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,.2)', padding: 0 }}>
+      <Card className="add-transaction-card" style={{ width: 480, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,.2)', padding: 0 }}>
         <div style={{ padding: '18px 20px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ fontWeight: 700, fontSize: 16, color: T.dark }}>Nowa transakcja</div>
-          <button onClick={onClose} style={{ color: T.muted, padding: 4, border: 'none', background: 'none', cursor: 'pointer' }}>
+          <button aria-label="Zamknij" onClick={onClose} style={{ color: T.muted, padding: 4, border: 'none', background: 'none', cursor: 'pointer' }}>
             <X size={18} />
           </button>
         </div>
@@ -128,13 +137,14 @@ export default function AddTransactionModal({ onClose, accounts, categories }: A
             <div style={{ background: T.incomeSoft, borderRadius: 10, padding: '10px 12px' }}>
               <label style={{ fontSize: 10, color: T.muted, fontWeight: 500, marginBottom: 4, display: 'block' }}>Konto</label>
               <select
+                aria-label="Konto"
                 value={accountId}
                 onChange={e => setAccountId(e.target.value)}
                 style={{ width: '100%', border: 'none', background: 'transparent', fontSize: 13, fontWeight: 700, color: T.dark, outline: 'none', fontFamily: 'inherit' }}
               >
                 {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
               </select>
-              <div style={{ fontSize: 11, color: T.muted }}>{account ? fmtPLN(account.balance) : ''}</div>
+              <div style={{ fontSize: 11, color: T.muted }}>{account ? <PrivacyAmount amount={account.balance} /> : ''}</div>
             </div>
             <div style={{ width: 30, height: 30, borderRadius: '50%', background: T.expenseSoft, display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.expense, fontSize: 16 }}>→</div>
             <div style={{ background: T.accentLight, borderRadius: 10, padding: '10px 12px' }}>
@@ -143,6 +153,7 @@ export default function AddTransactionModal({ onClose, accounts, categories }: A
               </label>
               {type === 'transfer' ? (
                 <select
+                  aria-label="Konto docelowe"
                   value={effectiveToAccount?.id ?? ''}
                   onChange={e => setToAccountId(e.target.value)}
                   style={{ width: '100%', border: 'none', background: 'transparent', fontSize: 13, fontWeight: 700, color: T.dark, outline: 'none', fontFamily: 'inherit' }}
@@ -151,6 +162,7 @@ export default function AddTransactionModal({ onClose, accounts, categories }: A
                 </select>
               ) : (
                 <select
+                  aria-label="Kategoria"
                   value={category?.id ?? ''}
                   onChange={e => setCategoryId(e.target.value)}
                   style={{ width: '100%', border: 'none', background: 'transparent', fontSize: 13, fontWeight: 700, color: T.dark, outline: 'none', fontFamily: 'inherit' }}
@@ -158,11 +170,12 @@ export default function AddTransactionModal({ onClose, accounts, categories }: A
                   {eligibleCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               )}
-              <div style={{ fontSize: 11, color: T.muted }}>{type === 'transfer' ? (effectiveToAccount ? fmtPLN(effectiveToAccount.balance) : '') : (category ? fmtPLN(category.spent) : '')}</div>
+              <div style={{ fontSize: 11, color: T.muted }}>{type === 'transfer' ? (effectiveToAccount ? <PrivacyAmount amount={effectiveToAccount.balance} /> : '') : (category ? <PrivacyAmount amount={category.spent} /> : '')}</div>
             </div>
           </div>
 
           <input
+            aria-label="Data transakcji"
             type="date"
             value={date}
             onChange={e => setDate(e.target.value)}
@@ -171,6 +184,7 @@ export default function AddTransactionModal({ onClose, accounts, categories }: A
 
           {/* Note */}
           <input
+            aria-label="Notatka"
             value={note}
             onChange={e => setNote(e.target.value)}
             placeholder="Dodaj notatkę..."
