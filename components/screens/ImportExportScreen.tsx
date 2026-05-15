@@ -31,7 +31,7 @@ function transactionTypeLabel(type: string) {
 
 export default function ImportExportScreen() {
   const router = useRouter();
-  const { accounts, categories, allTransactions } = useActiveMonthData();
+  const { accounts, categories, allTransactions, recurringTransactions, settlements, investmentHoldings, accountInterest } = useActiveMonthData();
   const [state, setState] = useState<ImportState>({ status: 'idle' });
   const [isPending, startTransition] = useTransition();
   const [isConfirming, startConfirmTransition] = useTransition();
@@ -68,6 +68,10 @@ export default function ImportExportScreen() {
     { label: 'Transakcje', value: allTransactions.length },
     { label: 'Konta', value: accounts.length },
     { label: 'Kategorie', value: categories.length },
+    { label: 'Stałe', value: recurringTransactions.length },
+    { label: 'Rozliczenia', value: settlements.length },
+    { label: 'Inwestycje', value: investmentHoldings.length },
+    { label: 'Odsetki', value: accountInterest.length },
   ];
 
   const confirmImport = () => {
@@ -98,7 +102,7 @@ export default function ImportExportScreen() {
               <div style={{ color: T.muted, fontSize: 13 }}>JSON zgodny z aktualnym kontraktem sync</div>
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 18 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(96px,1fr))', gap: 10, marginBottom: 18 }}>
             {exportCounts.map(item => (
               <div key={item.label} style={{ border: `1px solid ${T.border}`, borderRadius: T.radiusSm, padding: 12 }}>
                 <div style={{ color: T.dark, fontSize: 24, fontWeight: 850 }}>{item.value}</div>
