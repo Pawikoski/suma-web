@@ -2,11 +2,11 @@
 
 import { CSSProperties, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertTriangle, CheckCircle2, Clock, HandCoins, Plus, Save, Send, WalletCards, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock, HandCoins, Plus, Save, Send, Trash2, WalletCards, X } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { pl } from 'date-fns/locale';
 import { toast } from 'sonner';
-import { addSettlementPaymentAction, createSettlementAction, settleSettlementAction } from '@/app/actions/sync';
+import { addSettlementPaymentAction, createSettlementAction, deleteSettlementAction, settleSettlementAction } from '@/app/actions/sync';
 import { T } from '@/lib/tokens';
 import { Account, Settlement } from '@/lib/data';
 import { useActiveMonthData } from '@/lib/useActiveMonthData';
@@ -145,6 +145,7 @@ function MetricCard({ label, value, color, numeric = false }: { label: string; v
 function SettlementCard({ settlement, accounts, onPay }: { settlement: Settlement; accounts: Account[]; onPay: () => void }) {
   const router = useRouter();
   const [isSettling, startSettleTransition] = useTransition();
+  const [isDeleting, startDeleteTransition] = useTransition();
   const isLent = settlement.direction === 'LENT';
   const settled = isSettled(settlement);
   const amountColor = settled ? T.muted : isLent ? T.income : T.expense;
@@ -172,6 +173,20 @@ function SettlementCard({ settlement, accounts, onPay }: { settlement: Settlemen
       router.refresh();
     });
   };
+  const deleteSettlement = () => {
+    if (!window.confirm('Usunąć rozliczenie i powiązane transakcje?')) return;
+
+    startDeleteTransition(async () => {
+      const result = await deleteSettlementAction(settlement.id);
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
+
+      toast.success(result.message);
+      router.refresh();
+    });
+  };
 
   return (
     <Card style={{ padding: 16 }}>
@@ -190,21 +205,26 @@ function SettlementCard({ settlement, accounts, onPay }: { settlement: Settlemen
         </div>
       </div>
 
-      <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.border}`, display: 'grid', gridTemplateColumns: settled ? '1fr auto' : '1fr auto auto', gap: 10, alignItems: 'center' }}>
+      <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.border}`, display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: settlement.isOverdue ? T.expense : T.muted, fontSize: 12, fontWeight: 750 }}>
           <Clock size={14} /> {settlement.isOverdue ? `${dueLabel} · po terminie` : dueLabel}
         </div>
-        <div style={{ color: T.muted, fontSize: 12, fontWeight: 700 }}>{settlement.payments.length} wpłat</div>
-        {!settled && (
-          <>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <div style={{ color: T.muted, fontSize: 12, fontWeight: 700 }}>{settlement.payments.length} wpłat</div>
+          {!settled && (
             <button onClick={onPay} style={smallButtonStyle}>
               <WalletCards size={14} /> Wpłata
             </button>
+          )}
+          {!settled && (
             <button onClick={settle} disabled={isSettling || !defaultAccountId} style={{ ...smallButtonStyle, background: T.incomeSoft, color: T.income, opacity: isSettling || !defaultAccountId ? 0.55 : 1 }}>
               <CheckCircle2 size={14} /> {isSettling ? '...' : 'Do zera'}
             </button>
-          </>
-        )}
+          )}
+          <button aria-label={`Usuń rozliczenie ${settlement.counterpartyName}`} onClick={deleteSettlement} disabled={isDeleting} style={{ ...smallButtonStyle, background: T.expenseSoft, color: T.expense, width: 30, padding: 0, opacity: isDeleting ? 0.55 : 1 }}>
+            <Trash2 size={14} />
+          </button>
+        </div>
       </div>
     </Card>
   );

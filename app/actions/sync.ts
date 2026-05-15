@@ -9,6 +9,7 @@ import {
   SyncOverallBudget,
   SyncServerChanges,
   SyncSettlement,
+  SyncSettlementPayment,
   SyncTransaction,
   SyncTransactionSplit,
 } from '@/lib/api-types';
@@ -318,6 +319,41 @@ function cloneSplitForDeletion(split: SyncTransactionSplit, updatedAt: string) {
     updated_at: updatedAt,
     deleted_at: updatedAt,
     version: split.version,
+  };
+}
+
+function cloneSettlementForDeletion(settlement: SyncSettlement, updatedAt: string) {
+  return {
+    id: settlement.id,
+    direction: settlement.direction,
+    account_id: settlement.account_id,
+    transaction_id: settlement.transaction_id,
+    counterparty_name: settlement.counterparty_name,
+    counterparty_email: settlement.counterparty_email,
+    total_amount: settlement.total_amount,
+    currency: settlement.currency,
+    note: settlement.note,
+    due_date: settlement.due_date,
+    reminder_days_before: settlement.reminder_days_before,
+    status: settlement.status,
+    updated_at: updatedAt,
+    deleted_at: updatedAt,
+    version: settlement.version,
+  };
+}
+
+function cloneSettlementPaymentForDeletion(payment: SyncSettlementPayment, updatedAt: string) {
+  return {
+    id: payment.id,
+    settlement_id: payment.settlement_id,
+    account_id: payment.account_id,
+    transaction_id: payment.transaction_id,
+    amount: payment.amount,
+    paid_at: payment.paid_at,
+    note: payment.note,
+    updated_at: updatedAt,
+    deleted_at: updatedAt,
+    version: payment.version,
   };
 }
 
@@ -724,6 +760,71 @@ export async function settleSettlementAction(input: unknown): Promise<ActionResu
     note: '',
     ledgerNotePrefix: 'Rozliczenie do zera:',
   });
+}
+
+export async function deleteSettlementAction(settlementId: string): Promise<ActionResult> {
+  if (!settlementId) return { ok: false, message: 'Nie wybrano rozliczenia.' };
+
+  const changes = await getServerChanges();
+  if (!changes) return { ok: false, message: 'Nie udało się pobrać aktualnych danych.' };
+
+  const settlement = (changes.settlements ?? []).find(item => item.id === settlementId && !item.deleted_at);
+  if (!settlement) return { ok: false, message: 'Nie znaleziono rozliczenia.' };
+
+  const payments = (changes.settlement_payments ?? []).filter(payment => payment.settlement_id === settlement.id && !payment.deleted_at);
+  const linkedTransactionIds = new Set(
+    [settlement.transaction_id, ...payments.map(payment => payment.transaction_id)].filter(Boolean) as string[]
+  );
+  const transactions = changes.transactions.filter(transaction => linkedTransactionIds.has(transaction.id) && !transaction.deleted_at);
+
+  const updatedAt = nowIso();
+  const accountBalances = new Map<string, number>();
+  const getAccountBalance = (accountId: string) => {
+    if (accountBalances.has(accountId)) return accountBalances.get(accountId)!;
+    const account = changes.accounts.find(a => a.id === accountId && !a.deleted_at);
+    if (!account) return null;
+    const balance = parseFloat(account.balance);
+    accountBalances.set(accountId, balance);
+    return balance;
+  };
+
+  for (const transaction of transactions) {
+    const amount = parseFloat(transaction.total_amount);
+    const fromBalance = getAccountBalance(transaction.from_account_id);
+    if (fromBalance === null) return { ok: false, message: 'Nie znaleziono konta powiązanej transakcji.' };
+
+    accountBalances.set(
+      transaction.from_account_id,
+      transaction.type === 'INCOME' ? fromBalance - amount : fromBalance + amount
+    );
+
+    if (transaction.type === 'TRANSFER' && transaction.to_account_id) {
+      const toBalance = getAccountBalance(transaction.to_account_id);
+      if (toBalance === null) return { ok: false, message: 'Nie znaleziono konta docelowego powiązanej transakcji.' };
+      accountBalances.set(transaction.to_account_id, toBalance - amount);
+    }
+  }
+
+  const accounts = Array.from(accountBalances.entries()).map(([accountId, balance]) => {
+    const account = changes.accounts.find(a => a.id === accountId && !a.deleted_at)!;
+    return cloneAccountWithBalance(account, balance, updatedAt);
+  });
+
+  const sync = await postSyncChanges({
+    accounts,
+    transactions: transactions.map(transaction => cloneTransactionForDeletion(transaction, updatedAt)),
+    transaction_splits: changes.transaction_splits
+      .filter(split => split.transaction_id && linkedTransactionIds.has(split.transaction_id) && !split.deleted_at)
+      .map(split => cloneSplitForDeletion(split, updatedAt)),
+    settlements: [cloneSettlementForDeletion(settlement, updatedAt)],
+    settlement_payments: payments.map(payment => cloneSettlementPaymentForDeletion(payment, updatedAt)),
+  });
+
+  const failure = sync ? syncFailureMessage(sync.errors, sync.conflicts) : 'Nie udało się usunąć rozliczenia.';
+  if (failure) return { ok: false, message: failure };
+
+  revalidateFinancePaths();
+  return { ok: true, id: settlement.id, message: 'Rozliczenie zostało usunięte.' };
 }
 
 const budgetInputSchema = z.object({
