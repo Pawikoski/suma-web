@@ -33,7 +33,8 @@ export default function Topbar({ subtitle, actions }: TopbarProps) {
   const title = TITLES[pathname] ?? (
     pathname.startsWith('/categories/') ? 'Szczegóły kategorii'
       : pathname.startsWith('/accounts/') ? 'Szczegóły konta'
-        : ''
+        : pathname.startsWith('/investments/') ? 'Szczegóły inwestycji'
+          : ''
   );
   const openCommand = useSumaUiStore(state => state.openCommand);
   const privacyMode = useSumaUiStore(state => state.privacyMode);

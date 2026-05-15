@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { ArrowDownCircle, ArrowUpCircle, BriefcaseBusiness, Coins, LineChart, Pencil, Plus, Save, ShoppingCart, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -27,9 +27,11 @@ function formatQuantity(value: number) {
   return value.toLocaleString('pl-PL', { maximumFractionDigits: 8 });
 }
 
-export default function InvestmentsScreen() {
-  const { investmentHoldings, accounts } = useActiveMonthData();
-  const [accountId, setAccountId] = useState('all');
+export default function InvestmentsScreen({ initialAccountId = 'all' }: { initialAccountId?: string }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const { investmentHoldings, accounts, activeMonth } = useActiveMonthData();
+  const [accountId, setAccountId] = useState(initialAccountId);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingHolding, setEditingHolding] = useState<InvestmentHolding | null>(null);
   const [tradeHolding, setTradeHolding] = useState<{ holding: InvestmentHolding; type: 'BUY' | 'SELL' } | null>(null);
@@ -90,9 +92,24 @@ export default function InvestmentsScreen() {
       </div>
 
       <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 2 }}>
-        <button onClick={() => setAccountId('all')} style={chipStyle(accountId === 'all')}>Wszystkie</button>
+        <button
+          onClick={() => {
+            if (pathname.startsWith('/investments/')) router.push(`/investments?month=${activeMonth}`);
+            setAccountId('all');
+          }}
+          style={chipStyle(accountId === 'all')}
+        >
+          Wszystkie
+        </button>
         {investmentAccounts.map(account => (
-          <button key={account.id} onClick={() => setAccountId(account.id)} style={chipStyle(accountId === account.id)}>
+          <button
+            key={account.id}
+            onClick={() => {
+              if (pathname.startsWith('/investments/')) router.push(`/investments/${account.id}?month=${activeMonth}`);
+              setAccountId(account.id);
+            }}
+            style={chipStyle(accountId === account.id)}
+          >
             {account.name}
           </button>
         ))}

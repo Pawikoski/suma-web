@@ -170,6 +170,16 @@ test('opens investments from navigation', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Brak inwestycji' }).or(page.getByText('Wartość portfela'))).toBeVisible();
 });
 
+test('opens investment detail route directly', async ({ page }) => {
+  await login(page);
+
+  await page.goto('/investments/demo-account?month=2026-05');
+
+  await expect(page).toHaveURL(/\/investments\/demo-account\?month=2026-05/);
+  await expect(page.getByText('Szczegóły inwestycji')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Brak inwestycji' }).or(page.getByText('Wartość portfela'))).toBeVisible();
+});
+
 test('opens import and export workspace from navigation', async ({ page }) => {
   await login(page);
 
