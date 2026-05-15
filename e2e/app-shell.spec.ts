@@ -78,6 +78,16 @@ test('opens settlements from navigation', async ({ page }) => {
   await expect(page.getByText(/Bilans rozliczeń|Brak rozliczeń/)).toBeVisible();
 });
 
+test('opens reports from navigation', async ({ page }) => {
+  await login(page);
+
+  await page.getByRole('link', { name: 'Raporty' }).click();
+
+  await expect(page).toHaveURL(/\/reports\?month=2026-05/);
+  await expect(page.getByText('Trend miesięczny')).toBeVisible();
+  await expect(page.getByText('Kategorie wydatków')).toBeVisible();
+});
+
 test('opens import and export workspace from navigation', async ({ page }) => {
   await login(page);
 
@@ -118,11 +128,14 @@ test('previews analyzed import rows without saving them', async ({ page }) => {
   });
 
   await page.goto('/import-export?month=2026-05');
-  await page.getByLabel('Wybierz plik').setInputFiles({
-    name: 'sample.csv',
-    mimeType: 'text/csv',
-    buffer: Buffer.from('date,amount,notes\n2026-05-10,-42.50,Lunch\n'),
-  });
+  await Promise.all([
+    page.waitForResponse(response => response.url().includes('/api/imports/analyze') && response.status() === 200),
+    page.locator('input[type="file"]').setInputFiles({
+      name: 'sample.csv',
+      mimeType: 'text/csv',
+      buffer: Buffer.from('date,amount,notes\n2026-05-10,-42.50,Lunch\n'),
+    }),
+  ]);
 
   await expect(page.getByText('sample.csv')).toBeVisible();
   await expect(page.getByText('88%')).toBeVisible();

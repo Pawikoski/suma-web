@@ -16,6 +16,7 @@ const QUICK_LINKS = [
   { label: 'Kategorie', href: '/categories', Icon: Tag },
   { label: 'Konta', href: '/accounts', Icon: Wallet },
   { label: 'Budżet', href: '/budget', Icon: BarChart2 },
+  { label: 'Raporty', href: '/reports', Icon: BarChart2 },
   { label: 'Import/eksport', href: '/import-export', Icon: UploadCloud },
 ] as const;
 

@@ -16,6 +16,7 @@ const NAV = [
   { href: '/categories',    label: 'Kategorie',  Icon: Tag },
   { href: '/accounts',      label: 'Konta',      Icon: Wallet },
   { href: '/budget',        label: 'Budżet',     Icon: BarChart2 },
+  { href: '/reports',       label: 'Raporty',    Icon: BarChart2 },
   { href: '/import-export', label: 'Import/eksport', Icon: UploadCloud },
 ] as const;
 

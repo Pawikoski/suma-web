@@ -292,6 +292,8 @@ button {
   .recurring-list-grid,
   .settlements-summary-grid,
   .settlements-list-grid,
+  .reports-summary-grid,
+  .reports-chart-grid,
   .import-export-grid,
   .import-preview-header,
   .import-preview-grid {
