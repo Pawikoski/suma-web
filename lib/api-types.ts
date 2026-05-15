@@ -103,6 +103,17 @@ export interface SyncTransactionSplit {
   version: number;
 }
 
+export interface SyncTransactionPhoto {
+  id: string;
+  transaction_id: string | null;
+  mime_type: string;
+  content_hash: string;
+  image_base64: string | null;
+  updated_at: string;
+  deleted_at: string | null;
+  version: number;
+}
+
 export interface SyncRecurringCategorySplit {
   category_id: string;
   amount: string;
@@ -247,7 +258,7 @@ export interface SyncServerChanges {
   recurring_transactions?: SyncRecurringTransaction[];
   transactions: SyncTransaction[];
   transaction_splits: SyncTransactionSplit[];
-  transaction_photos?: unknown[];
+  transaction_photos?: SyncTransactionPhoto[];
   category_budgets: SyncCategoryBudget[];
   overall_budgets: SyncOverallBudget[];
   account_budget_overrides?: unknown[];

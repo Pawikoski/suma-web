@@ -124,6 +124,19 @@ export function mapSyncData(data: SyncServerChanges, yearMonth: string): MappedD
     splitsByTx.set(split.transaction_id, arr);
   }
 
+  const photosByTx = new Map<string, Transaction['photos']>();
+  for (const photo of (data.transaction_photos ?? []).filter(photo => !photo.deleted_at)) {
+    if (!photo.transaction_id) continue;
+    const arr = photosByTx.get(photo.transaction_id) ?? [];
+    arr.push({
+      id: photo.id,
+      mimeType: photo.mime_type,
+      contentHash: photo.content_hash,
+      imageBase64: photo.image_base64,
+    });
+    photosByTx.set(photo.transaction_id, arr);
+  }
+
   const allTransactions: Transaction[] = data.transactions
     .filter(t => !t.deleted_at)
     .sort((a, b) => b.date_time.localeCompare(a.date_time))
@@ -162,6 +175,7 @@ export function mapSyncData(data: SyncServerChanges, yearMonth: string): MappedD
           categoryId: s.category_id,
           amount: parseFloat(s.amount),
         })),
+        photos: photosByTx.get(t.id) ?? [],
         updatedAt: t.updated_at,
         deletedAt: t.deleted_at,
         version: t.version,

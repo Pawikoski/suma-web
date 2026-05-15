@@ -2,7 +2,7 @@
 import { CSSProperties, memo, useCallback, useMemo, useState, useTransition } from 'react';
 import { ColumnDef, SortingState, flexRender, getCoreRowModel, getSortedRowModel, useReactTable } from '@tanstack/react-table';
 import { parseAsString, parseAsStringLiteral, useQueryState } from 'nuqs';
-import { ArrowUpDown, Download, MapPin, Pencil, RotateCcw, Save, Trash2, X } from 'lucide-react';
+import { ArrowUpDown, Camera, Download, Image as ImageIcon, MapPin, Pencil, RotateCcw, Save, Trash2, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { deleteTransactionAction, deleteTransactionsAction, updateTransactionAction } from '@/app/actions/sync';
@@ -192,6 +192,7 @@ function TxDetailPanel({
           { label: 'Data', value: tx.date.split('-').reverse().join('.') },
           { label: 'Konto', value: tx.acc },
           tx.toAccountName ? { label: 'Do konta', value: tx.toAccountName } : null,
+          tx.photos.length > 0 ? { label: 'Zdjęcia', value: String(tx.photos.length) } : null,
           tx.desc ? { label: 'Opis', value: tx.desc } : null,
           tx.loc ? { label: 'Miejsce', value: tx.loc } : null,
         ].filter(Boolean) as { label: string; value: string }[]).map((row, i, arr) => (
@@ -201,6 +202,26 @@ function TxDetailPanel({
           </div>
         ))}
       </Card>
+
+      {tx.photos.length > 0 && (
+        <Card style={{ padding: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: T.dark, fontSize: 14, fontWeight: 850, marginBottom: 12 }}>
+            <Camera size={17} color={T.accent} /> Zdjęcia transakcji
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(82px,1fr))', gap: 10 }}>
+            {tx.photos.map(photo => (
+              <div key={photo.id} style={{ aspectRatio: '1', borderRadius: 12, overflow: 'hidden', background: T.bg, border: `1px solid ${T.border}`, display: 'grid', placeItems: 'center' }}>
+                {photo.imageBase64 ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={`data:${photo.mimeType};base64,${photo.imageBase64}`} alt="Zdjęcie transakcji" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <ImageIcon size={24} color={T.muted} />
+                )}
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       {tx.loc && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px', borderRadius: T.radiusSm, background: T.bg, fontSize: 14, color: T.muted }}>

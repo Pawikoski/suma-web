@@ -165,4 +165,31 @@ describe('parseSyncResponse', () => {
       after_maturity_action: 'DISABLE',
     });
   });
+
+  it('validates transaction photos at the sync boundary', () => {
+    const result = parseSyncResponse({
+      ...baseSyncResponse,
+      server_changes: {
+        ...baseSyncResponse.server_changes,
+        transaction_photos: [
+          {
+            id: 'photo-1',
+            transaction_id: 'tx-1',
+            mime_type: 'image/jpeg',
+            content_hash: 'hash-1',
+            image_base64: 'ZmFrZQ==',
+            updated_at: '2026-05-01T10:00:00Z',
+            deleted_at: null,
+            version: 1,
+          },
+        ],
+      },
+    });
+
+    expect(result.server_changes.transaction_photos[0]).toMatchObject({
+      id: 'photo-1',
+      mime_type: 'image/jpeg',
+      image_base64: 'ZmFrZQ==',
+    });
+  });
 });

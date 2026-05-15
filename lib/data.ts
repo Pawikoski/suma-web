@@ -61,6 +61,7 @@ export interface Transaction {
   countInSummary: boolean;
   splitIds: string[];
   splits: TransactionSplitSummary[];
+  photos: TransactionPhotoSummary[];
   updatedAt: string;
   deletedAt: string | null;
   version: number;
@@ -70,6 +71,13 @@ export interface TransactionSplitSummary {
   id: string;
   categoryId: string | null;
   amount: number;
+}
+
+export interface TransactionPhotoSummary {
+  id: string;
+  mimeType: string;
+  contentHash: string;
+  imageBase64: string | null;
 }
 
 export interface OverallBudget {

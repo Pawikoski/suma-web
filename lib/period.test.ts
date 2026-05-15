@@ -43,6 +43,7 @@ const transaction = (overrides: Partial<Transaction>): Transaction => ({
   countInSummary: true,
   splitIds: ['split'],
   splits: [{ id: 'split', categoryId: 'cat-food', amount: 10 }],
+  photos: [],
   updatedAt: '2026-05-10T12:00:00Z',
   deletedAt: null,
   version: 1,

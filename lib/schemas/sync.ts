@@ -78,6 +78,14 @@ export const syncTransactionSplitSchema = z.object({
   unit_price: decimalLike.nullable().optional().default(null),
 });
 
+export const syncTransactionPhotoSchema = z.object({
+  ...syncBaseFields,
+  transaction_id: optionalNullableString.default(null),
+  mime_type: z.string().optional().default('image/jpeg'),
+  content_hash: z.string().optional().default(''),
+  image_base64: optionalNullableString.default(null),
+});
+
 export const syncRecurringCategorySplitSchema = z.object({
   category_id: z.string(),
   amount: decimalLike,
@@ -229,7 +237,7 @@ export const syncResponseSchema = z.object({
     recurring_transactions: z.array(syncRecurringTransactionSchema).optional().default([]),
     transactions: z.array(syncTransactionSchema),
     transaction_splits: z.array(syncTransactionSplitSchema),
-    transaction_photos: z.array(z.unknown()).optional().default([]),
+    transaction_photos: z.array(syncTransactionPhotoSchema).optional().default([]),
     category_budgets: z.array(syncCategoryBudgetSchema),
     overall_budgets: z.array(syncOverallBudgetSchema),
     account_budget_overrides: z.array(z.unknown()).optional().default([]),

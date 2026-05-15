@@ -113,6 +113,16 @@ function syncFixture(): SyncServerChanges {
         unit_price: null,
       },
     ],
+    transaction_photos: [
+      {
+        ...baseChange,
+        id: 'photo-current',
+        transaction_id: 'tx-current',
+        mime_type: 'image/jpeg',
+        content_hash: 'hash-1',
+        image_base64: 'ZmFrZQ==',
+      },
+    ],
     category_budgets: [
       {
         ...baseChange,
@@ -218,6 +228,9 @@ describe('mapSyncData', () => {
 
     expect(data.transactions.map(tx => tx.id)).toEqual(['tx-current']);
     expect(data.allTransactions.map(tx => tx.id)).toEqual(['tx-current', 'tx-old']);
+    expect(data.transactions[0].photos).toEqual([
+      { id: 'photo-current', mimeType: 'image/jpeg', contentHash: 'hash-1', imageBase64: 'ZmFrZQ==' },
+    ]);
   });
 
   it('maps category budget and month spending from splits', () => {
