@@ -71,6 +71,10 @@ test('opens transactions filtered by category from categories screen', async ({ 
   await page.goto('/categories?month=2026-05');
   await page.getByText('Other').first().click();
 
+  await expect(page).toHaveURL(/\/categories\/.+\?month=2026-05/);
+  await expect(page.getByRole('link', { name: 'Zobacz transakcje' })).toBeVisible();
+  await page.getByRole('link', { name: 'Zobacz transakcje' }).click();
+
   await expect(page).toHaveURL(/\/transactions\?category=.*&month=2026-05/);
 });
 
@@ -206,14 +210,14 @@ test('previews analyzed import rows without saving them', async ({ page }) => {
   });
 
   await page.goto('/import-export?month=2026-05');
-  await Promise.all([
-    page.waitForResponse(response => response.url().includes('/api/imports/analyze') && response.status() === 200),
-    page.locator('input[type="file"]').setInputFiles({
-      name: 'sample.csv',
-      mimeType: 'text/csv',
-      buffer: Buffer.from('date,amount,notes\n2026-05-10,-42.50,Lunch\n'),
-    }),
-  ]);
+  await expect(page.getByRole('link', { name: 'Pobierz JSON' })).toBeVisible();
+  await expect(page.getByText('Wybierz plik')).toBeVisible();
+  await page.waitForLoadState('networkidle');
+  await page.locator('input[type="file"]').setInputFiles({
+    name: 'sample.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from('date,amount,notes\n2026-05-10,-42.50,Lunch\n'),
+  });
 
   await expect(page.getByText('sample.csv')).toBeVisible();
   await expect(page.getByText('88%')).toBeVisible();

@@ -31,14 +31,14 @@ export default function MobileBottomNav({ onAdd }: { onAdd: () => void }) {
   const navHref = (href: string) => `${href}?month=${encodeURIComponent(activeMonth)}`;
   const left = NAV.slice(0, 2);
   const right = NAV.slice(2);
-  const moreActive = MORE_NAV.some(item => item.href === pathname);
+  const moreActive = MORE_NAV.some(item => item.href === pathname || pathname.startsWith(`${item.href}/`));
 
   return (
     <nav className="mobile-bottom-nav" aria-label="Główna nawigacja">
       {moreOpen && (
         <div className="mobile-more-menu" role="menu" aria-label="Więcej ekranów">
           {MORE_NAV.map(({ href, label, Icon }) => {
-            const active = pathname === href;
+            const active = pathname === href || pathname.startsWith(`${href}/`);
             return (
               <Link
                 key={href}
@@ -56,7 +56,7 @@ export default function MobileBottomNav({ onAdd }: { onAdd: () => void }) {
       )}
 
       {[...left].map(({ href, label, Icon }) => {
-        const active = pathname === href;
+        const active = pathname === href || (href !== '/' && pathname.startsWith(`${href}/`));
         return (
           <Link key={href} href={navHref(href)} onClick={() => setMoreOpen(false)} className={`mobile-nav-item${active ? ' active' : ''}`} aria-label={label}>
             <Icon size={active ? 22 : 24} color={active ? T.accent : T.muted} />
@@ -70,7 +70,7 @@ export default function MobileBottomNav({ onAdd }: { onAdd: () => void }) {
       </button>
 
       {[...right].map(({ href, label, Icon }) => {
-        const active = pathname === href;
+        const active = pathname === href || pathname.startsWith(`${href}/`);
         return (
           <Link key={href} href={navHref(href)} onClick={() => setMoreOpen(false)} className={`mobile-nav-item${active ? ' active' : ''}`} aria-label={label}>
             <Icon size={active ? 22 : 24} color={active ? T.accent : T.muted} />

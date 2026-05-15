@@ -80,7 +80,7 @@ export default function CategoriesScreen() {
                   txCount={group.totalTxCount}
                   budget={group.totalBudget}
                   childCount={group.children.length}
-                  onClick={() => router.push(`/transactions?category=${c.id}&month=${activeMonth}`)}
+                  onClick={() => router.push(`/categories/${c.id}?month=${activeMonth}`)}
                   onEdit={() => setEditingCategory(c)}
                 />
                 {group.totalBudget && pct !== null && (
@@ -99,7 +99,7 @@ export default function CategoriesScreen() {
                         txCount={child.txCount}
                         budget={child.budget}
                         child
-                        onClick={() => router.push(`/transactions?category=${child.id}&month=${activeMonth}`)}
+                        onClick={() => router.push(`/categories/${child.id}?month=${activeMonth}`)}
                         onEdit={() => setEditingCategory(child)}
                       />
                     ))}

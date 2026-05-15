@@ -59,7 +59,7 @@ export default function Sidebar({ onAdd }: SidebarProps) {
       {/* Nav */}
       <nav style={{ flex: 1, padding: '12px 10px', display: 'flex', flexDirection: 'column', gap: 2 }}>
         {NAV.map(({ href, label, Icon }) => {
-          const isActive = pathname === href;
+          const isActive = pathname === href || (href !== '/' && pathname.startsWith(`${href}/`));
           return (
             <Link
               key={href}

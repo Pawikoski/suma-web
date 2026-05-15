@@ -29,7 +29,7 @@ interface TopbarProps {
 
 export default function Topbar({ subtitle, actions }: TopbarProps) {
   const pathname = usePathname();
-  const title = TITLES[pathname] ?? '';
+  const title = TITLES[pathname] ?? (pathname.startsWith('/categories/') ? 'Szczegóły kategorii' : '');
   const openCommand = useSumaUiStore(state => state.openCommand);
   const privacyMode = useSumaUiStore(state => state.privacyMode);
   const togglePrivacyMode = useSumaUiStore(state => state.togglePrivacyMode);

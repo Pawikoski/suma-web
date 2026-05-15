@@ -311,6 +311,7 @@ button {
   .accounts-screen,
   .budget-screen,
   .calendar-screen,
+  .category-detail-screen,
   .categories-screen {
     padding: 16px !important;
   }
@@ -323,6 +324,7 @@ button {
   .budget-account-grid,
   .budget-category-grid,
   .categories-layout-grid,
+  .category-detail-grid,
   .recurring-summary-grid,
   .recurring-upcoming-row,
   .recurring-list-grid,
