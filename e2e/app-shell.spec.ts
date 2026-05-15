@@ -69,6 +69,16 @@ test('opens recurring payments from navigation', async ({ page }) => {
   await expect(page.getByText(/Miesięczne obciążenie|Brak opłat stałych/)).toBeVisible();
 });
 
+test('opens import and export workspace from navigation', async ({ page }) => {
+  await login(page);
+
+  await page.getByRole('link', { name: 'Import/eksport' }).click();
+
+  await expect(page).toHaveURL(/\/import-export\?month=2026-05/);
+  await expect(page.getByRole('link', { name: 'Pobierz JSON' })).toBeVisible();
+  await expect(page.getByText('Wybierz plik')).toBeVisible();
+});
+
 test('opens account details from command search with URL state', async ({ page }) => {
   await login(page);
 

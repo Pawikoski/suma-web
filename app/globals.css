@@ -289,8 +289,16 @@ button {
   .categories-layout-grid,
   .recurring-summary-grid,
   .recurring-upcoming-row,
-  .recurring-list-grid {
+  .recurring-list-grid,
+  .import-export-grid,
+  .import-preview-header,
+  .import-preview-grid {
     grid-template-columns: 1fr !important;
+  }
+
+  .import-preview-grid aside {
+    border-left: 0 !important;
+    border-top: 1px solid #e2e8f0;
   }
 
   .budget-screen input {
