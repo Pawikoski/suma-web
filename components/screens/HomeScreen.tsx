@@ -142,7 +142,7 @@ export default function HomeScreen() {
         </div>
         <div className="account-card-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
           {accounts.map(a => (
-            <Card key={a.id} style={{ padding: 20, background: `linear-gradient(135deg,${a.color},${a.color2})`, border: 'none', cursor: 'pointer' }}>
+            <Card key={a.id} onClick={() => router.push(`/accounts?account=${a.id}&month=${activeMonth}`)} style={{ padding: 20, background: `linear-gradient(135deg,${a.color},${a.color2})`, border: 'none', cursor: 'pointer' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
                 <div style={{ fontSize: 15, fontWeight: 700, color: 'rgba(255,255,255,.9)' }}>{a.name}</div>
                 <Icon name={a.icon} size={22} color="rgba(255,255,255,.85)" />

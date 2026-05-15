@@ -59,3 +59,14 @@ test('opens transactions filtered by category from categories screen', async ({ 
 
   await expect(page).toHaveURL(/\/transactions\?category=.*&month=2026-05/);
 });
+
+test('opens account details from command search with URL state', async ({ page }) => {
+  await login(page);
+
+  await page.getByRole('button', { name: 'Szukaj' }).click();
+  await page.getByRole('combobox', { name: 'Szukaj w Suma' }).fill('Cash');
+  await page.locator('[cmdk-item][data-value^="konto Cash"]').click();
+
+  await expect(page).toHaveURL(/\/accounts\?account=.*&month=2026-05/);
+  await expect(page.getByText('Historia — Cash')).toBeVisible();
+});

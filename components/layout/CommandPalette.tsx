@@ -67,7 +67,7 @@ export default function CommandPalette() {
 
           <Command.Group heading="Konta">
             {accounts.map(account => (
-              <Command.Item key={account.id} value={`konto ${account.name} ${account.type}`} onSelect={() => run('/accounts')}>
+              <Command.Item key={account.id} value={`konto ${account.name} ${account.type}`} onSelect={() => run(`/accounts?account=${account.id}`)}>
                 <Wallet size={18} />
                 <span>{account.name}</span>
                 <small>{account.type}</small>

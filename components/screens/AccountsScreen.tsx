@@ -1,6 +1,7 @@
 'use client';
-import { useState } from 'react';
+import { useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import { parseAsString, useQueryState } from 'nuqs';
 import { ClipboardList } from 'lucide-react';
 import { T } from '@/lib/tokens';
 import { useActiveMonthData } from '@/lib/useActiveMonthData';
@@ -12,7 +13,11 @@ import PrivacyAmount from '@/components/ui/PrivacyAmount';
 export default function AccountsScreen() {
   const router = useRouter();
   const { accounts, transactions, activeMonth } = useActiveMonthData();
-  const [selected, setSelected] = useState(accounts[0] ?? null);
+  const [selectedAccountId, setSelectedAccountId] = useQueryState('account', parseAsString.withDefault(accounts[0]?.id ?? ''));
+  const selected = useMemo(
+    () => accounts.find(account => account.id === selectedAccountId) ?? accounts[0] ?? null,
+    [accounts, selectedAccountId]
+  );
 
   const totalBalance = accounts.filter(a => a.includeInNetWorth).reduce((s, a) => s + a.balance, 0);
 
@@ -31,7 +36,7 @@ export default function AccountsScreen() {
         {accounts.map(a => (
           <Card
             key={a.id}
-            onClick={() => setSelected(a)}
+            onClick={() => void setSelectedAccountId(a.id)}
             style={{
               padding: 18, cursor: 'pointer',
               background: selected?.id === a.id ? `linear-gradient(135deg,${a.color},${a.color2})` : 'white',
