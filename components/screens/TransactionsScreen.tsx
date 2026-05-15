@@ -2,7 +2,7 @@
 import { CSSProperties, memo, useCallback, useMemo, useState, useTransition } from 'react';
 import { ColumnDef, SortingState, flexRender, getCoreRowModel, getSortedRowModel, useReactTable } from '@tanstack/react-table';
 import { parseAsString, parseAsStringLiteral, useQueryState } from 'nuqs';
-import { ArrowUpDown, Download, MapPin, Pencil, Save, Trash2, X } from 'lucide-react';
+import { ArrowUpDown, Download, MapPin, Pencil, RotateCcw, Save, Trash2, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { deleteTransactionAction, deleteTransactionsAction, updateTransactionAction } from '@/app/actions/sync';
@@ -396,6 +396,8 @@ export default function TransactionsScreen() {
   const [accountId, setAccountId] = useQueryState('account', parseAsString.withDefault('all'));
   const [categoryId, setCategoryId] = useQueryState('category', parseAsString.withDefault('all'));
   const [query, setQuery] = useQueryState('q', parseAsString.withDefault(''));
+  const [minAmount, setMinAmount] = useQueryState('min', parseAsString.withDefault(''));
+  const [maxAmount, setMaxAmount] = useQueryState('max', parseAsString.withDefault(''));
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isBulkDeleting, startBulkDeleteTransition] = useTransition();
 
@@ -407,17 +409,22 @@ export default function TransactionsScreen() {
   const filtered = useMemo(() => {
     const textQuery = query.trim().toLocaleLowerCase('pl-PL');
     const categoryFilterIds = categoryId === 'all' ? null : categoryAndDescendantIds(categories, categoryId);
+    const min = minAmount.trim() ? Number(minAmount) : null;
+    const max = maxAmount.trim() ? Number(maxAmount) : null;
     return allTransactions.filter(t => {
+      const absoluteAmount = Math.abs(t.amount);
       if (activeMonth !== 'all' && !t.date.startsWith(activeMonth)) return false;
       if (filter !== 'all' && t.type !== filter) return false;
       if (accountId !== 'all' && t.accountId !== accountId && t.toAccountId !== accountId) return false;
       if (categoryFilterIds && (!t.categoryId || !categoryFilterIds.has(t.categoryId))) return false;
+      if (min !== null && !Number.isNaN(min) && absoluteAmount < min) return false;
+      if (max !== null && !Number.isNaN(max) && absoluteAmount > max) return false;
       if (!textQuery) return true;
       return [t.cat, t.desc, t.acc, t.toAccountName, t.loc, t.amount.toString()]
         .filter(Boolean)
         .some(value => String(value).toLocaleLowerCase('pl-PL').includes(textQuery));
     });
-  }, [accountId, activeMonth, allTransactions, categories, categoryId, filter, query]);
+  }, [accountId, activeMonth, allTransactions, categories, categoryId, filter, maxAmount, minAmount, query]);
   const income = filtered.filter(t => t.type === 'income').reduce((sum, tx) => sum + tx.amount, 0);
   const expense = Math.abs(filtered.filter(t => t.type === 'expense').reduce((sum, tx) => sum + tx.amount, 0));
   const selectedTransactions = useMemo(
@@ -495,6 +502,14 @@ export default function TransactionsScreen() {
       router.refresh();
     });
   }, [clearSelection, router, selectedIds, setSelectedId]);
+  const resetFilters = useCallback(() => {
+    void setQuery('');
+    void setAccountId('all');
+    void setCategoryId('all');
+    void setMinAmount('');
+    void setMaxAmount('');
+    void setFilter('all');
+  }, [setAccountId, setCategoryId, setFilter, setMaxAmount, setMinAmount, setQuery]);
 
   return (
     <div className="transactions-layout" style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
@@ -518,8 +533,9 @@ export default function TransactionsScreen() {
             ))}
           </div>
 
-          <Card className="transaction-filter-card" style={{ padding: 12, display: 'grid', gridTemplateColumns: '1.2fr .8fr .9fr .9fr auto auto', gap: 10, alignItems: 'center' }}>
+          <Card className="transaction-filter-card" style={{ padding: 12, display: 'grid', gridTemplateColumns: '1.2fr .8fr .9fr .9fr .6fr .6fr auto auto', gap: 10, alignItems: 'center' }}>
             <input
+              aria-label="Szukaj transakcji"
               value={query}
               onChange={e => void setQuery(e.target.value)}
               placeholder="Szukaj po opisie, kategorii, koncie..."
@@ -537,10 +553,37 @@ export default function TransactionsScreen() {
               <option value="all">Wszystkie kategorie</option>
               {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
+            <input
+              aria-label="Kwota od"
+              type="number"
+              min="0"
+              step="0.01"
+              value={minAmount}
+              onChange={e => void setMinAmount(e.target.value)}
+              placeholder="Od"
+              style={selectStyle}
+            />
+            <input
+              aria-label="Kwota do"
+              type="number"
+              min="0"
+              step="0.01"
+              value={maxAmount}
+              onChange={e => void setMaxAmount(e.target.value)}
+              placeholder="Do"
+              style={selectStyle}
+            />
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', fontSize: 13, color: T.muted, whiteSpace: 'nowrap' }}>
               <strong style={{ color: T.income }}>+{income.toLocaleString('pl-PL', { maximumFractionDigits: 0 })} zł</strong>
               <strong style={{ color: T.expense }}>-{expense.toLocaleString('pl-PL', { maximumFractionDigits: 0 })} zł</strong>
             </div>
+            <button
+              aria-label="Wyczyść filtry"
+              onClick={resetFilters}
+              style={{ height: 38, width: 38, borderRadius: T.radiusSm, background: T.bg, color: T.muted, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            >
+              <RotateCcw size={16} />
+            </button>
             <button
               onClick={exportFiltered}
               disabled={filtered.length === 0}
