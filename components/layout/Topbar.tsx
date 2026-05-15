@@ -11,9 +11,14 @@ import { useActiveMonthData } from '@/lib/useActiveMonthData';
 const TITLES: Record<string, string> = {
   '/':              'Home',
   '/transactions':  'Transakcje',
+  '/recurring':     'Opłaty stałe',
+  '/settlements':   'Rozliczenia',
   '/categories':    'Kategorie',
   '/accounts':      'Konta',
+  '/investments':   'Inwestycje',
   '/budget':        'Budżet',
+  '/reports':       'Raporty',
+  '/import-export': 'Import/eksport',
 };
 
 interface TopbarProps {

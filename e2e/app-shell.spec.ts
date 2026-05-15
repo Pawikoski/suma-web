@@ -19,6 +19,18 @@ test('mobile shell keeps navigation usable and exposes privacy mode', async ({ p
   await expect(page.getByRole('button', { name: 'Pokaż kwoty' })).toBeVisible();
 });
 
+test('mobile more menu exposes secondary workspaces', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await login(page);
+
+  await page.getByRole('button', { name: 'Więcej' }).click();
+  await expect(page.getByRole('menu', { name: 'Więcej ekranów' })).toBeVisible();
+  await page.getByRole('menuitem', { name: 'Inwestycje' }).click();
+
+  await expect(page).toHaveURL(/\/investments\?month=2026-05/);
+  await expect(page.getByRole('heading', { name: 'Brak inwestycji' }).or(page.getByText('Wartość portfela'))).toBeVisible();
+});
+
 test('command search navigates to app views', async ({ page }) => {
   await login(page);
 
@@ -131,7 +143,7 @@ test('opens investments from navigation', async ({ page }) => {
   await page.getByRole('link', { name: 'Inwestycje' }).click();
 
   await expect(page).toHaveURL(/\/investments\?month=2026-05/);
-  await expect(page.getByText(/Wartość portfela|Brak inwestycji/)).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Brak inwestycji' }).or(page.getByText('Wartość portfela'))).toBeVisible();
 });
 
 test('opens import and export workspace from navigation', async ({ page }) => {
