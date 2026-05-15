@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { fetchSync, postSyncChanges } from '@/lib/api';
 import { SyncAccount, SyncCategoryBudget, SyncOverallBudget, SyncServerChanges, SyncTransaction, SyncTransactionSplit } from '@/lib/api-types';
+import { importAnalysisSchema } from '@/lib/schemas/import-analysis';
 
 export type ActionResult =
   | { ok: true; id?: string; message?: string }
@@ -513,4 +514,208 @@ export async function upsertCategoryBudgetAction(input: unknown): Promise<Action
   revalidatePath('/categories');
   revalidatePath('/');
   return { ok: true, message: parsed.data.amount > 0 ? 'Budżet kategorii został zapisany.' : 'Budżet kategorii został wyłączony.' };
+}
+
+function normalizeName(value: string): string {
+  return value.trim().toLocaleLowerCase('pl-PL');
+}
+
+function importedAccountPayload(name: string, balance: number, currency: string, sortOrder: number, updatedAt: string) {
+  return {
+    id: crypto.randomUUID(),
+    name,
+    type: 'CASH',
+    category: 'BASIC',
+    balance: money(balance),
+    currency,
+    sort_order: sortOrder,
+    is_default: false,
+    is_active: true,
+    include_in_net_worth: true,
+    icon_name: 'account_balance_wallet',
+    icon_bg: '#EEF2FF',
+    icon_color: '#6366F1',
+    notes: 'Utworzone podczas importu web',
+    updated_at: updatedAt,
+    deleted_at: null,
+    version: 1,
+  };
+}
+
+function importedCategoryPayload(name: string, type: 'EXPENSE' | 'INCOME', sortOrder: number, updatedAt: string) {
+  return {
+    id: crypto.randomUUID(),
+    name,
+    types: [type],
+    icon_name: type === 'INCOME' ? 'payments' : 'receipt_long',
+    icon_bg: type === 'INCOME' ? '#D1FAE5' : '#EEF2FF',
+    icon_color: type === 'INCOME' ? '#10B981' : '#6366F1',
+    sort_order: sortOrder,
+    is_default: false,
+    is_system: false,
+    parent_category_id: null,
+    updated_at: updatedAt,
+    deleted_at: null,
+    version: 1,
+  };
+}
+
+export async function confirmImportAnalysisAction(input: unknown): Promise<ActionResult> {
+  const parsed = importAnalysisSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: 'Niepoprawny podgląd importu.' };
+  if (parsed.data.transactions.length === 0) return { ok: false, message: 'Plik nie zawiera transakcji do importu.' };
+
+  const changes = await getServerChanges();
+  if (!changes) return { ok: false, message: 'Nie udało się pobrać aktualnych danych.' };
+
+  const updatedAt = nowIso();
+  const accountByName = new Map(
+    changes.accounts
+      .filter(account => !account.deleted_at && account.is_active)
+      .map(account => [normalizeName(account.name), account])
+  );
+  const categoryByName = new Map(
+    changes.categories
+      .filter(category => !category.deleted_at)
+      .map(category => [normalizeName(category.name), category])
+  );
+  const importedBalanceByName = new Map(
+    parsed.data.accounts.map(account => [normalizeName(account.name), account.balance])
+  );
+  const balanceByAccountId = new Map<string, number>();
+  const fixedBalanceByAccountId = new Map<string, number>();
+  const accountsToSync = new Map<string, SyncAccount | ReturnType<typeof importedAccountPayload>>();
+  const categoriesToSync = new Map<string, ReturnType<typeof importedCategoryPayload>>();
+  let maxAccountSort = Math.max(0, ...changes.accounts.map(account => account.sort_order));
+  let maxCategorySort = Math.max(0, ...changes.categories.map(category => category.sort_order));
+
+  const resolveAccount = (name: string, currency: string) => {
+    const normalized = normalizeName(name || 'Import');
+    const importedBalance = importedBalanceByName.get(normalized);
+    const existing = accountByName.get(normalized);
+    if (existing) {
+      if (importedBalance !== undefined && importedBalance !== null) {
+        fixedBalanceByAccountId.set(existing.id, importedBalance);
+        balanceByAccountId.set(existing.id, importedBalance);
+      } else if (!balanceByAccountId.has(existing.id)) {
+        balanceByAccountId.set(existing.id, parseFloat(existing.balance));
+      }
+      return existing;
+    }
+
+    const account = importedAccountPayload(name || 'Import', importedBalance ?? 0, currency, ++maxAccountSort, updatedAt);
+    accountByName.set(normalized, account);
+    balanceByAccountId.set(account.id, parseFloat(account.balance));
+    if (importedBalance !== undefined && importedBalance !== null) fixedBalanceByAccountId.set(account.id, importedBalance);
+    accountsToSync.set(account.id, account);
+    return account;
+  };
+
+  const resolveCategory = (name: string, type: 'EXPENSE' | 'INCOME') => {
+    const normalized = normalizeName(name || 'Import');
+    const existing = categoryByName.get(normalized);
+    if (existing) return existing;
+
+    const category = importedCategoryPayload(name || 'Import', type, ++maxCategorySort, updatedAt);
+    categoryByName.set(normalized, category);
+    categoriesToSync.set(category.id, category);
+    return category;
+  };
+
+  const transactions: Array<Record<string, unknown>> = [];
+  const transactionSplits: Array<Record<string, unknown>> = [];
+
+  for (const imported of parsed.data.transactions) {
+    const fromAccount = resolveAccount(imported.from_account, imported.currency);
+    const toAccount = imported.type === 'TRANSFER'
+      ? resolveAccount(imported.to_account || 'Transfer', imported.currency2 || imported.currency)
+      : null;
+    const category = imported.type === 'TRANSFER'
+      ? null
+      : resolveCategory(imported.to_category || (imported.type === 'INCOME' ? 'Przychody z importu' : 'Wydatki z importu'), imported.type);
+
+    const transactionId = crypto.randomUUID();
+    const amount = imported.amount;
+
+    const fromBalance = balanceByAccountId.get(fromAccount.id) ?? parseFloat(fromAccount.balance);
+    if (!fixedBalanceByAccountId.has(fromAccount.id) && imported.type === 'INCOME') balanceByAccountId.set(fromAccount.id, fromBalance + amount);
+    if (!fixedBalanceByAccountId.has(fromAccount.id) && imported.type === 'EXPENSE') balanceByAccountId.set(fromAccount.id, fromBalance - amount);
+    if (imported.type === 'TRANSFER' && toAccount) {
+      if (!fixedBalanceByAccountId.has(fromAccount.id)) balanceByAccountId.set(fromAccount.id, fromBalance - amount);
+      const toBalance = balanceByAccountId.get(toAccount.id) ?? parseFloat(toAccount.balance);
+      if (!fixedBalanceByAccountId.has(toAccount.id)) balanceByAccountId.set(toAccount.id, toBalance + (imported.amount2 ?? amount));
+    }
+
+    transactions.push({
+      id: transactionId,
+      type: imported.type,
+      total_amount: money(amount),
+      from_account_id: fromAccount.id,
+      to_account_id: toAccount?.id ?? null,
+      account_currency: fromAccount.currency,
+      transaction_amount: money(amount),
+      transaction_currency: imported.currency,
+      exchange_rate: null,
+      to_account_amount: toAccount ? money(imported.amount2 ?? amount) : null,
+      to_account_currency: toAccount?.currency ?? null,
+      recurring_transaction_id: null,
+      date_time: dateToNoonUtc(imported.date),
+      notes: imported.notes || null,
+      location_lat: null,
+      location_lng: null,
+      location_name: null,
+      location_address: null,
+      is_from_receipt: false,
+      is_from_notification_parser: false,
+      review_status: null,
+      parser_notification_key: null,
+      count_in_summary: true,
+      summary_amount: null,
+      updated_at: updatedAt,
+      deleted_at: null,
+      version: 1,
+    });
+
+    if (category) {
+      transactionSplits.push({
+        id: crypto.randomUUID(),
+        transaction_id: transactionId,
+        category_id: category.id,
+        amount: money(amount),
+        name: imported.notes || '',
+        quantity: 1,
+        unit: 'pcs',
+        unit_price: money(amount),
+        updated_at: updatedAt,
+        deleted_at: null,
+        version: 1,
+      });
+    }
+  }
+
+  for (const [accountId, balance] of balanceByAccountId) {
+    const account = accountByName.get(normalizeName(accountsToSync.get(accountId)?.name ?? changes.accounts.find(item => item.id === accountId)?.name ?? ''));
+    const existing = changes.accounts.find(item => item.id === accountId);
+    const source = existing ?? account;
+    if (!source) continue;
+    accountsToSync.set(accountId, cloneAccountWithBalance(source, balance, updatedAt));
+  }
+
+  const sync = await postSyncChanges({
+    accounts: Array.from(accountsToSync.values()),
+    categories: Array.from(categoriesToSync.values()),
+    transactions,
+    transaction_splits: transactionSplits,
+  });
+
+  const failure = sync ? syncFailureMessage(sync.errors, sync.conflicts) : 'Nie udało się zapisać importu.';
+  if (failure) return { ok: false, message: failure };
+
+  revalidatePath('/');
+  revalidatePath('/transactions');
+  revalidatePath('/accounts');
+  revalidatePath('/categories');
+  revalidatePath('/budget');
+  revalidatePath('/import-export');
+  return { ok: true, message: `Zaimportowano transakcje: ${parsed.data.transactions.length}.` };
 }

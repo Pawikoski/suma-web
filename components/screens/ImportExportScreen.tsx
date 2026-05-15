@@ -2,6 +2,9 @@
 
 import { CSSProperties, ChangeEvent, useMemo, useState, useTransition } from 'react';
 import { AlertTriangle, CheckCircle2, Download, FileJson, FileSpreadsheet, UploadCloud } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
+import { confirmImportAnalysisAction } from '@/app/actions/sync';
 import { T } from '@/lib/tokens';
 import { useActiveMonthData } from '@/lib/useActiveMonthData';
 import { ImportAnalysis } from '@/lib/schemas/import-analysis';
@@ -27,9 +30,11 @@ function transactionTypeLabel(type: string) {
 }
 
 export default function ImportExportScreen() {
+  const router = useRouter();
   const { accounts, categories, allTransactions } = useActiveMonthData();
   const [state, setState] = useState<ImportState>({ status: 'idle' });
   const [isPending, startTransition] = useTransition();
+  const [isConfirming, startConfirmTransition] = useTransition();
 
   const duplicateCount = useMemo(() => {
     if (state.status !== 'ready') return 0;
@@ -64,6 +69,21 @@ export default function ImportExportScreen() {
     { label: 'Konta', value: accounts.length },
     { label: 'Kategorie', value: categories.length },
   ];
+
+  const confirmImport = () => {
+    if (state.status !== 'ready') return;
+    startConfirmTransition(async () => {
+      const result = await confirmImportAnalysisAction(state.analysis);
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
+
+      toast.success(result.message ?? 'Import został zapisany.');
+      setState({ status: 'idle' });
+      router.refresh();
+    });
+  };
 
   return (
     <div className="screen import-export-screen" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 18 }}>
@@ -122,13 +142,31 @@ export default function ImportExportScreen() {
       </div>
 
       {state.status === 'ready' && (
-        <ImportPreview fileName={state.fileName} analysis={state.analysis} duplicateCount={duplicateCount} />
+        <ImportPreview
+          fileName={state.fileName}
+          analysis={state.analysis}
+          duplicateCount={duplicateCount}
+          isConfirming={isConfirming}
+          onConfirm={confirmImport}
+        />
       )}
     </div>
   );
 }
 
-function ImportPreview({ fileName, analysis, duplicateCount }: { fileName: string; analysis: ImportAnalysis; duplicateCount: number }) {
+function ImportPreview({
+  fileName,
+  analysis,
+  duplicateCount,
+  isConfirming,
+  onConfirm,
+}: {
+  fileName: string;
+  analysis: ImportAnalysis;
+  duplicateCount: number;
+  isConfirming: boolean;
+  onConfirm: () => void;
+}) {
   const totalExpense = analysis.transactions
     .filter(tx => tx.type === 'EXPENSE')
     .reduce((sum, tx) => sum + tx.amount, 0);
@@ -137,7 +175,7 @@ function ImportPreview({ fileName, analysis, duplicateCount }: { fileName: strin
 
   return (
     <Card style={{ padding: 0, overflow: 'hidden' }}>
-      <div className="import-preview-header" style={{ padding: 18, borderBottom: `1px solid ${T.border}`, display: 'grid', gridTemplateColumns: '1.2fr .6fr .6fr .6fr', gap: 12, alignItems: 'center' }}>
+      <div className="import-preview-header" style={{ padding: 18, borderBottom: `1px solid ${T.border}`, display: 'grid', gridTemplateColumns: '1.2fr .6fr .6fr .6fr auto', gap: 12, alignItems: 'center' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: T.dark, fontWeight: 850 }}>
             <CheckCircle2 size={18} color={confidenceColor} /> {fileName}
@@ -149,6 +187,13 @@ function ImportPreview({ fileName, analysis, duplicateCount }: { fileName: strin
         <PreviewStat label="Pewność mapowania" value={`${confidencePct}%`} color={confidenceColor} />
         <PreviewStat label="Transakcje" value={analysis.transactions.length} />
         <PreviewStat label="Duplikaty" value={duplicateCount} color={duplicateCount > 0 ? T.warn : T.income} />
+        <button
+          onClick={onConfirm}
+          disabled={isConfirming || analysis.transactions.length === 0}
+          style={{ height: 40, padding: '0 14px', borderRadius: T.radiusSm, background: T.income, color: 'white', fontWeight: 850, opacity: isConfirming ? .65 : 1 }}
+        >
+          {isConfirming ? 'Importuję...' : 'Zatwierdź import'}
+        </button>
       </div>
 
       {duplicateCount > 0 && (

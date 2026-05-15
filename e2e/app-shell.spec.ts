@@ -79,6 +79,47 @@ test('opens import and export workspace from navigation', async ({ page }) => {
   await expect(page.getByText('Wybierz plik')).toBeVisible();
 });
 
+test('previews analyzed import rows without saving them', async ({ page }) => {
+  await login(page);
+  await page.route('**/api/imports/analyze', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        source_app: 'Test CSV',
+        source_format: 'csv',
+        confidence: 0.88,
+        transactions: [
+          {
+            date: '2026-05-10',
+            type: 'EXPENSE',
+            from_account: 'Cash',
+            to_category: 'Food',
+            to_account: null,
+            amount: 42.5,
+            currency: 'PLN',
+            amount2: null,
+            currency2: null,
+            notes: 'Lunch',
+          },
+        ],
+        accounts: [{ name: 'Cash', balance: null, currency: 'PLN' }],
+      }),
+    });
+  });
+
+  await page.goto('/import-export?month=2026-05');
+  await page.getByLabel('Wybierz plik').setInputFiles({
+    name: 'sample.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from('date,amount,notes\n2026-05-10,-42.50,Lunch\n'),
+  });
+
+  await expect(page.getByText('sample.csv')).toBeVisible();
+  await expect(page.getByText('88%')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Zatwierdź import' })).toBeVisible();
+});
+
 test('opens account details from command search with URL state', async ({ page }) => {
   await login(page);
 
