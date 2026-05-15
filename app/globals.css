@@ -276,6 +276,15 @@ button {
     grid-template-columns: 1fr !important;
   }
 
+  .selection-summary-bar {
+    flex-direction: column;
+    align-items: stretch !important;
+  }
+
+  .selection-summary-bar > div {
+    flex-wrap: wrap;
+  }
+
   .transaction-table-card {
     overflow-x: auto !important;
   }

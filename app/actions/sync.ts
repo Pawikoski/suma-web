@@ -203,33 +203,57 @@ function cloneSplitForDeletion(split: SyncTransactionSplit, updatedAt: string) {
 }
 
 export async function deleteTransactionAction(transactionId: string): Promise<ActionResult> {
+  return deleteTransactionsAction([transactionId]);
+}
+
+export async function deleteTransactionsAction(transactionIds: string[]): Promise<ActionResult> {
+  const ids = Array.from(new Set(transactionIds.filter(Boolean)));
+  if (ids.length === 0) return { ok: false, message: 'Wybierz transakcje do usunięcia.' };
+
   const changes = await getServerChanges();
   if (!changes) return { ok: false, message: 'Nie udało się pobrać aktualnych danych.' };
 
-  const transaction = changes.transactions.find(t => t.id === transactionId && !t.deleted_at);
-  if (!transaction) return { ok: false, message: 'Nie znaleziono transakcji.' };
+  const transactions = ids.map(id => changes.transactions.find(t => t.id === id && !t.deleted_at));
+  if (transactions.some(transaction => !transaction)) return { ok: false, message: 'Nie znaleziono części transakcji.' };
 
-  const fromAccount = changes.accounts.find(a => a.id === transaction.from_account_id && !a.deleted_at);
-  if (!fromAccount) return { ok: false, message: 'Nie znaleziono konta transakcji.' };
-
-  const amount = parseFloat(transaction.total_amount);
   const updatedAt = nowIso();
-  const nextFromBalance = transaction.type === 'INCOME'
-    ? parseFloat(fromAccount.balance) - amount
-    : parseFloat(fromAccount.balance) + amount;
-  const accounts = [cloneAccountWithBalance(fromAccount, nextFromBalance, updatedAt)];
+  const accountBalances = new Map<string, number>();
+  const getAccountBalance = (accountId: string) => {
+    if (accountBalances.has(accountId)) return accountBalances.get(accountId)!;
+    const account = changes.accounts.find(a => a.id === accountId && !a.deleted_at);
+    if (!account) return null;
+    const balance = parseFloat(account.balance);
+    accountBalances.set(accountId, balance);
+    return balance;
+  };
 
-  if (transaction.type === 'TRANSFER' && transaction.to_account_id) {
-    const toAccount = changes.accounts.find(a => a.id === transaction.to_account_id && !a.deleted_at);
-    if (!toAccount) return { ok: false, message: 'Nie znaleziono konta docelowego transferu.' };
-    accounts.push(cloneAccountWithBalance(toAccount, parseFloat(toAccount.balance) - amount, updatedAt));
+  for (const transaction of transactions as SyncTransaction[]) {
+    const amount = parseFloat(transaction.total_amount);
+    const fromBalance = getAccountBalance(transaction.from_account_id);
+    if (fromBalance === null) return { ok: false, message: 'Nie znaleziono konta transakcji.' };
+
+    accountBalances.set(
+      transaction.from_account_id,
+      transaction.type === 'INCOME' ? fromBalance - amount : fromBalance + amount
+    );
+
+    if (transaction.type === 'TRANSFER' && transaction.to_account_id) {
+      const toBalance = getAccountBalance(transaction.to_account_id);
+      if (toBalance === null) return { ok: false, message: 'Nie znaleziono konta docelowego transferu.' };
+      accountBalances.set(transaction.to_account_id, toBalance - amount);
+    }
   }
 
+  const accounts = Array.from(accountBalances.entries()).map(([accountId, balance]) => {
+    const account = changes.accounts.find(a => a.id === accountId && !a.deleted_at)!;
+    return cloneAccountWithBalance(account, balance, updatedAt);
+  });
+  const selectedIdSet = new Set(ids);
   const sync = await postSyncChanges({
     accounts,
-    transactions: [cloneTransactionForDeletion(transaction, updatedAt)],
+    transactions: (transactions as SyncTransaction[]).map(transaction => cloneTransactionForDeletion(transaction, updatedAt)),
     transaction_splits: changes.transaction_splits
-      .filter(split => split.transaction_id === transaction.id && !split.deleted_at)
+      .filter(split => split.transaction_id && selectedIdSet.has(split.transaction_id) && !split.deleted_at)
       .map(split => cloneSplitForDeletion(split, updatedAt)),
   });
 
@@ -238,7 +262,10 @@ export async function deleteTransactionAction(transactionId: string): Promise<Ac
 
   revalidatePath('/transactions');
   revalidatePath('/');
-  return { ok: true, message: 'Transakcja została usunięta.' };
+  return {
+    ok: true,
+    message: ids.length === 1 ? 'Transakcja została usunięta.' : `Usunięto transakcje: ${ids.length}.`,
+  };
 }
 
 const budgetInputSchema = z.object({

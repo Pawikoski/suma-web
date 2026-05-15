@@ -5,7 +5,7 @@ import { parseAsString, parseAsStringLiteral, useQueryState } from 'nuqs';
 import { ArrowUpDown, Download, MapPin, Trash2, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { deleteTransactionAction } from '@/app/actions/sync';
+import { deleteTransactionAction, deleteTransactionsAction } from '@/app/actions/sync';
 import { T } from '@/lib/tokens';
 import { Transaction } from '@/lib/data';
 import { useAppData } from '@/lib/AppDataContext';
@@ -91,12 +91,43 @@ function TxDetailPanel({ tx, onClose }: { tx: Transaction; onClose: () => void }
 interface TransactionsTableProps {
   transactions: Transaction[];
   onSelect: (tx: Transaction) => void;
+  selectedIds: Set<string>;
+  onToggleSelected: (transactionId: string) => void;
+  onToggleVisible: () => void;
 }
 
-const TransactionsTable = memo(function TransactionsTable({ transactions, onSelect }: TransactionsTableProps) {
+const TransactionsTable = memo(function TransactionsTable({ transactions, onSelect, selectedIds, onToggleSelected, onToggleVisible }: TransactionsTableProps) {
   const [sorting, setSorting] = useState<SortingState>([{ id: 'date', desc: true }]);
+  const visibleIds = useMemo(() => transactions.map(tx => tx.id), [transactions]);
+  const allVisibleSelected = visibleIds.length > 0 && visibleIds.every(id => selectedIds.has(id));
 
   const columns = useMemo<ColumnDef<Transaction>[]>(() => [
+    {
+      id: 'select',
+      header: () => (
+        <input
+          aria-label={allVisibleSelected ? 'Odznacz widoczne transakcje' : 'Zaznacz widoczne transakcje'}
+          type="checkbox"
+          checked={allVisibleSelected}
+          onChange={onToggleVisible}
+          style={{ width: 16, height: 16, accentColor: T.accent }}
+        />
+      ),
+      cell: ({ row }) => {
+        const tx = row.original;
+        return (
+          <input
+            aria-label={`Zaznacz transakcję ${tx.cat}`}
+            type="checkbox"
+            checked={selectedIds.has(tx.id)}
+            onClick={event => event.stopPropagation()}
+            onChange={() => onToggleSelected(tx.id)}
+            style={{ width: 16, height: 16, accentColor: T.accent }}
+          />
+        );
+      },
+      enableSorting: false,
+    },
     {
       id: 'category',
       accessorKey: 'cat',
@@ -141,7 +172,7 @@ const TransactionsTable = memo(function TransactionsTable({ transactions, onSele
         );
       },
     },
-  ], []);
+  ], [allVisibleSelected, onToggleSelected, onToggleVisible, selectedIds]);
 
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
@@ -176,7 +207,7 @@ const TransactionsTable = memo(function TransactionsTable({ transactions, onSele
                   fontSize: 13,
                   fontWeight: 700,
                   textAlign: header.column.id === 'amount' ? 'right' : 'left',
-                  width: header.column.id === 'category' ? '46%' : header.column.id === 'amount' ? '18%' : '18%',
+                  width: header.column.id === 'select' ? 44 : header.column.id === 'category' ? '42%' : header.column.id === 'amount' ? '18%' : '18%',
                 }}
               >
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -209,6 +240,7 @@ const TransactionsTable = memo(function TransactionsTable({ transactions, onSele
                   style={{
                     padding: '16px 22px',
                     textAlign: cell.column.id === 'amount' ? 'right' : 'left',
+                    width: cell.column.id === 'select' ? 44 : undefined,
                     verticalAlign: 'middle',
                   }}
                 >
@@ -224,6 +256,7 @@ const TransactionsTable = memo(function TransactionsTable({ transactions, onSele
 });
 
 export default function TransactionsScreen() {
+  const router = useRouter();
   const { accounts, categories, allTransactions, yearMonth } = useAppData();
   const [filter, setFilter] = useQueryState('type', parseAsStringLiteral(TX_FILTERS).withDefault('all'));
   const [selectedId, setSelectedId] = useQueryState('id');
@@ -231,6 +264,8 @@ export default function TransactionsScreen() {
   const [accountId, setAccountId] = useQueryState('account', parseAsString.withDefault('all'));
   const [categoryId, setCategoryId] = useQueryState('category', parseAsString.withDefault('all'));
   const [query, setQuery] = useQueryState('q', parseAsString.withDefault(''));
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isBulkDeleting, startBulkDeleteTransition] = useTransition();
 
   const selectedTx = useMemo(
     () => selectedId ? allTransactions.find(t => t.id === selectedId) ?? null : null,
@@ -257,6 +292,12 @@ export default function TransactionsScreen() {
   );
   const income = filtered.filter(t => t.type === 'income').reduce((sum, tx) => sum + tx.amount, 0);
   const expense = Math.abs(filtered.filter(t => t.type === 'expense').reduce((sum, tx) => sum + tx.amount, 0));
+  const selectedTransactions = useMemo(
+    () => allTransactions.filter(tx => selectedIds.has(tx.id)),
+    [allTransactions, selectedIds]
+  );
+  const selectedIncome = selectedTransactions.filter(t => t.type === 'income').reduce((sum, tx) => sum + tx.amount, 0);
+  const selectedExpense = Math.abs(selectedTransactions.filter(t => t.type === 'expense').reduce((sum, tx) => sum + tx.amount, 0));
   const exportFiltered = useCallback(() => {
     const quote = (value: string | number | null | undefined) => `"${String(value ?? '').replaceAll('"', '""')}"`;
     const rows = [
@@ -291,6 +332,41 @@ export default function TransactionsScreen() {
   const deselectTx = useCallback(() => {
     void setSelectedId(null);
   }, [setSelectedId]);
+  const toggleSelected = useCallback((transactionId: string) => {
+    setSelectedIds(current => {
+      const next = new Set(current);
+      if (next.has(transactionId)) next.delete(transactionId);
+      else next.add(transactionId);
+      return next;
+    });
+  }, []);
+  const toggleVisible = useCallback(() => {
+    setSelectedIds(current => {
+      const next = new Set(current);
+      const visibleIds = filtered.map(tx => tx.id);
+      const allVisibleSelected = visibleIds.length > 0 && visibleIds.every(id => next.has(id));
+      visibleIds.forEach(id => {
+        if (allVisibleSelected) next.delete(id);
+        else next.add(id);
+      });
+      return next;
+    });
+  }, [filtered]);
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
+  const deleteSelected = useCallback(() => {
+    const ids = Array.from(selectedIds);
+    startBulkDeleteTransition(async () => {
+      const result = await deleteTransactionsAction(ids);
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
+      toast.success(result.message);
+      clearSelection();
+      void setSelectedId(null);
+      router.refresh();
+    });
+  }, [clearSelection, router, selectedIds, setSelectedId]);
 
   return (
     <div className="transactions-layout" style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
@@ -348,8 +424,44 @@ export default function TransactionsScreen() {
           </Card>
         </div>
 
+        {selectedTransactions.length > 0 && (
+          <Card className="selection-summary-bar" style={{ padding: '12px 14px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'space-between', background: T.dark, color: 'white' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
+              <strong style={{ fontSize: 15 }}>{selectedTransactions.length} zazn.</strong>
+              <span style={{ fontSize: 13, color: '#cbd5e1' }}>
+                Przychody: <strong style={{ color: '#86efac' }}><PrivacyAmount amount={selectedIncome} prefix="+" /></strong>
+              </span>
+              <span style={{ fontSize: 13, color: '#cbd5e1' }}>
+                Wydatki: <strong style={{ color: '#fca5a5' }}><PrivacyAmount amount={selectedExpense} prefix="-" /></strong>
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+              <button
+                onClick={clearSelection}
+                style={{ height: 34, padding: '0 12px', borderRadius: T.radiusSm, background: 'rgba(255,255,255,.1)', color: 'white', fontWeight: 700 }}
+              >
+                Wyczyść
+              </button>
+              <button
+                onClick={deleteSelected}
+                disabled={isBulkDeleting}
+                style={{ height: 34, padding: '0 12px', borderRadius: T.radiusSm, background: T.expense, color: 'white', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8, opacity: isBulkDeleting ? 0.65 : 1 }}
+              >
+                <Trash2 size={15} color="white" />
+                {isBulkDeleting ? 'Usuwanie...' : 'Usuń'}
+              </button>
+            </div>
+          </Card>
+        )}
+
         <Card className="transaction-table-card" style={{ padding: 0, overflow: 'hidden' }}>
-          <TransactionsTable transactions={filtered} onSelect={selectTx} />
+          <TransactionsTable
+            transactions={filtered}
+            onSelect={selectTx}
+            selectedIds={selectedIds}
+            onToggleSelected={toggleSelected}
+            onToggleVisible={toggleVisible}
+          />
         </Card>
       </div>
 
