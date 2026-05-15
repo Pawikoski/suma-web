@@ -1,9 +1,17 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { ArrowDownCircle, ArrowUpCircle, BriefcaseBusiness, Coins, LineChart } from 'lucide-react';
+import { useMemo, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+import { ArrowDownCircle, ArrowUpCircle, BriefcaseBusiness, Coins, LineChart, Pencil, Plus, Save, ShoppingCart, Trash2, X } from 'lucide-react';
+import { toast } from 'sonner';
+import {
+  createInvestmentHoldingAction,
+  deleteInvestmentHoldingAction,
+  tradeInvestmentHoldingAction,
+  updateInvestmentHoldingAction,
+} from '@/app/actions/sync';
 import { T } from '@/lib/tokens';
-import { InvestmentHolding, InvestmentType } from '@/lib/data';
+import { Account, InvestmentHolding, InvestmentType } from '@/lib/data';
 import { useActiveMonthData } from '@/lib/useActiveMonthData';
 import Card from '@/components/ui/Card';
 import PrivacyAmount from '@/components/ui/PrivacyAmount';
@@ -22,6 +30,9 @@ function formatQuantity(value: number) {
 export default function InvestmentsScreen() {
   const { investmentHoldings, accounts } = useActiveMonthData();
   const [accountId, setAccountId] = useState('all');
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [editingHolding, setEditingHolding] = useState<InvestmentHolding | null>(null);
+  const [tradeHolding, setTradeHolding] = useState<{ holding: InvestmentHolding; type: 'BUY' | 'SELL' } | null>(null);
   const investmentAccounts = accounts.filter(account => account.rawType === 'INVESTMENT');
   const filtered = accountId === 'all'
     ? investmentHoldings
@@ -43,13 +54,31 @@ export default function InvestmentsScreen() {
           </div>
           <h1 style={{ fontSize: 24, color: T.dark, marginBottom: 8 }}>Brak inwestycji</h1>
           <p style={{ fontSize: 14, color: T.muted, lineHeight: 1.5 }}>Portfel inwestycyjny z aplikacji mobilnej pojawi się tutaj razem z pozycjami, wyceną i historią operacji.</p>
+          {investmentAccounts.length > 0 && (
+            <button onClick={() => setIsCreateOpen(true)} style={{ ...primaryButtonStyle, margin: '18px auto 0' }}>
+              <Plus size={16} color="white" /> Dodaj pozycję
+            </button>
+          )}
         </div>
+        {isCreateOpen && <HoldingFormModal accounts={investmentAccounts} onClose={() => setIsCreateOpen(false)} />}
       </div>
     );
   }
 
   return (
     <div className="screen investments-screen" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 18 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 14 }}>
+        <div>
+          <div style={{ color: T.muted, fontSize: 12, fontWeight: 750 }}>Portfel inwestycyjny</div>
+          <div style={{ color: T.dark, fontSize: 24, fontWeight: 850 }}>Pozycje i operacje</div>
+        </div>
+        {investmentAccounts.length > 0 && (
+          <button aria-label="Dodaj pozycję" onClick={() => setIsCreateOpen(true)} style={primaryButtonStyle}>
+            <Plus size={16} color="white" /> Dodaj pozycję
+          </button>
+        )}
+      </div>
+
       <div className="investments-summary-grid" style={{ display: 'grid', gridTemplateColumns: '1.4fr .8fr .8fr', gap: 14 }}>
         <Card style={{ padding: 24, background: T.card }}>
           <div style={{ color: T.muted, fontSize: 12, fontWeight: 850, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>Wartość portfela</div>
@@ -71,7 +100,15 @@ export default function InvestmentsScreen() {
 
       <div className="investments-layout-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 16 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          {filtered.map(holding => <HoldingCard key={holding.id} holding={holding} />)}
+          {filtered.map(holding => (
+            <HoldingCard
+              key={holding.id}
+              holding={holding}
+              onBuy={() => setTradeHolding({ holding, type: 'BUY' })}
+              onSell={() => setTradeHolding({ holding, type: 'SELL' })}
+              onEdit={() => setEditingHolding(holding)}
+            />
+          ))}
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -122,6 +159,9 @@ export default function InvestmentsScreen() {
           </Card>
         </div>
       </div>
+      {isCreateOpen && <HoldingFormModal accounts={investmentAccounts} onClose={() => setIsCreateOpen(false)} />}
+      {editingHolding && <HoldingFormModal accounts={investmentAccounts} holding={editingHolding} onClose={() => setEditingHolding(null)} />}
+      {tradeHolding && <TradeModal holding={tradeHolding.holding} type={tradeHolding.type} onClose={() => setTradeHolding(null)} />}
     </div>
   );
 }
@@ -138,7 +178,17 @@ function MetricCard({ icon, label, value }: { icon: React.ReactNode; label: stri
   );
 }
 
-function HoldingCard({ holding }: { holding: InvestmentHolding }) {
+function HoldingCard({
+  holding,
+  onBuy,
+  onSell,
+  onEdit,
+}: {
+  holding: InvestmentHolding;
+  onBuy: () => void;
+  onSell: () => void;
+  onEdit: () => void;
+}) {
   const meta = TYPE_META[holding.investmentType];
   return (
     <Card style={{ padding: 16 }}>
@@ -166,6 +216,17 @@ function HoldingCard({ holding }: { holding: InvestmentHolding }) {
           <PrivacyAmount amount={holding.unitPrice} style={{ color: T.mid, fontSize: 13, fontWeight: 850 }} />
         </div>
       </div>
+      <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8 }}>
+        <button onClick={onBuy} style={{ ...secondaryButtonStyle, color: T.income, background: T.incomeSoft }}>
+          <ShoppingCart size={14} /> Kup
+        </button>
+        <button onClick={onSell} style={{ ...secondaryButtonStyle, color: T.expense, background: T.expenseSoft }}>
+          <ArrowUpCircle size={14} /> Sprzedaj
+        </button>
+        <button aria-label={`Edytuj ${holding.symbol}`} onClick={onEdit} style={iconButtonStyle}>
+          <Pencil size={15} />
+        </button>
+      </div>
     </Card>
   );
 }
@@ -183,3 +244,234 @@ function chipStyle(active: boolean): React.CSSProperties {
     whiteSpace: 'nowrap',
   };
 }
+
+function HoldingFormModal({
+  accounts,
+  holding,
+  onClose,
+}: {
+  accounts: Account[];
+  holding?: InvestmentHolding;
+  onClose: () => void;
+}) {
+  const router = useRouter();
+  const [accountId, setAccountId] = useState<string>(holding?.accountId ?? accounts[0]?.id ?? '');
+  const [symbol, setSymbol] = useState(holding?.symbol ?? '');
+  const [name, setName] = useState(holding?.name ?? '');
+  const [investmentType, setInvestmentType] = useState<InvestmentType>(holding?.investmentType ?? 'STOCK');
+  const [quantity, setQuantity] = useState(holding ? String(holding.quantity) : '');
+  const [unitPrice, setUnitPrice] = useState(holding ? String(holding.unitPrice.toFixed(2)) : '');
+  const [currency, setCurrency] = useState(holding?.currency ?? accounts.find(account => account.id === accountId)?.currency ?? 'PLN');
+  const [notes, setNotes] = useState(holding?.notes ?? '');
+  const [isPending, startTransition] = useTransition();
+  const quantityValue = Number(quantity);
+  const unitPriceValue = Number(unitPrice);
+  const canSubmit = Boolean(accountId && symbol.trim() && name.trim() && Number.isFinite(quantityValue) && quantityValue > 0 && Number.isFinite(unitPriceValue) && unitPriceValue > 0);
+
+  const submit = () => {
+    startTransition(async () => {
+      const payload = {
+        id: holding?.id,
+        accountId,
+        symbol,
+        name,
+        investmentType,
+        quantity: quantityValue,
+        unitPrice: unitPriceValue,
+        currency,
+        notes,
+      };
+      const result = holding
+        ? await updateInvestmentHoldingAction(payload)
+        : await createInvestmentHoldingAction(payload);
+
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
+
+      toast.success(result.message);
+      onClose();
+      router.refresh();
+    });
+  };
+
+  const remove = () => {
+    if (!holding || !window.confirm('Usunąć pozycję razem z historią operacji?')) return;
+
+    startTransition(async () => {
+      const result = await deleteInvestmentHoldingAction(holding.id);
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
+
+      toast.success(result.message);
+      onClose();
+      router.refresh();
+    });
+  };
+
+  return (
+    <ModalShell title={holding ? 'Edycja pozycji' : 'Nowa pozycja'} onClose={onClose}>
+      <div style={{ display: 'grid', gap: 12 }}>
+        <select aria-label="Konto inwestycyjne" value={accountId} onChange={event => {
+          const nextAccountId = event.target.value;
+          setAccountId(nextAccountId);
+          setCurrency(accounts.find(account => account.id === nextAccountId)?.currency ?? currency);
+        }} style={inputStyle}>
+          {accounts.map(account => <option key={account.id} value={account.id}>{account.name}</option>)}
+        </select>
+        <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 10 }}>
+          <input aria-label="Symbol" placeholder="Symbol" value={symbol} onChange={event => setSymbol(event.target.value.toUpperCase())} style={inputStyle} />
+          <input aria-label="Nazwa inwestycji" placeholder="Nazwa" value={name} onChange={event => setName(event.target.value)} style={inputStyle} />
+        </div>
+        <select aria-label="Typ inwestycji" value={investmentType} onChange={event => setInvestmentType(event.target.value as InvestmentType)} style={inputStyle}>
+          {Object.entries(TYPE_META).map(([type, meta]) => <option key={type} value={type}>{meta.label}</option>)}
+        </select>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 92px', gap: 10 }}>
+          <input aria-label="Ilość" type="number" min="0" step="0.00000001" placeholder="Ilość" value={quantity} onChange={event => setQuantity(event.target.value)} style={inputStyle} />
+          <input aria-label="Cena jednostki" type="number" min="0" step="0.01" placeholder="Cena" value={unitPrice} onChange={event => setUnitPrice(event.target.value)} style={inputStyle} />
+          <input aria-label="Waluta" value={currency} onChange={event => setCurrency(event.target.value.toUpperCase())} style={inputStyle} />
+        </div>
+        <input aria-label="Notatka inwestycji" placeholder="Notatka" value={notes} onChange={event => setNotes(event.target.value)} style={inputStyle} />
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button onClick={submit} disabled={!canSubmit || isPending} style={{ ...primaryButtonStyle, flex: 1, height: 42, opacity: !canSubmit || isPending ? 0.55 : 1 }}>
+            <Save size={16} color="white" /> {isPending ? 'Zapisywanie...' : 'Zapisz pozycję'}
+          </button>
+          {holding && (
+            <button aria-label="Usuń pozycję" onClick={remove} disabled={isPending} style={{ ...iconButtonStyle, width: 42, height: 42, color: T.expense, background: T.expenseSoft, opacity: isPending ? 0.55 : 1 }}>
+              <Trash2 size={16} />
+            </button>
+          )}
+        </div>
+      </div>
+    </ModalShell>
+  );
+}
+
+function TradeModal({ holding, type, onClose }: { holding: InvestmentHolding; type: 'BUY' | 'SELL'; onClose: () => void }) {
+  const router = useRouter();
+  const [quantity, setQuantity] = useState('');
+  const [unitPrice, setUnitPrice] = useState(String(holding.unitPrice.toFixed(2)));
+  const [notes, setNotes] = useState('');
+  const [isPending, startTransition] = useTransition();
+  const quantityValue = Number(quantity);
+  const unitPriceValue = Number(unitPrice);
+  const isTooMuch = type === 'SELL' && quantityValue > holding.quantity;
+  const canSubmit = Number.isFinite(quantityValue) && quantityValue > 0 && Number.isFinite(unitPriceValue) && unitPriceValue > 0 && !isTooMuch;
+  const title = type === 'BUY' ? `Kup ${holding.symbol}` : `Sprzedaj ${holding.symbol}`;
+
+  const submit = () => {
+    startTransition(async () => {
+      const result = await tradeInvestmentHoldingAction({
+        holdingId: holding.id,
+        type,
+        quantity: quantityValue,
+        unitPrice: unitPriceValue,
+        notes,
+      });
+
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
+
+      toast.success(result.message);
+      onClose();
+      router.refresh();
+    });
+  };
+
+  return (
+    <ModalShell title={title} onClose={onClose}>
+      <div style={{ display: 'grid', gap: 12 }}>
+        <div style={{ padding: 12, borderRadius: 12, background: T.bg, color: T.mid, fontSize: 13 }}>
+          Posiadasz <strong>{formatQuantity(holding.quantity)}</strong> po średniej cenie <PrivacyAmount amount={holding.unitPrice} style={{ fontWeight: 850 }} /> {holding.currency}.
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <input aria-label="Ilość operacji" type="number" min="0" step="0.00000001" placeholder="Ilość" value={quantity} onChange={event => setQuantity(event.target.value)} style={inputStyle} />
+          <input aria-label="Cena operacji" type="number" min="0" step="0.01" placeholder="Cena" value={unitPrice} onChange={event => setUnitPrice(event.target.value)} style={inputStyle} />
+        </div>
+        {isTooMuch && <div style={{ color: T.expense, fontSize: 12, fontWeight: 750 }}>Nie możesz sprzedać więcej jednostek niż posiadasz.</div>}
+        <input aria-label="Notatka operacji" placeholder="Notatka" value={notes} onChange={event => setNotes(event.target.value)} style={inputStyle} />
+        <button onClick={submit} disabled={!canSubmit || isPending} style={{ ...primaryButtonStyle, height: 42, background: type === 'BUY' ? T.income : T.expense, opacity: !canSubmit || isPending ? 0.55 : 1 }}>
+          {type === 'BUY' ? <ShoppingCart size={16} color="white" /> : <ArrowUpCircle size={16} color="white" />}
+          {isPending ? 'Zapisywanie...' : type === 'BUY' ? 'Zapisz kupno' : 'Zapisz sprzedaż'}
+        </button>
+      </div>
+    </ModalShell>
+  );
+}
+
+function ModalShell({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  return (
+    <div role="dialog" aria-modal="true" aria-label={title} style={{
+      position: 'fixed', inset: 0, background: 'rgba(15,23,42,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 210, backdropFilter: 'blur(4px)', padding: 16,
+    }}>
+      <Card style={{ width: 500, maxWidth: '100%', maxHeight: '90vh', overflowY: 'auto', padding: 0, boxShadow: '0 20px 60px rgba(0,0,0,.2)' }}>
+        <div style={{ padding: '18px 20px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ fontWeight: 850, fontSize: 16, color: T.dark }}>{title}</div>
+          <button aria-label="Zamknij" onClick={onClose} style={{ color: T.muted, padding: 4, border: 'none', background: 'none', cursor: 'pointer' }}>
+            <X size={18} />
+          </button>
+        </div>
+        <div style={{ padding: 20 }}>{children}</div>
+      </Card>
+    </div>
+  );
+}
+
+const primaryButtonStyle: React.CSSProperties = {
+  height: 38,
+  padding: '0 14px',
+  borderRadius: 12,
+  border: 'none',
+  background: T.accent,
+  color: 'white',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 8,
+  fontSize: 13,
+  fontWeight: 850,
+  cursor: 'pointer',
+  whiteSpace: 'nowrap',
+};
+
+const secondaryButtonStyle: React.CSSProperties = {
+  height: 34,
+  borderRadius: 10,
+  border: 'none',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 6,
+  fontSize: 12,
+  fontWeight: 850,
+  cursor: 'pointer',
+};
+
+const iconButtonStyle: React.CSSProperties = {
+  width: 34,
+  height: 34,
+  borderRadius: 10,
+  border: `1px solid ${T.border}`,
+  background: T.card,
+  color: T.mid,
+  display: 'grid',
+  placeItems: 'center',
+  cursor: 'pointer',
+};
+
+const inputStyle: React.CSSProperties = {
+  height: 40,
+  borderRadius: 10,
+  border: `1px solid ${T.border}`,
+  background: T.card,
+  color: T.dark,
+  padding: '0 12px',
+  fontSize: 13,
+  fontWeight: 750,
+  minWidth: 0,
+};

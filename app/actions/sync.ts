@@ -7,6 +7,8 @@ import {
   SyncAccount,
   SyncCategory,
   SyncCategoryBudget,
+  SyncInvestmentHolding,
+  SyncInvestmentTransaction,
   SyncOverallBudget,
   SyncRecurringTransaction,
   SyncServerChanges,
@@ -100,6 +102,29 @@ const categoryInputSchema = z.object({
 
 const categoryUpdateInputSchema = categoryInputSchema.extend({
   id: z.string().min(1),
+});
+
+const investmentHoldingInputSchema = z.object({
+  accountId: z.string().min(1),
+  symbol: z.string().trim().min(1, 'Podaj symbol.').max(32).transform(value => value.toUpperCase()),
+  name: z.string().trim().min(1, 'Podaj nazwę.').max(160),
+  investmentType: z.enum(['STOCK', 'ETF', 'CRYPTO', 'PRECIOUS_METAL']),
+  quantity: z.coerce.number().positive('Podaj ilość większą od zera.'),
+  unitPrice: z.coerce.number().positive('Podaj cenę większą od zera.'),
+  currency: z.string().trim().min(3).max(12).transform(value => value.toUpperCase()),
+  notes: z.string().trim().max(500).optional().default(''),
+});
+
+const investmentHoldingUpdateInputSchema = investmentHoldingInputSchema.extend({
+  id: z.string().min(1),
+});
+
+const investmentTradeInputSchema = z.object({
+  holdingId: z.string().min(1),
+  type: z.enum(['BUY', 'SELL']),
+  quantity: z.coerce.number().positive('Podaj ilość większą od zera.'),
+  unitPrice: z.coerce.number().positive('Podaj cenę większą od zera.'),
+  notes: z.string().trim().max(500).optional().default(''),
 });
 
 const money = (value: number) => value.toFixed(2);
@@ -297,6 +322,7 @@ function revalidateFinancePaths() {
   revalidatePath('/');
   revalidatePath('/transactions');
   revalidatePath('/accounts');
+  revalidatePath('/investments');
   revalidatePath('/settlements');
   revalidatePath('/reports');
 }
@@ -530,6 +556,64 @@ function cloneRecurringForDeletion(recurring: SyncRecurringTransaction, updatedA
     updated_at: updatedAt,
     deleted_at: updatedAt,
     version: recurring.version,
+  };
+}
+
+function investmentHoldingPayload(
+  data: z.infer<typeof investmentHoldingInputSchema>,
+  existing: SyncInvestmentHolding | undefined,
+  updatedAt: string,
+  quantity = data.quantity,
+  unitPrice = data.unitPrice
+) {
+  return {
+    id: existing?.id ?? crypto.randomUUID(),
+    account_id: data.accountId,
+    symbol: data.symbol,
+    name: data.name,
+    investment_type: data.investmentType,
+    quantity,
+    unit_price: money(unitPrice),
+    currency: data.currency,
+    purchase_currency: data.currency,
+    notes: data.notes || null,
+    updated_at: updatedAt,
+    deleted_at: null,
+    version: existing?.version ?? 1,
+  };
+}
+
+function cloneInvestmentHoldingForDeletion(holding: SyncInvestmentHolding, updatedAt: string) {
+  return {
+    id: holding.id,
+    account_id: holding.account_id,
+    symbol: holding.symbol,
+    name: holding.name,
+    investment_type: holding.investment_type,
+    quantity: holding.quantity,
+    unit_price: holding.unit_price,
+    currency: holding.currency,
+    purchase_currency: holding.purchase_currency,
+    notes: holding.notes,
+    updated_at: updatedAt,
+    deleted_at: updatedAt,
+    version: holding.version,
+  };
+}
+
+function cloneInvestmentTransactionForDeletion(transaction: SyncInvestmentTransaction, updatedAt: string) {
+  return {
+    id: transaction.id,
+    holding_id: transaction.holding_id,
+    type: transaction.type,
+    quantity: transaction.quantity,
+    unit_price: transaction.unit_price,
+    currency: transaction.currency,
+    date: transaction.date,
+    notes: transaction.notes,
+    updated_at: updatedAt,
+    deleted_at: updatedAt,
+    version: transaction.version,
   };
 }
 
@@ -1182,6 +1266,176 @@ export async function deleteAccountAction(accountId: string): Promise<ActionResu
   revalidatePath('/transactions');
   revalidatePath('/reports');
   return { ok: true, id: existing.id, message: 'Konto zostało usunięte.' };
+}
+
+export async function createInvestmentHoldingAction(input: unknown): Promise<ActionResult> {
+  const parsed = investmentHoldingInputSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? 'Niepoprawne dane inwestycji.' };
+
+  const changes = await getServerChanges();
+  if (!changes) return { ok: false, message: 'Nie udało się pobrać aktualnych danych.' };
+
+  const account = changes.accounts.find(account => account.id === parsed.data.accountId && !account.deleted_at && account.is_active);
+  if (!account || account.type !== 'INVESTMENT') return { ok: false, message: 'Wybierz aktywne konto inwestycyjne.' };
+
+  const normalizedSymbol = parsed.data.symbol.toLocaleUpperCase('pl-PL');
+  const existing = (changes.investment_holdings ?? []).find(
+    holding => !holding.deleted_at && holding.account_id === account.id && holding.symbol.toLocaleUpperCase('pl-PL') === normalizedSymbol
+  );
+  const updatedAt = nowIso();
+  const cost = parsed.data.quantity * parsed.data.unitPrice;
+  const transactionId = crypto.randomUUID();
+  const holding = existing
+    ? investmentHoldingPayload(
+        parsed.data,
+        existing,
+        updatedAt,
+        existing.quantity + parsed.data.quantity,
+        ((existing.quantity * parseFloat(existing.unit_price)) + cost) / (existing.quantity + parsed.data.quantity)
+      )
+    : investmentHoldingPayload(parsed.data, undefined, updatedAt);
+
+  const sync = await postSyncChanges({
+    accounts: [cloneAccountWithBalance(account, parseFloat(account.balance) - cost, updatedAt)],
+    investment_holdings: [holding],
+    investment_transactions: [
+      {
+        id: transactionId,
+        holding_id: holding.id,
+        type: 'BUY',
+        quantity: parsed.data.quantity,
+        unit_price: money(parsed.data.unitPrice),
+        currency: parsed.data.currency,
+        date: updatedAt,
+        notes: parsed.data.notes || null,
+        updated_at: updatedAt,
+        deleted_at: null,
+        version: 1,
+      },
+    ],
+  });
+
+  const failure = sync ? syncFailureMessage(sync.errors, sync.conflicts) : 'Nie udało się zapisać inwestycji.';
+  if (failure) return { ok: false, message: failure };
+
+  revalidateFinancePaths();
+  return { ok: true, id: holding.id, message: existing ? 'Pozycja została powiększona.' : 'Pozycja została dodana.' };
+}
+
+export async function updateInvestmentHoldingAction(input: unknown): Promise<ActionResult> {
+  const parsed = investmentHoldingUpdateInputSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? 'Niepoprawne dane inwestycji.' };
+
+  const changes = await getServerChanges();
+  if (!changes) return { ok: false, message: 'Nie udało się pobrać aktualnych danych.' };
+
+  const existing = (changes.investment_holdings ?? []).find(holding => holding.id === parsed.data.id && !holding.deleted_at);
+  if (!existing) return { ok: false, message: 'Nie znaleziono pozycji.' };
+
+  const account = changes.accounts.find(account => account.id === parsed.data.accountId && !account.deleted_at && account.is_active);
+  if (!account || account.type !== 'INVESTMENT') return { ok: false, message: 'Wybierz aktywne konto inwestycyjne.' };
+
+  const normalizedSymbol = parsed.data.symbol.toLocaleUpperCase('pl-PL');
+  const duplicate = (changes.investment_holdings ?? []).some(
+    holding => holding.id !== existing.id && !holding.deleted_at && holding.account_id === account.id && holding.symbol.toLocaleUpperCase('pl-PL') === normalizedSymbol
+  );
+  if (duplicate) return { ok: false, message: 'Ta pozycja już istnieje na wybranym koncie.' };
+
+  const updatedAt = nowIso();
+  const sync = await postSyncChanges({
+    investment_holdings: [investmentHoldingPayload(parsed.data, existing, updatedAt)],
+  });
+
+  const failure = sync ? syncFailureMessage(sync.errors, sync.conflicts) : 'Nie udało się zaktualizować pozycji.';
+  if (failure) return { ok: false, message: failure };
+
+  revalidateFinancePaths();
+  return { ok: true, id: existing.id, message: 'Pozycja została zaktualizowana.' };
+}
+
+export async function tradeInvestmentHoldingAction(input: unknown): Promise<ActionResult> {
+  const parsed = investmentTradeInputSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? 'Niepoprawne dane operacji.' };
+
+  const changes = await getServerChanges();
+  if (!changes) return { ok: false, message: 'Nie udało się pobrać aktualnych danych.' };
+
+  const holding = (changes.investment_holdings ?? []).find(item => item.id === parsed.data.holdingId && !item.deleted_at);
+  if (!holding) return { ok: false, message: 'Nie znaleziono pozycji.' };
+
+  const account = changes.accounts.find(account => account.id === holding.account_id && !account.deleted_at && account.is_active);
+  if (!account) return { ok: false, message: 'Nie znaleziono konta inwestycyjnego.' };
+
+  if (parsed.data.type === 'SELL' && parsed.data.quantity > holding.quantity) {
+    return { ok: false, message: 'Nie możesz sprzedać więcej jednostek niż posiadasz.' };
+  }
+
+  const updatedAt = nowIso();
+  const value = parsed.data.quantity * parsed.data.unitPrice;
+  const currentPrice = parseFloat(holding.unit_price);
+  const newQuantity = parsed.data.type === 'BUY'
+    ? holding.quantity + parsed.data.quantity
+    : holding.quantity - parsed.data.quantity;
+  const newUnitPrice = parsed.data.type === 'BUY' && newQuantity > 0
+    ? ((holding.quantity * currentPrice) + value) / newQuantity
+    : currentPrice;
+  const balanceDelta = parsed.data.type === 'BUY' ? -value : value;
+
+  const sync = await postSyncChanges({
+    accounts: [cloneAccountWithBalance(account, parseFloat(account.balance) + balanceDelta, updatedAt)],
+    investment_holdings: [
+      {
+        ...cloneInvestmentHoldingForDeletion(holding, updatedAt),
+        quantity: newQuantity,
+        unit_price: money(newUnitPrice),
+        deleted_at: null,
+      },
+    ],
+    investment_transactions: [
+      {
+        id: crypto.randomUUID(),
+        holding_id: holding.id,
+        type: parsed.data.type,
+        quantity: parsed.data.quantity,
+        unit_price: money(parsed.data.unitPrice),
+        currency: holding.currency,
+        date: updatedAt,
+        notes: parsed.data.notes || null,
+        updated_at: updatedAt,
+        deleted_at: null,
+        version: 1,
+      },
+    ],
+  });
+
+  const failure = sync ? syncFailureMessage(sync.errors, sync.conflicts) : 'Nie udało się zapisać operacji.';
+  if (failure) return { ok: false, message: failure };
+
+  revalidateFinancePaths();
+  return { ok: true, id: holding.id, message: parsed.data.type === 'BUY' ? 'Kupno zostało zapisane.' : 'Sprzedaż została zapisana.' };
+}
+
+export async function deleteInvestmentHoldingAction(holdingId: string): Promise<ActionResult> {
+  if (!holdingId) return { ok: false, message: 'Nie wybrano pozycji.' };
+
+  const changes = await getServerChanges();
+  if (!changes) return { ok: false, message: 'Nie udało się pobrać aktualnych danych.' };
+
+  const holding = (changes.investment_holdings ?? []).find(item => item.id === holdingId && !item.deleted_at);
+  if (!holding) return { ok: false, message: 'Nie znaleziono pozycji.' };
+
+  const updatedAt = nowIso();
+  const transactions = (changes.investment_transactions ?? []).filter(tx => tx.holding_id === holding.id && !tx.deleted_at);
+  const sync = await postSyncChanges({
+    investment_holdings: [cloneInvestmentHoldingForDeletion(holding, updatedAt)],
+    investment_transactions: transactions.map(tx => cloneInvestmentTransactionForDeletion(tx, updatedAt)),
+  });
+
+  const failure = sync ? syncFailureMessage(sync.errors, sync.conflicts) : 'Nie udało się usunąć pozycji.';
+  if (failure) return { ok: false, message: failure };
+
+  revalidateFinancePaths();
+  return { ok: true, id: holding.id, message: 'Pozycja została usunięta.' };
 }
 
 function categoryHasDescendant(categories: SyncCategory[], parentId: string, childId: string): boolean {

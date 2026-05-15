@@ -292,6 +292,8 @@ button {
   .recurring-list-grid,
   .settlements-summary-grid,
   .settlements-list-grid,
+  .investments-summary-grid,
+  .investments-layout-grid,
   .reports-summary-grid,
   .reports-chart-grid,
   .import-export-grid,
@@ -303,6 +305,10 @@ button {
   .import-preview-grid aside {
     border-left: 0 !important;
     border-top: 1px solid #e2e8f0;
+  }
+
+  .investments-layout-grid > div:first-child {
+    grid-template-columns: 1fr !important;
   }
 
   .budget-screen input {
