@@ -50,3 +50,20 @@ export function groupCategoriesForView(categories: Category[], view: string): Ca
     })
     .sort((a, b) => a.category.sortOrder - b.category.sortOrder || a.category.name.localeCompare(b.category.name));
 }
+
+export function categoryAndDescendantIds(categories: Category[], categoryId: string): Set<string> {
+  const ids = new Set<string>([categoryId]);
+  let changed = true;
+
+  while (changed) {
+    changed = false;
+    for (const category of categories) {
+      if (category.parentCategoryId && ids.has(category.parentCategoryId) && !ids.has(category.id)) {
+        ids.add(category.id);
+        changed = true;
+      }
+    }
+  }
+
+  return ids;
+}

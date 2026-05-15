@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Category } from './data';
-import { groupCategoriesForView } from './category-hierarchy';
+import { categoryAndDescendantIds, groupCategoriesForView } from './category-hierarchy';
 
 const category = (overrides: Partial<Category>): Category => ({
   id: 'cat',
@@ -43,5 +43,16 @@ describe('groupCategoriesForView', () => {
 
     expect(groups.map(group => group.category.id)).toEqual(['root']);
     expect(groups[0].children.map(child => child.id)).toEqual(['child']);
+  });
+
+  it('finds descendants for transaction filtering', () => {
+    const ids = categoryAndDescendantIds([
+      category({ id: 'root' }),
+      category({ id: 'child', parentCategoryId: 'root' }),
+      category({ id: 'grandchild', parentCategoryId: 'child' }),
+      category({ id: 'other' }),
+    ], 'root');
+
+    expect(Array.from(ids).sort()).toEqual(['child', 'grandchild', 'root']);
   });
 });

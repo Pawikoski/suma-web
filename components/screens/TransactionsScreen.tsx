@@ -9,6 +9,7 @@ import { deleteTransactionAction, deleteTransactionsAction, updateTransactionAct
 import { T } from '@/lib/tokens';
 import { Account, Category, Transaction } from '@/lib/data';
 import { useActiveMonthData } from '@/lib/useActiveMonthData';
+import { categoryAndDescendantIds } from '@/lib/category-hierarchy';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import Icon from '@/components/ui/Icon';
@@ -405,17 +406,18 @@ export default function TransactionsScreen() {
 
   const filtered = useMemo(() => {
     const textQuery = query.trim().toLocaleLowerCase('pl-PL');
+    const categoryFilterIds = categoryId === 'all' ? null : categoryAndDescendantIds(categories, categoryId);
     return allTransactions.filter(t => {
       if (activeMonth !== 'all' && !t.date.startsWith(activeMonth)) return false;
       if (filter !== 'all' && t.type !== filter) return false;
       if (accountId !== 'all' && t.accountId !== accountId && t.toAccountId !== accountId) return false;
-      if (categoryId !== 'all' && t.categoryId !== categoryId) return false;
+      if (categoryFilterIds && (!t.categoryId || !categoryFilterIds.has(t.categoryId))) return false;
       if (!textQuery) return true;
       return [t.cat, t.desc, t.acc, t.toAccountName, t.loc, t.amount.toString()]
         .filter(Boolean)
         .some(value => String(value).toLocaleLowerCase('pl-PL').includes(textQuery));
     });
-  }, [accountId, activeMonth, allTransactions, categoryId, filter, query]);
+  }, [accountId, activeMonth, allTransactions, categories, categoryId, filter, query]);
   const income = filtered.filter(t => t.type === 'income').reduce((sum, tx) => sum + tx.amount, 0);
   const expense = Math.abs(filtered.filter(t => t.type === 'expense').reduce((sum, tx) => sum + tx.amount, 0));
   const selectedTransactions = useMemo(
