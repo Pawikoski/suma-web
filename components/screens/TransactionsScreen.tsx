@@ -2,12 +2,12 @@
 import { CSSProperties, memo, useCallback, useMemo, useState, useTransition } from 'react';
 import { ColumnDef, SortingState, flexRender, getCoreRowModel, getSortedRowModel, useReactTable } from '@tanstack/react-table';
 import { parseAsString, parseAsStringLiteral, useQueryState } from 'nuqs';
-import { ArrowUpDown, Download, MapPin, Trash2, X } from 'lucide-react';
+import { ArrowUpDown, Download, MapPin, Pencil, Save, Trash2, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { deleteTransactionAction, deleteTransactionsAction } from '@/app/actions/sync';
+import { deleteTransactionAction, deleteTransactionsAction, updateTransactionAction } from '@/app/actions/sync';
 import { T } from '@/lib/tokens';
-import { Transaction } from '@/lib/data';
+import { Account, Category, Transaction } from '@/lib/data';
 import { useActiveMonthData } from '@/lib/useActiveMonthData';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
@@ -17,10 +17,42 @@ import PrivacyAmount from '@/components/ui/PrivacyAmount';
 const TX_FILTERS = ['all', 'expense', 'income', 'transfer'] as const;
 type TxFilter = typeof TX_FILTERS[number];
 
-function TxDetailPanel({ tx, onClose }: { tx: Transaction; onClose: () => void }) {
+function TxDetailPanel({
+  tx,
+  accounts,
+  categories,
+  activeMonth,
+  onClose,
+}: {
+  tx: Transaction;
+  accounts: Account[];
+  categories: Category[];
+  activeMonth: string;
+  onClose: () => void;
+}) {
   const router = useRouter();
+  const [isEditing, setIsEditing] = useState(false);
+  const [type, setType] = useState<TxFilter>(tx.type);
+  const [amount, setAmount] = useState(String(tx.rawAmount || Math.abs(tx.amount)));
+  const [date, setDate] = useState(tx.date);
+  const [accountId, setAccountId] = useState(tx.accountId);
+  const [toAccountId, setToAccountId] = useState(tx.toAccountId ?? '');
+  const [categoryId, setCategoryId] = useState(tx.categoryId ?? '');
+  const [note, setNote] = useState(tx.desc);
   const [isDeleting, startDeleteTransition] = useTransition();
+  const [isSaving, startSaveTransition] = useTransition();
   const amtColor = tx.type === 'expense' ? T.expense : tx.type === 'income' ? T.income : T.mid;
+  const eligibleCategories = useMemo(() => {
+    if (type === 'transfer' || type === 'all') return [];
+    const targetType = type === 'income' ? 'INCOME' : 'EXPENSE';
+    return categories.filter(c => c.types.length === 0 || c.types.includes(targetType));
+  }, [categories, type]);
+  const effectiveCategoryId = categoryId || eligibleCategories[0]?.id || '';
+  const effectiveToAccountId = type === 'transfer'
+    ? (toAccountId && toAccountId !== accountId ? toAccountId : accounts.find(account => account.id !== accountId)?.id ?? '')
+    : null;
+  const canSave = type !== 'all' && Number(amount) > 0 && !!accountId && (type === 'transfer' ? !!effectiveToAccountId : !!effectiveCategoryId);
+
   const deleteTx = () => {
     startDeleteTransition(async () => {
       const result = await deleteTransactionAction(tx.id);
@@ -33,14 +65,47 @@ function TxDetailPanel({ tx, onClose }: { tx: Transaction; onClose: () => void }
       router.refresh();
     });
   };
+  const saveTx = () => {
+    startSaveTransition(async () => {
+      const result = await updateTransactionAction({
+        id: tx.id,
+        type,
+        amount: Number(amount),
+        date,
+        accountId,
+        toAccountId: effectiveToAccountId,
+        categoryId: type === 'transfer' ? null : effectiveCategoryId,
+        note,
+      });
+
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
+
+      toast.success(result.message);
+      setIsEditing(false);
+      router.refresh();
+      router.push(`/transactions?id=${tx.id}&month=${activeMonth}`);
+    });
+  };
 
   return (
     <div style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ fontSize: 18, fontWeight: 700, color: T.dark }}>Szczegóły</div>
-        <button onClick={onClose} style={{ color: T.muted, padding: 4, border: 'none', background: 'none', cursor: 'pointer' }}>
-          <X size={18} />
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            aria-label={isEditing ? 'Anuluj edycję' : 'Edytuj transakcję'}
+            onClick={() => setIsEditing(value => !value)}
+            style={{ color: isEditing ? T.expense : T.accent, padding: 4, border: 'none', background: 'none', cursor: 'pointer' }}
+          >
+            {isEditing ? <X size={18} /> : <Pencil size={18} />}
+          </button>
+          <button aria-label="Zamknij szczegóły" onClick={onClose} style={{ color: T.muted, padding: 4, border: 'none', background: 'none', cursor: 'pointer' }}>
+            <X size={18} />
+          </button>
+        </div>
       </div>
 
       <Card style={{ padding: 22, textAlign: 'center' }}>
@@ -53,6 +118,73 @@ function TxDetailPanel({ tx, onClose }: { tx: Transaction; onClose: () => void }
         </div>
         <div style={{ fontSize: 15, color: T.muted, marginTop: 4 }}>{tx.cat}</div>
       </Card>
+
+      {isEditing && (
+        <Card style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', gap: 6, background: T.bg, borderRadius: T.radiusSm, padding: 4 }}>
+            {(['expense', 'income', 'transfer'] as const).map(item => (
+              <button
+                key={item}
+                onClick={() => setType(item)}
+                style={{
+                  flex: 1,
+                  padding: '7px 8px',
+                  borderRadius: 6,
+                  background: type === item ? T.card : 'transparent',
+                  color: type === item ? T.accent : T.muted,
+                  fontWeight: 800,
+                }}
+              >
+                {item === 'expense' ? 'Wydatek' : item === 'income' ? 'Przychód' : 'Transfer'}
+              </button>
+            ))}
+          </div>
+
+          <input
+            aria-label="Kwota transakcji"
+            type="number"
+            min="0.01"
+            step="0.01"
+            value={amount}
+            onChange={event => setAmount(event.target.value)}
+            style={inputStyle}
+          />
+          <input
+            aria-label="Data transakcji"
+            type="date"
+            value={date}
+            onChange={event => setDate(event.target.value)}
+            style={inputStyle}
+          />
+          <select aria-label="Konto transakcji" value={accountId} onChange={event => setAccountId(event.target.value)} style={inputStyle}>
+            {accounts.map(account => <option key={account.id} value={account.id}>{account.name}</option>)}
+          </select>
+          {type === 'transfer' ? (
+            <select aria-label="Konto docelowe transakcji" value={effectiveToAccountId ?? ''} onChange={event => setToAccountId(event.target.value)} style={inputStyle}>
+              {accounts.filter(account => account.id !== accountId).map(account => <option key={account.id} value={account.id}>{account.name}</option>)}
+            </select>
+          ) : (
+            <select aria-label="Kategoria transakcji" value={effectiveCategoryId} onChange={event => setCategoryId(event.target.value)} style={inputStyle}>
+              {eligibleCategories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
+            </select>
+          )}
+          <input
+            aria-label="Notatka transakcji"
+            value={note}
+            onChange={event => setNote(event.target.value)}
+            placeholder="Notatka"
+            style={inputStyle}
+          />
+          <button
+            onClick={saveTx}
+            disabled={!canSave || isSaving}
+            style={{ height: 38, borderRadius: T.radiusSm, background: T.accent, color: 'white', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: !canSave || isSaving ? 0.55 : 1 }}
+          >
+            <Save size={16} color="white" />
+            {isSaving ? 'Zapisywanie...' : 'Zapisz zmiany'}
+          </button>
+        </Card>
+      )}
 
       <Card style={{ padding: 0, overflow: 'hidden' }}>
         {([
@@ -461,7 +593,13 @@ export default function TransactionsScreen() {
 
       {selectedTx && (
         <div className="transaction-detail-sidebar" style={{ width: 340, borderLeft: `1px solid ${T.border}`, overflowY: 'auto', background: T.card }}>
-          <TxDetailPanel tx={selectedTx} onClose={deselectTx} />
+          <TxDetailPanel
+            tx={selectedTx}
+            accounts={accounts}
+            categories={categories}
+            activeMonth={activeMonth}
+            onClose={deselectTx}
+          />
         </div>
       )}
     </div>
@@ -469,6 +607,17 @@ export default function TransactionsScreen() {
 }
 
 const selectStyle: CSSProperties = {
+  height: 38,
+  border: `1px solid ${T.border}`,
+  borderRadius: T.radiusSm,
+  padding: '0 10px',
+  font: 'inherit',
+  color: T.mid,
+  background: T.card,
+  outline: 'none',
+};
+
+const inputStyle: CSSProperties = {
   height: 38,
   border: `1px solid ${T.border}`,
   borderRadius: T.radiusSm,

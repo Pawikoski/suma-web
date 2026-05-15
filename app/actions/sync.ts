@@ -19,6 +19,10 @@ const transactionInputSchema = z.object({
   note: z.string().trim().max(500).optional().default(''),
 });
 
+const transactionUpdateInputSchema = transactionInputSchema.extend({
+  id: z.string().min(1),
+});
+
 const money = (value: number) => value.toFixed(2);
 const nowIso = () => new Date().toISOString();
 const dateToNoonUtc = (date: string) => `${date}T12:00:00.000Z`;
@@ -204,6 +208,163 @@ function cloneSplitForDeletion(split: SyncTransactionSplit, updatedAt: string) {
     deleted_at: updatedAt,
     version: split.version,
   };
+}
+
+function cloneTransactionForUpdate(
+  transaction: SyncTransaction,
+  data: z.infer<typeof transactionInputSchema>,
+  fromAccount: SyncAccount,
+  toAccount: SyncAccount | null,
+  updatedAt: string
+) {
+  const amount = money(data.amount);
+
+  return {
+    id: transaction.id,
+    type: data.type.toUpperCase(),
+    total_amount: amount,
+    from_account_id: fromAccount.id,
+    to_account_id: toAccount?.id ?? null,
+    account_currency: fromAccount.currency,
+    transaction_amount: amount,
+    transaction_currency: fromAccount.currency,
+    exchange_rate: 1,
+    to_account_amount: toAccount ? amount : null,
+    to_account_currency: toAccount?.currency ?? null,
+    recurring_transaction_id: transaction.recurring_transaction_id,
+    date_time: dateToNoonUtc(data.date),
+    notes: data.note || null,
+    location_lat: transaction.location_lat,
+    location_lng: transaction.location_lng,
+    location_name: transaction.location_name,
+    location_address: transaction.location_address,
+    is_from_receipt: transaction.is_from_receipt,
+    is_from_notification_parser: transaction.is_from_notification_parser,
+    review_status: transaction.review_status,
+    parser_notification_key: transaction.parser_notification_key,
+    count_in_summary: transaction.count_in_summary,
+    summary_amount: transaction.summary_amount,
+    updated_at: updatedAt,
+    deleted_at: null,
+    version: transaction.version,
+  };
+}
+
+function splitPayload(
+  split: SyncTransactionSplit | undefined,
+  transactionId: string,
+  categoryId: string,
+  amount: number,
+  name: string,
+  updatedAt: string
+) {
+  return {
+    id: split?.id ?? crypto.randomUUID(),
+    transaction_id: transactionId,
+    category_id: categoryId,
+    amount: money(amount),
+    name,
+    quantity: split?.quantity ?? 1,
+    unit: split?.unit ?? 'pcs',
+    unit_price: money(amount),
+    updated_at: updatedAt,
+    deleted_at: null,
+    version: split?.version ?? 1,
+  };
+}
+
+export async function updateTransactionAction(input: unknown): Promise<ActionResult> {
+  const parsed = transactionUpdateInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0]?.message ?? 'Niepoprawne dane transakcji.' };
+  }
+
+  const data = parsed.data;
+  const changes = await getServerChanges();
+  if (!changes) return { ok: false, message: 'Nie udało się pobrać aktualnych danych.' };
+
+  const transaction = changes.transactions.find(t => t.id === data.id && !t.deleted_at);
+  if (!transaction) return { ok: false, message: 'Nie znaleziono transakcji.' };
+
+  const fromAccount = changes.accounts.find(a => a.id === data.accountId && !a.deleted_at && a.is_active);
+  if (!fromAccount) return { ok: false, message: 'Wybierz aktywne konto.' };
+
+  const toAccount = data.type === 'transfer'
+    ? changes.accounts.find(a => a.id === data.toAccountId && !a.deleted_at && a.is_active) ?? null
+    : null;
+  if (data.type === 'transfer' && !toAccount) return { ok: false, message: 'Wybierz konto docelowe.' };
+  if (data.type === 'transfer' && toAccount?.id === fromAccount.id) {
+    return { ok: false, message: 'Konta transferu muszą być różne.' };
+  }
+
+  const category = data.type === 'transfer'
+    ? null
+    : changes.categories.find(c => c.id === data.categoryId && !c.deleted_at);
+  if (data.type !== 'transfer' && !category) return { ok: false, message: 'Wybierz kategorię.' };
+
+  const updatedAt = nowIso();
+  const accountBalances = new Map<string, number>();
+  const getBalance = (accountId: string) => {
+    if (accountBalances.has(accountId)) return accountBalances.get(accountId)!;
+    const account = changes.accounts.find(a => a.id === accountId && !a.deleted_at);
+    if (!account) return null;
+    const balance = parseFloat(account.balance);
+    accountBalances.set(accountId, balance);
+    return balance;
+  };
+  const addBalance = (accountId: string, delta: number) => {
+    const current = getBalance(accountId);
+    if (current === null) return false;
+    accountBalances.set(accountId, current + delta);
+    return true;
+  };
+
+  const previousAmount = parseFloat(transaction.total_amount);
+  if (transaction.type === 'INCOME') {
+    if (!addBalance(transaction.from_account_id, -previousAmount)) return { ok: false, message: 'Nie znaleziono konta transakcji.' };
+  } else {
+    if (!addBalance(transaction.from_account_id, previousAmount)) return { ok: false, message: 'Nie znaleziono konta transakcji.' };
+    if (transaction.type === 'TRANSFER' && transaction.to_account_id && !addBalance(transaction.to_account_id, -previousAmount)) {
+      return { ok: false, message: 'Nie znaleziono konta docelowego transferu.' };
+    }
+  }
+
+  if (data.type === 'income') {
+    if (!addBalance(fromAccount.id, data.amount)) return { ok: false, message: 'Nie znaleziono konta transakcji.' };
+  } else {
+    if (!addBalance(fromAccount.id, -data.amount)) return { ok: false, message: 'Nie znaleziono konta transakcji.' };
+    if (data.type === 'transfer' && toAccount && !addBalance(toAccount.id, data.amount)) {
+      return { ok: false, message: 'Nie znaleziono konta docelowego transferu.' };
+    }
+  }
+
+  const accounts = Array.from(accountBalances.entries()).map(([accountId, balance]) => {
+    const account = changes.accounts.find(a => a.id === accountId && !a.deleted_at)!;
+    return cloneAccountWithBalance(account, balance, updatedAt);
+  });
+  const existingSplits = changes.transaction_splits.filter(split => split.transaction_id === transaction.id && !split.deleted_at);
+  const transactionSplits = data.type === 'transfer'
+    ? existingSplits.map(split => cloneSplitForDeletion(split, updatedAt))
+    : [
+        splitPayload(existingSplits[0], transaction.id, category!.id, data.amount, data.note || '', updatedAt),
+        ...existingSplits.slice(1).map(split => cloneSplitForDeletion(split, updatedAt)),
+      ];
+
+  const sync = await postSyncChanges({
+    accounts,
+    transactions: [cloneTransactionForUpdate(transaction, data, fromAccount, toAccount, updatedAt)],
+    transaction_splits: transactionSplits,
+  });
+
+  const failure = sync ? syncFailureMessage(sync.errors, sync.conflicts) : 'Nie udało się zaktualizować transakcji.';
+  if (failure) return { ok: false, message: failure };
+
+  revalidatePath('/');
+  revalidatePath('/transactions');
+  revalidatePath('/accounts');
+  revalidatePath('/budget');
+  revalidatePath('/categories');
+  return { ok: true, id: transaction.id, message: 'Transakcja została zaktualizowana.' };
 }
 
 export async function deleteTransactionAction(transactionId: string): Promise<ActionResult> {
