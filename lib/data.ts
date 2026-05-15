@@ -189,6 +189,19 @@ export interface AccountInterest {
   version: number;
 }
 
+export interface AccountBudget {
+  id: string;
+  accountId: string | null;
+  accountName: string | null;
+  amount: number;
+  baseAmount: number | null;
+  overrideId: string | null;
+  yearMonth: string;
+  updatedAt: string;
+  deletedAt: string | null;
+  version: number;
+}
+
 export type SettlementDirection = 'LENT' | 'BORROWED';
 export type SettlementStatus = 'ACTIVE' | 'SETTLED';
 

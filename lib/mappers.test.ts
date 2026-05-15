@@ -123,6 +123,14 @@ function syncFixture(): SyncServerChanges {
         image_base64: 'ZmFrZQ==',
       },
     ],
+    account_budgets: [
+      {
+        ...baseChange,
+        id: 'account-budget-cash',
+        account_id: 'acc-cash',
+        budget_amount: '250.00',
+      },
+    ],
     category_budgets: [
       {
         ...baseChange,
@@ -137,6 +145,23 @@ function syncFixture(): SyncServerChanges {
         ...baseChange,
         id: 'overall',
         budget_amount: '500.00',
+      },
+    ],
+    account_budget_overrides: [
+      {
+        ...baseChange,
+        id: 'account-budget-override-cash',
+        account_id: 'acc-cash',
+        year_month: '2026-05',
+        budget_amount: '300.00',
+      },
+    ],
+    overall_budget_overrides: [
+      {
+        ...baseChange,
+        id: 'overall-override',
+        year_month: '2026-05',
+        budget_amount: '650.00',
       },
     ],
     recurring_transactions: [
@@ -243,7 +268,14 @@ describe('mapSyncData', () => {
       budgetId: 'budget-food',
       txCount: 1,
     });
-    expect(data.overallBudgetRecord).toMatchObject({ id: 'overall', amount: 500 });
+    expect(data.overallBudgetRecord).toMatchObject({ id: 'overall-override', amount: 650 });
+    expect(data.accountBudgets[0]).toMatchObject({
+      id: 'account-budget-cash',
+      accountName: 'Cash',
+      amount: 300,
+      baseAmount: 250,
+      overrideId: 'account-budget-override-cash',
+    });
   });
 
   it('maps recurring transactions from the sync contract', () => {

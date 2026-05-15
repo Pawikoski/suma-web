@@ -212,8 +212,36 @@ export interface SyncCategoryBudget {
   version: number;
 }
 
+export interface SyncAccountBudget {
+  id: string;
+  account_id: string | null;
+  budget_amount: string;
+  updated_at: string;
+  deleted_at: string | null;
+  version: number;
+}
+
 export interface SyncOverallBudget {
   id: string;
+  budget_amount: string;
+  updated_at: string;
+  deleted_at: string | null;
+  version: number;
+}
+
+export interface SyncAccountBudgetOverride {
+  id: string;
+  account_id: string | null;
+  year_month: string;
+  budget_amount: string;
+  updated_at: string;
+  deleted_at: string | null;
+  version: number;
+}
+
+export interface SyncOverallBudgetOverride {
+  id: string;
+  year_month: string;
   budget_amount: string;
   updated_at: string;
   deleted_at: string | null;
@@ -253,7 +281,7 @@ export interface SyncSettlementPayment {
 
 export interface SyncServerChanges {
   accounts: SyncAccount[];
-  account_budgets?: unknown[];
+  account_budgets?: SyncAccountBudget[];
   categories: SyncCategory[];
   recurring_transactions?: SyncRecurringTransaction[];
   transactions: SyncTransaction[];
@@ -261,8 +289,8 @@ export interface SyncServerChanges {
   transaction_photos?: SyncTransactionPhoto[];
   category_budgets: SyncCategoryBudget[];
   overall_budgets: SyncOverallBudget[];
-  account_budget_overrides?: unknown[];
-  overall_budget_overrides?: unknown[];
+  account_budget_overrides?: SyncAccountBudgetOverride[];
+  overall_budget_overrides?: SyncOverallBudgetOverride[];
   investment_holdings?: SyncInvestmentHolding[];
   investment_transactions?: SyncInvestmentTransaction[];
   account_interest?: SyncAccountInterest[];

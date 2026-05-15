@@ -23,6 +23,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         recurringTransactions: [],
         investmentHoldings: [],
         accountInterest: [],
+        accountBudgets: [],
         settlements: [],
         overallBudget: null,
         overallBudgetRecord: null,

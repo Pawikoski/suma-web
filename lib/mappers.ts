@@ -1,5 +1,5 @@
 import { SyncServerChanges } from './api-types';
-import { Account, AccountInterest, Category, InvestmentHolding, OverallBudget, RecurringTransaction, Settlement, Transaction } from './data';
+import { Account, AccountBudget, AccountInterest, Category, InvestmentHolding, OverallBudget, RecurringTransaction, Settlement, Transaction } from './data';
 
 const TYPE_LABELS: Record<string, string> = {
   CASH: 'Gotówka',
@@ -28,6 +28,7 @@ export interface MappedData {
   recurringTransactions: RecurringTransaction[];
   investmentHoldings: InvestmentHolding[];
   accountInterest: AccountInterest[];
+  accountBudgets: AccountBudget[];
   settlements: Settlement[];
   overallBudget: number | null;
   overallBudgetRecord: OverallBudget | null;
@@ -298,6 +299,31 @@ export function mapSyncData(data: SyncServerChanges, yearMonth: string): MappedD
     })
     .sort((a, b) => a.endDate.localeCompare(b.endDate));
 
+  const accountBudgetOverrideByAccountId = new Map(
+    (data.account_budget_overrides ?? [])
+      .filter(override => !override.deleted_at && override.account_id && override.year_month === yearMonth)
+      .map(override => [override.account_id!, override])
+  );
+  const accountBudgets: AccountBudget[] = (data.account_budgets ?? [])
+    .filter(budget => !budget.deleted_at)
+    .map(budget => {
+      const account = budget.account_id ? mappedAccountById.get(budget.account_id) : null;
+      const override = budget.account_id ? accountBudgetOverrideByAccountId.get(budget.account_id) : null;
+      return {
+        id: budget.id,
+        accountId: budget.account_id,
+        accountName: account?.name ?? null,
+        amount: parseFloat(override?.budget_amount ?? budget.budget_amount),
+        baseAmount: parseFloat(budget.budget_amount),
+        overrideId: override?.id ?? null,
+        yearMonth,
+        updatedAt: override?.updated_at ?? budget.updated_at,
+        deletedAt: override?.deleted_at ?? budget.deleted_at,
+        version: override?.version ?? budget.version,
+      } satisfies AccountBudget;
+    })
+    .sort((a, b) => (a.accountName ?? '').localeCompare(b.accountName ?? ''));
+
   const paymentAccountById = new Map(accounts.map(account => [account.id, account]));
   const paymentsBySettlementId = new Map<string, Settlement['payments']>();
   for (const payment of (data.settlement_payments ?? []).filter(payment => !payment.deleted_at)) {
@@ -361,7 +387,16 @@ export function mapSyncData(data: SyncServerChanges, yearMonth: string): MappedD
 
   const activeOverallBudgets = data.overall_budgets.filter(b => !b.deleted_at);
   const activeOverallBudget = activeOverallBudgets[0] ?? null;
-  const overallBudgetRecord = activeOverallBudget
+  const activeOverallOverride = (data.overall_budget_overrides ?? []).find(override => !override.deleted_at && override.year_month === yearMonth) ?? null;
+  const overallBudgetRecord = activeOverallOverride
+    ? {
+        id: activeOverallOverride.id,
+        amount: parseFloat(activeOverallOverride.budget_amount),
+        updatedAt: activeOverallOverride.updated_at,
+        deletedAt: activeOverallOverride.deleted_at,
+        version: activeOverallOverride.version,
+      }
+    : activeOverallBudget
     ? {
         id: activeOverallBudget.id,
         amount: parseFloat(activeOverallBudget.budget_amount),
@@ -372,7 +407,7 @@ export function mapSyncData(data: SyncServerChanges, yearMonth: string): MappedD
     : null;
   const overallBudget = overallBudgetRecord?.amount ?? null;
 
-  return { accounts, categories, transactions, allTransactions, recurringTransactions, investmentHoldings, accountInterest, settlements, overallBudget, overallBudgetRecord, yearMonth };
+  return { accounts, categories, transactions, allTransactions, recurringTransactions, investmentHoldings, accountInterest, accountBudgets, settlements, overallBudget, overallBudgetRecord, yearMonth };
 }
 
 export function currentYearMonth(): string {

@@ -129,8 +129,27 @@ export const syncCategoryBudgetSchema = z.object({
   budget_amount: decimalLike,
 });
 
+export const syncAccountBudgetSchema = z.object({
+  ...syncBaseFields,
+  account_id: optionalNullableString.default(null),
+  budget_amount: decimalLike,
+});
+
 export const syncOverallBudgetSchema = z.object({
   ...syncBaseFields,
+  budget_amount: decimalLike,
+});
+
+export const syncAccountBudgetOverrideSchema = z.object({
+  ...syncBaseFields,
+  account_id: optionalNullableString.default(null),
+  year_month: z.string(),
+  budget_amount: decimalLike,
+});
+
+export const syncOverallBudgetOverrideSchema = z.object({
+  ...syncBaseFields,
+  year_month: z.string(),
   budget_amount: decimalLike,
 });
 
@@ -232,7 +251,7 @@ export const syncResponseSchema = z.object({
   errors: z.array(syncErrorSchema).optional().default([]),
   server_changes: z.object({
     accounts: z.array(syncAccountSchema),
-    account_budgets: z.array(z.unknown()).optional().default([]),
+    account_budgets: z.array(syncAccountBudgetSchema).optional().default([]),
     categories: z.array(syncCategorySchema),
     recurring_transactions: z.array(syncRecurringTransactionSchema).optional().default([]),
     transactions: z.array(syncTransactionSchema),
@@ -240,8 +259,8 @@ export const syncResponseSchema = z.object({
     transaction_photos: z.array(syncTransactionPhotoSchema).optional().default([]),
     category_budgets: z.array(syncCategoryBudgetSchema),
     overall_budgets: z.array(syncOverallBudgetSchema),
-    account_budget_overrides: z.array(z.unknown()).optional().default([]),
-    overall_budget_overrides: z.array(z.unknown()).optional().default([]),
+    account_budget_overrides: z.array(syncAccountBudgetOverrideSchema).optional().default([]),
+    overall_budget_overrides: z.array(syncOverallBudgetOverrideSchema).optional().default([]),
     investment_holdings: z.array(syncInvestmentHoldingSchema).optional().default([]),
     investment_transactions: z.array(syncInvestmentTransactionSchema).optional().default([]),
     account_interest: z.array(syncAccountInterestSchema).optional().default([]),

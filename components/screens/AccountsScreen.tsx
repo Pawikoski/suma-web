@@ -14,6 +14,7 @@ import {
 import { T } from '@/lib/tokens';
 import { useActiveMonthData } from '@/lib/useActiveMonthData';
 import { Account, AccountInterest } from '@/lib/data';
+import { fmtPLN } from '@/lib/utils';
 import Card from '@/components/ui/Card';
 import Sparkline from '@/components/ui/Sparkline';
 import Icon from '@/components/ui/Icon';
@@ -21,7 +22,7 @@ import PrivacyAmount from '@/components/ui/PrivacyAmount';
 
 export default function AccountsScreen() {
   const router = useRouter();
-  const { accounts, transactions, accountInterest, activeMonth } = useActiveMonthData();
+  const { accounts, transactions, accountInterest, accountBudgets, activeMonth } = useActiveMonthData();
   const [selectedAccountId, setSelectedAccountId] = useQueryState('account', parseAsString.withDefault(accounts[0]?.id ?? ''));
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
@@ -36,6 +37,7 @@ export default function AccountsScreen() {
   const accIncome = accTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
   const accExpense = Math.abs(accTxs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0));
   const selectedInterest = selected ? accountInterest.find(interest => interest.accountId === selected.id) ?? null : null;
+  const selectedBudget = selected ? accountBudgets.find(budget => budget.accountId === selected.id) ?? null : null;
 
   return (
     <div className="screen accounts-screen" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -120,6 +122,7 @@ export default function AccountsScreen() {
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {selectedInterest && <AccountInterestCard interest={selectedInterest} currency={selected.currency} />}
+              {selectedBudget && <AccountBudgetCard budget={selectedBudget.amount} expense={accExpense} />}
               <div style={{ padding: 14, borderRadius: 10, background: T.incomeSoft }}>
                 <div style={{ fontSize: 12, color: T.income, fontWeight: 500 }}>Przychody</div>
                 <PrivacyAmount amount={accIncome} prefix="+" style={{ display: 'block', fontSize: 20, fontWeight: 700, color: T.income }} />
@@ -224,6 +227,27 @@ function AccountInterestCard({ interest, currency }: { interest: AccountInterest
       {interest.monthlyPayment !== null && (
         <div style={{ marginTop: 10, fontSize: 11, opacity: 0.82 }}>Rata miesięczna: {interest.monthlyPayment.toLocaleString('pl-PL', { style: 'currency', currency })}</div>
       )}
+    </div>
+  );
+}
+
+function AccountBudgetCard({ budget, expense }: { budget: number; expense: number }) {
+  const pct = budget > 0 ? expense / budget * 100 : 0;
+  const over = pct > 100;
+
+  return (
+    <div style={{ padding: 14, borderRadius: 10, background: T.bg }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', marginBottom: 8 }}>
+        <div style={{ fontSize: 12, color: T.muted, fontWeight: 750 }}>Budżet konta</div>
+        <div style={{ color: over ? T.expense : T.accent, fontSize: 13, fontWeight: 850 }}>{Math.round(pct)}%</div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 8 }}>
+        <PrivacyAmount amount={expense} style={{ display: 'block', color: over ? T.expense : T.dark, fontSize: 20, fontWeight: 850 }} />
+        <span style={{ color: T.muted, fontSize: 12 }}>/ {fmtPLN(budget)}</span>
+      </div>
+      <div style={{ height: 7, borderRadius: 999, background: T.border, overflow: 'hidden' }}>
+        <div style={{ height: '100%', width: `${Math.min(100, pct)}%`, background: over ? T.expense : T.accent }} />
+      </div>
     </div>
   );
 }

@@ -192,4 +192,48 @@ describe('parseSyncResponse', () => {
       image_base64: 'ZmFrZQ==',
     });
   });
+
+  it('validates account budget and override models at the sync boundary', () => {
+    const result = parseSyncResponse({
+      ...baseSyncResponse,
+      server_changes: {
+        ...baseSyncResponse.server_changes,
+        account_budgets: [
+          {
+            id: 'account-budget-1',
+            account_id: 'acc-1',
+            budget_amount: '250.00',
+            updated_at: '2026-05-01T10:00:00Z',
+            deleted_at: null,
+            version: 1,
+          },
+        ],
+        account_budget_overrides: [
+          {
+            id: 'account-budget-override-1',
+            account_id: 'acc-1',
+            year_month: '2026-05',
+            budget_amount: '300.00',
+            updated_at: '2026-05-01T10:00:00Z',
+            deleted_at: null,
+            version: 1,
+          },
+        ],
+        overall_budget_overrides: [
+          {
+            id: 'overall-override-1',
+            year_month: '2026-05',
+            budget_amount: '650.00',
+            updated_at: '2026-05-01T10:00:00Z',
+            deleted_at: null,
+            version: 1,
+          },
+        ],
+      },
+    });
+
+    expect(result.server_changes.account_budgets[0]).toMatchObject({ budget_amount: '250.00' });
+    expect(result.server_changes.account_budget_overrides[0]).toMatchObject({ year_month: '2026-05' });
+    expect(result.server_changes.overall_budget_overrides[0]).toMatchObject({ budget_amount: '650.00' });
+  });
 });
