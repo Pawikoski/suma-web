@@ -74,6 +74,20 @@ const recurringInputSchema = z.object({
   recurringCategoryLabel: z.string().trim().max(120).optional().default(''),
 });
 
+const accountInputSchema = z.object({
+  name: z.string().trim().min(1, 'Podaj nazwę konta.').max(120),
+  type: z.enum(['CASH', 'BANK', 'PROPERTY', 'INVESTMENT']),
+  category: z.enum(['BASIC', 'SAVINGS', 'LIABILITY']).optional().default('BASIC'),
+  balance: z.coerce.number(),
+  currency: z.string().trim().min(3).max(12).transform(value => value.toUpperCase()),
+  includeInNetWorth: z.coerce.boolean().optional().default(true),
+  notes: z.string().trim().max(1000).optional().default(''),
+});
+
+const accountUpdateInputSchema = accountInputSchema.extend({
+  id: z.string().min(1),
+});
+
 const money = (value: number) => value.toFixed(2);
 const nowIso = () => new Date().toISOString();
 const dateToNoonUtc = (date: string) => `${date}T12:00:00.000Z`;
@@ -97,6 +111,62 @@ function cloneAccountWithBalance(account: SyncAccount, balance: number, updatedA
     updated_at: updatedAt,
     deleted_at: null,
     version: account.version,
+  };
+}
+
+function accountAppearance(type: 'CASH' | 'BANK' | 'PROPERTY' | 'INVESTMENT') {
+  switch (type) {
+    case 'CASH':
+      return { icon_name: 'Wallet', icon_bg: '#FEF3C7', icon_color: '#F59E0B' };
+    case 'PROPERTY':
+      return { icon_name: 'Home', icon_bg: '#D1FAE5', icon_color: '#10B981' };
+    case 'INVESTMENT':
+      return { icon_name: 'ShowChart', icon_bg: '#EDE9FE', icon_color: '#8B5CF6' };
+    case 'BANK':
+      return { icon_name: 'AccountBalance', icon_bg: '#DBEAFE', icon_color: '#3B82F6' };
+  }
+}
+
+function normalizeAccountCategory(type: 'CASH' | 'BANK' | 'PROPERTY' | 'INVESTMENT', category: 'BASIC' | 'SAVINGS' | 'LIABILITY') {
+  if (type === 'INVESTMENT') return 'BASIC';
+  if (type === 'PROPERTY' && category === 'SAVINGS') return 'BASIC';
+  if (type === 'CASH' && category === 'SAVINGS') return 'BASIC';
+  return category;
+}
+
+function accountPayload(
+  data: z.infer<typeof accountInputSchema>,
+  existing: SyncAccount | undefined,
+  sortOrder: number,
+  updatedAt: string
+) {
+  const appearance = existing
+    ? {
+        icon_name: existing.icon_name ?? '',
+        icon_bg: existing.icon_bg ?? '#FFFFFF',
+        icon_color: existing.icon_color ?? '#000000',
+      }
+    : accountAppearance(data.type);
+  const category = normalizeAccountCategory(data.type, data.category);
+
+  return {
+    id: existing?.id ?? crypto.randomUUID(),
+    name: data.name,
+    type: data.type,
+    category,
+    balance: money(data.balance),
+    currency: data.currency,
+    sort_order: existing?.sort_order ?? sortOrder,
+    is_default: existing?.is_default ?? false,
+    is_active: existing?.is_active ?? true,
+    include_in_net_worth: data.includeInNetWorth,
+    icon_name: appearance.icon_name,
+    icon_bg: appearance.icon_bg,
+    icon_color: appearance.icon_color,
+    notes: data.notes || null,
+    updated_at: updatedAt,
+    deleted_at: null,
+    version: existing?.version ?? 1,
   };
 }
 
@@ -968,6 +1038,95 @@ export async function deleteRecurringTransactionAction(recurringId: string): Pro
   revalidatePath('/');
   revalidatePath('/reports');
   return { ok: true, id: recurring.id, message: 'Opłata stała została usunięta.' };
+}
+
+export async function createAccountAction(input: unknown): Promise<ActionResult> {
+  const parsed = accountInputSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? 'Niepoprawne dane konta.' };
+
+  const changes = await getServerChanges();
+  if (!changes) return { ok: false, message: 'Nie udało się pobrać aktualnych danych.' };
+
+  const normalizedName = normalizeName(parsed.data.name);
+  if (changes.accounts.some(account => !account.deleted_at && normalizeName(account.name) === normalizedName)) {
+    return { ok: false, message: 'Konto o tej nazwie już istnieje.' };
+  }
+
+  const updatedAt = nowIso();
+  const maxSort = Math.max(0, ...changes.accounts.map(account => account.sort_order));
+  const payload = accountPayload(parsed.data, undefined, maxSort + 1, updatedAt);
+  const sync = await postSyncChanges({ accounts: [payload] });
+
+  const failure = sync ? syncFailureMessage(sync.errors, sync.conflicts) : 'Nie udało się zapisać konta.';
+  if (failure) return { ok: false, message: failure };
+
+  revalidatePath('/accounts');
+  revalidatePath('/');
+  revalidatePath('/transactions');
+  revalidatePath('/reports');
+  return { ok: true, id: payload.id, message: 'Konto zostało zapisane.' };
+}
+
+export async function updateAccountAction(input: unknown): Promise<ActionResult> {
+  const parsed = accountUpdateInputSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? 'Niepoprawne dane konta.' };
+
+  const changes = await getServerChanges();
+  if (!changes) return { ok: false, message: 'Nie udało się pobrać aktualnych danych.' };
+
+  const existing = changes.accounts.find(account => account.id === parsed.data.id && !account.deleted_at);
+  if (!existing) return { ok: false, message: 'Nie znaleziono konta.' };
+
+  const normalizedName = normalizeName(parsed.data.name);
+  if (changes.accounts.some(account => account.id !== existing.id && !account.deleted_at && normalizeName(account.name) === normalizedName)) {
+    return { ok: false, message: 'Konto o tej nazwie już istnieje.' };
+  }
+
+  const updatedAt = nowIso();
+  const payload = accountPayload(parsed.data, existing, existing.sort_order, updatedAt);
+  const sync = await postSyncChanges({ accounts: [payload] });
+
+  const failure = sync ? syncFailureMessage(sync.errors, sync.conflicts) : 'Nie udało się zaktualizować konta.';
+  if (failure) return { ok: false, message: failure };
+
+  revalidatePath('/accounts');
+  revalidatePath('/');
+  revalidatePath('/transactions');
+  revalidatePath('/reports');
+  return { ok: true, id: existing.id, message: 'Konto zostało zaktualizowane.' };
+}
+
+export async function deleteAccountAction(accountId: string): Promise<ActionResult> {
+  if (!accountId) return { ok: false, message: 'Nie wybrano konta.' };
+
+  const changes = await getServerChanges();
+  if (!changes) return { ok: false, message: 'Nie udało się pobrać aktualnych danych.' };
+
+  const existing = changes.accounts.find(account => account.id === accountId && !account.deleted_at);
+  if (!existing) return { ok: false, message: 'Nie znaleziono konta.' };
+  const hasTransactions = changes.transactions.some(transaction => !transaction.deleted_at && (
+    transaction.from_account_id === existing.id || transaction.to_account_id === existing.id
+  ));
+  if (existing.is_default && changes.accounts.filter(account => !account.deleted_at && account.is_active).length > 1) {
+    return { ok: false, message: 'Nie usuwaj domyślnego konta przed zmianą domyślnego w aplikacji mobilnej.' };
+  }
+
+  const updatedAt = nowIso();
+  const payload = {
+    ...cloneAccountWithBalance(existing, parseFloat(existing.balance), updatedAt),
+    name: hasTransactions ? `${existing.name}_deleted_${Date.now()}` : existing.name,
+    deleted_at: updatedAt,
+  };
+  const sync = await postSyncChanges({ accounts: [payload] });
+
+  const failure = sync ? syncFailureMessage(sync.errors, sync.conflicts) : 'Nie udało się usunąć konta.';
+  if (failure) return { ok: false, message: failure };
+
+  revalidatePath('/accounts');
+  revalidatePath('/');
+  revalidatePath('/transactions');
+  revalidatePath('/reports');
+  return { ok: true, id: existing.id, message: 'Konto zostało usunięte.' };
 }
 
 const budgetInputSchema = z.object({

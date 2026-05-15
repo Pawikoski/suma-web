@@ -174,3 +174,17 @@ test('opens account details from command search with URL state', async ({ page }
   await expect(page).toHaveURL(/\/accounts\?account=.*&month=2026-05/);
   await expect(page.getByText('Historia — Cash')).toBeVisible();
 });
+
+test('opens account creation and edit dialogs', async ({ page }) => {
+  await login(page);
+  await page.goto('/accounts?month=2026-05');
+
+  await page.getByRole('button', { name: 'Dodaj konto' }).click();
+  await expect(page.getByRole('dialog', { name: 'Nowe konto' })).toBeVisible();
+  await expect(page.getByLabel('Nazwa konta')).toBeVisible();
+  await page.getByRole('button', { name: 'Zamknij' }).click();
+
+  await page.getByRole('button', { name: 'Edytuj konto' }).click();
+  await expect(page.getByRole('dialog', { name: 'Edycja konta' })).toBeVisible();
+  await expect(page.getByLabel('Saldo konta')).toBeVisible();
+});

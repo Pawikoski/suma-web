@@ -1,10 +1,13 @@
 'use client';
-import { useMemo } from 'react';
+import { CSSProperties, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { parseAsString, useQueryState } from 'nuqs';
-import { ClipboardList } from 'lucide-react';
+import { ClipboardList, Pencil, Plus, Save, Trash2, X } from 'lucide-react';
+import { toast } from 'sonner';
+import { createAccountAction, deleteAccountAction, updateAccountAction } from '@/app/actions/sync';
 import { T } from '@/lib/tokens';
 import { useActiveMonthData } from '@/lib/useActiveMonthData';
+import { Account } from '@/lib/data';
 import Card from '@/components/ui/Card';
 import Sparkline from '@/components/ui/Sparkline';
 import Icon from '@/components/ui/Icon';
@@ -14,6 +17,8 @@ export default function AccountsScreen() {
   const router = useRouter();
   const { accounts, transactions, activeMonth } = useActiveMonthData();
   const [selectedAccountId, setSelectedAccountId] = useQueryState('account', parseAsString.withDefault(accounts[0]?.id ?? ''));
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const selected = useMemo(
     () => accounts.find(account => account.id === selectedAccountId) ?? accounts[0] ?? null,
     [accounts, selectedAccountId]
@@ -27,9 +32,14 @@ export default function AccountsScreen() {
 
   return (
     <div className="screen accounts-screen" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div>
-        <div style={{ fontSize: 12, color: T.muted, fontWeight: 500 }}>Łączny majątek</div>
-        <PrivacyAmount amount={totalBalance} style={{ display: 'block', fontSize: 28, fontWeight: 800, color: T.dark }} />
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+        <div>
+          <div style={{ fontSize: 12, color: T.muted, fontWeight: 500 }}>Łączny majątek</div>
+          <PrivacyAmount amount={totalBalance} style={{ display: 'block', fontSize: 28, fontWeight: 800, color: T.dark }} />
+        </div>
+        <button aria-label="Dodaj konto" onClick={() => setIsCreateOpen(true)} style={primaryButtonStyle}>
+          <Plus size={16} color="white" /> Dodaj konto
+        </button>
       </div>
 
       <div className="account-card-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
@@ -92,7 +102,15 @@ export default function AccountsScreen() {
           </Card>
 
           <Card style={{ padding: 20 }}>
-            <div style={{ fontWeight: 600, fontSize: 14, color: T.dark, marginBottom: 16 }}>Statystyki konta</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 16 }}>
+              <div style={{ fontWeight: 600, fontSize: 14, color: T.dark }}>Statystyki konta</div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button aria-label="Edytuj konto" onClick={() => setEditingAccount(selected)} style={iconButtonStyle}>
+                  <Pencil size={15} />
+                </button>
+                <DeleteAccountButton account={selected} />
+              </div>
+            </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div style={{ padding: 14, borderRadius: 10, background: T.incomeSoft }}>
                 <div style={{ fontSize: 12, color: T.income, fontWeight: 500 }}>Przychody</div>
@@ -115,6 +133,169 @@ export default function AccountsScreen() {
           </Card>
         </div>
       )}
+      {isCreateOpen && <AccountFormModal onClose={() => setIsCreateOpen(false)} />}
+      {editingAccount && <AccountFormModal account={editingAccount} onClose={() => setEditingAccount(null)} />}
     </div>
   );
 }
+
+function DeleteAccountButton({ account }: { account: Account }) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const deleteAccount = () => {
+    if (!window.confirm('Usunąć konto z listy? Historia transakcji zostanie zachowana.')) return;
+
+    startTransition(async () => {
+      const result = await deleteAccountAction(account.id);
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
+
+      toast.success(result.message);
+      router.refresh();
+    });
+  };
+
+  return (
+    <button aria-label="Usuń konto" onClick={deleteAccount} disabled={isPending} style={{ ...iconButtonStyle, color: T.expense, background: T.expenseSoft, opacity: isPending ? 0.55 : 1 }}>
+      <Trash2 size={15} />
+    </button>
+  );
+}
+
+function AccountFormModal({ account, onClose }: { account?: Account; onClose: () => void }) {
+  const router = useRouter();
+  const [name, setName] = useState(account?.name ?? '');
+  const [type, setType] = useState<'CASH' | 'BANK' | 'PROPERTY' | 'INVESTMENT'>((account?.rawType as 'CASH' | 'BANK' | 'PROPERTY' | 'INVESTMENT') ?? 'BANK');
+  const [category, setCategory] = useState<'BASIC' | 'SAVINGS' | 'LIABILITY'>((account?.category as 'BASIC' | 'SAVINGS' | 'LIABILITY') ?? 'BASIC');
+  const [balance, setBalance] = useState(account ? String(account.balance.toFixed(2)) : '0.00');
+  const [currency, setCurrency] = useState(account?.currency ?? 'PLN');
+  const [includeInNetWorth, setIncludeInNetWorth] = useState(account?.includeInNetWorth ?? true);
+  const [notes, setNotes] = useState(account?.notes ?? '');
+  const [isPending, startTransition] = useTransition();
+  const amountValue = Number(balance);
+  const availableCategories = categoryOptions(type);
+  const effectiveCategory = availableCategories.some(item => item.value === category) ? category : 'BASIC';
+  const canSubmit = name.trim().length > 0 && Number.isFinite(amountValue) && currency.trim().length >= 3;
+
+  const submit = () => {
+    startTransition(async () => {
+      const payload = {
+        id: account?.id,
+        name,
+        type,
+        category: effectiveCategory,
+        balance: amountValue,
+        currency,
+        includeInNetWorth,
+        notes,
+      };
+      const result = account ? await updateAccountAction(payload) : await createAccountAction(payload);
+
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
+
+      toast.success(result.message);
+      onClose();
+      router.refresh();
+      if (result.id) router.push(`/accounts?account=${result.id}`);
+    });
+  };
+
+  return (
+    <div role="dialog" aria-modal="true" aria-label={account ? 'Edycja konta' : 'Nowe konto'} style={{
+      position: 'fixed', inset: 0, background: 'rgba(15,23,42,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 210, backdropFilter: 'blur(4px)', padding: 16,
+    }}>
+      <Card style={{ width: 460, maxWidth: '100%', maxHeight: '90vh', overflowY: 'auto', padding: 0, boxShadow: '0 20px 60px rgba(0,0,0,.2)' }}>
+        <div style={{ padding: '18px 20px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ fontWeight: 850, fontSize: 16, color: T.dark }}>{account ? 'Edycja konta' : 'Nowe konto'}</div>
+          <button aria-label="Zamknij" onClick={onClose} style={{ color: T.muted, padding: 4, border: 'none', background: 'none', cursor: 'pointer' }}>
+            <X size={18} />
+          </button>
+        </div>
+        <div style={{ padding: 20, display: 'grid', gap: 12 }}>
+          <input aria-label="Nazwa konta" placeholder="Nazwa" value={name} onChange={event => setName(event.target.value)} style={inputStyle} />
+          <select aria-label="Typ konta" value={type} onChange={event => { setType(event.target.value as typeof type); setCategory('BASIC'); }} style={inputStyle}>
+            <option value="CASH">Gotówka</option>
+            <option value="BANK">Konto bankowe</option>
+            <option value="PROPERTY">Majątek</option>
+            <option value="INVESTMENT">Inwestycje</option>
+          </select>
+          <select aria-label="Kategoria konta" value={effectiveCategory} onChange={event => setCategory(event.target.value as typeof category)} style={inputStyle}>
+            {availableCategories.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}
+          </select>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 110px', gap: 10 }}>
+            <input aria-label="Saldo konta" type="number" step="0.01" value={balance} onChange={event => setBalance(event.target.value)} style={inputStyle} />
+            <input aria-label="Waluta konta" value={currency} onChange={event => setCurrency(event.target.value.toUpperCase())} style={inputStyle} />
+          </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 10, color: T.mid, fontSize: 13, fontWeight: 750 }}>
+            <input type="checkbox" checked={includeInNetWorth} onChange={event => setIncludeInNetWorth(event.target.checked)} />
+            Wliczaj do majątku
+          </label>
+          <input aria-label="Notatka konta" placeholder="Notatka" value={notes} onChange={event => setNotes(event.target.value)} style={inputStyle} />
+          <button onClick={submit} disabled={!canSubmit || isPending} style={{ ...primaryButtonStyle, height: 42, opacity: !canSubmit || isPending ? 0.55 : 1 }}>
+            <Save size={16} color="white" /> {isPending ? 'Zapisywanie...' : 'Zapisz konto'}
+          </button>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function categoryOptions(type: 'CASH' | 'BANK' | 'PROPERTY' | 'INVESTMENT') {
+  if (type === 'BANK') {
+    return [
+      { value: 'BASIC', label: 'Podstawowe' },
+      { value: 'SAVINGS', label: 'Oszczędnościowe' },
+      { value: 'LIABILITY', label: 'Zobowiązanie' },
+    ] as const;
+  }
+  if (type === 'INVESTMENT') return [{ value: 'BASIC', label: 'Podstawowe' }] as const;
+  return [
+    { value: 'BASIC', label: 'Podstawowe' },
+    { value: 'LIABILITY', label: 'Zobowiązanie' },
+  ] as const;
+}
+
+const inputStyle: CSSProperties = {
+  height: 40,
+  padding: '0 12px',
+  borderRadius: T.radiusSm,
+  border: `1px solid ${T.border}`,
+  background: T.card,
+  color: T.dark,
+  fontSize: 13,
+  fontFamily: 'inherit',
+  outline: 'none',
+};
+
+const primaryButtonStyle: CSSProperties = {
+  border: 'none',
+  borderRadius: T.radiusSm,
+  background: T.accent,
+  color: 'white',
+  fontWeight: 850,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 8,
+  height: 40,
+  padding: '0 16px',
+  cursor: 'pointer',
+};
+
+const iconButtonStyle: CSSProperties = {
+  width: 32,
+  height: 32,
+  border: 'none',
+  borderRadius: 8,
+  background: T.accentLight,
+  color: T.accent,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  cursor: 'pointer',
+};
