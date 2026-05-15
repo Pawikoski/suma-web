@@ -78,6 +78,17 @@ test('opens settlements from navigation', async ({ page }) => {
   await expect(page.getByText(/Bilans rozliczeń|Brak rozliczeń/)).toBeVisible();
 });
 
+test('opens settlement creation dialog', async ({ page }) => {
+  await login(page);
+  await page.goto('/settlements?month=2026-05');
+
+  await page.getByRole('button', { name: 'Dodaj rozliczenie' }).click();
+
+  await expect(page.getByRole('dialog', { name: 'Nowe rozliczenie' })).toBeVisible();
+  await expect(page.getByLabel('Osoba rozliczenia')).toBeVisible();
+  await expect(page.getByLabel('Kwota rozliczenia')).toBeVisible();
+});
+
 test('opens reports from navigation', async ({ page }) => {
   await login(page);
 

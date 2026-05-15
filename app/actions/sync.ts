@@ -3,7 +3,15 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { fetchSync, postSyncChanges } from '@/lib/api';
-import { SyncAccount, SyncCategoryBudget, SyncOverallBudget, SyncServerChanges, SyncTransaction, SyncTransactionSplit } from '@/lib/api-types';
+import {
+  SyncAccount,
+  SyncCategoryBudget,
+  SyncOverallBudget,
+  SyncServerChanges,
+  SyncSettlement,
+  SyncTransaction,
+  SyncTransactionSplit,
+} from '@/lib/api-types';
 import { importAnalysisSchema } from '@/lib/schemas/import-analysis';
 
 export type ActionResult =
@@ -22,6 +30,32 @@ const transactionInputSchema = z.object({
 
 const transactionUpdateInputSchema = transactionInputSchema.extend({
   id: z.string().min(1),
+});
+
+const settlementInputSchema = z.object({
+  direction: z.enum(['LENT', 'BORROWED']),
+  amount: z.coerce.number().positive('Podaj kwotę większą od zera.'),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  accountId: z.string().min(1),
+  counterpartyName: z.string().trim().min(1, 'Podaj osobę rozliczenia.').max(120),
+  counterpartyEmail: z.string().trim().email('Podaj poprawny email.').or(z.literal('')).optional().default(''),
+  note: z.string().trim().max(500).optional().default(''),
+  reminderDaysBefore: z.coerce.number().int().min(0).max(30).optional().default(1),
+});
+
+const settlementPaymentInputSchema = z.object({
+  settlementId: z.string().min(1),
+  accountId: z.string().min(1),
+  amount: z.coerce.number().positive('Podaj kwotę większą od zera.'),
+  paidAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  note: z.string().trim().max(500).optional().default(''),
+});
+
+const settleSettlementInputSchema = z.object({
+  settlementId: z.string().min(1),
+  accountId: z.string().min(1),
+  paidAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 });
 
 const money = (value: number) => value.toFixed(2);
@@ -48,6 +82,82 @@ function cloneAccountWithBalance(account: SyncAccount, balance: number, updatedA
     deleted_at: null,
     version: account.version,
   };
+}
+
+function ledgerTransactionPayload({
+  id,
+  type,
+  amount,
+  account,
+  date,
+  note,
+  updatedAt,
+}: {
+  id: string;
+  type: 'EXPENSE' | 'INCOME';
+  amount: number;
+  account: SyncAccount;
+  date: string;
+  note: string;
+  updatedAt: string;
+}) {
+  return {
+    id,
+    type,
+    total_amount: money(amount),
+    from_account_id: account.id,
+    to_account_id: null,
+    account_currency: account.currency,
+    transaction_amount: money(amount),
+    transaction_currency: account.currency,
+    exchange_rate: 1,
+    to_account_amount: null,
+    to_account_currency: null,
+    recurring_transaction_id: null,
+    date_time: dateToNoonUtc(date),
+    notes: note,
+    location_lat: null,
+    location_lng: null,
+    location_name: null,
+    location_address: null,
+    is_from_receipt: false,
+    is_from_notification_parser: false,
+    review_status: null,
+    parser_notification_key: null,
+    count_in_summary: false,
+    summary_amount: null,
+    updated_at: updatedAt,
+    deleted_at: null,
+    version: 1,
+  };
+}
+
+function settlementStatusPayload(settlement: SyncSettlement, status: 'ACTIVE' | 'SETTLED', updatedAt: string) {
+  return {
+    id: settlement.id,
+    direction: settlement.direction,
+    account_id: settlement.account_id,
+    transaction_id: settlement.transaction_id,
+    counterparty_name: settlement.counterparty_name,
+    counterparty_email: settlement.counterparty_email,
+    total_amount: settlement.total_amount,
+    currency: settlement.currency,
+    note: settlement.note,
+    due_date: settlement.due_date,
+    reminder_days_before: settlement.reminder_days_before,
+    status,
+    updated_at: updatedAt,
+    deleted_at: null,
+    version: settlement.version,
+  };
+}
+
+function revalidateFinancePaths() {
+  revalidatePath('/');
+  revalidatePath('/transactions');
+  revalidatePath('/accounts');
+  revalidatePath('/settlements');
+  revalidatePath('/reports');
 }
 
 function syncFailureMessage(errors: unknown[], conflicts: unknown[]) {
@@ -432,6 +542,188 @@ export async function deleteTransactionsAction(transactionIds: string[]): Promis
     ok: true,
     message: ids.length === 1 ? 'Transakcja została usunięta.' : `Usunięto transakcje: ${ids.length}.`,
   };
+}
+
+export async function createSettlementAction(input: unknown): Promise<ActionResult> {
+  const parsed = settlementInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0]?.message ?? 'Niepoprawne dane rozliczenia.' };
+  }
+
+  const data = parsed.data;
+  const changes = await getServerChanges();
+  if (!changes) return { ok: false, message: 'Nie udało się pobrać aktualnych danych.' };
+
+  const account = changes.accounts.find(a => a.id === data.accountId && !a.deleted_at && a.is_active);
+  if (!account) return { ok: false, message: 'Wybierz aktywne konto.' };
+
+  const updatedAt = nowIso();
+  const transactionId = crypto.randomUUID();
+  const settlementId = crypto.randomUUID();
+  const transactionType = data.direction === 'LENT' ? 'EXPENSE' : 'INCOME';
+  const balanceDelta = data.direction === 'LENT' ? -data.amount : data.amount;
+  const sync = await postSyncChanges({
+    accounts: [cloneAccountWithBalance(account, parseFloat(account.balance) + balanceDelta, updatedAt)],
+    transactions: [
+      ledgerTransactionPayload({
+        id: transactionId,
+        type: transactionType,
+        amount: data.amount,
+        account,
+        date: data.date,
+        note: `Rozliczenie: ${data.counterpartyName}`,
+        updatedAt,
+      }),
+    ],
+    settlements: [
+      {
+        id: settlementId,
+        direction: data.direction,
+        account_id: account.id,
+        transaction_id: transactionId,
+        counterparty_name: data.counterpartyName,
+        counterparty_email: data.counterpartyEmail || null,
+        total_amount: money(data.amount),
+        currency: account.currency,
+        note: data.note || null,
+        due_date: data.dueDate ? dateToNoonUtc(data.dueDate) : null,
+        reminder_days_before: String(data.reminderDaysBefore),
+        status: 'ACTIVE',
+        updated_at: updatedAt,
+        deleted_at: null,
+        version: 1,
+      },
+    ],
+  });
+
+  const failure = sync ? syncFailureMessage(sync.errors, sync.conflicts) : 'Nie udało się zapisać rozliczenia.';
+  if (failure) return { ok: false, message: failure };
+
+  revalidateFinancePaths();
+  return { ok: true, id: settlementId, message: 'Rozliczenie zostało zapisane.' };
+}
+
+async function addSettlementPayment({
+  settlementId,
+  accountId,
+  amount,
+  paidAt,
+  note,
+  ledgerNotePrefix,
+}: {
+  settlementId: string;
+  accountId: string;
+  amount: number;
+  paidAt: string;
+  note: string;
+  ledgerNotePrefix: 'Spłata rozliczenia:' | 'Rozliczenie do zera:';
+}): Promise<ActionResult> {
+  const changes = await getServerChanges();
+  if (!changes) return { ok: false, message: 'Nie udało się pobrać aktualnych danych.' };
+
+  const settlement = (changes.settlements ?? []).find(item => item.id === settlementId && !item.deleted_at);
+  if (!settlement) return { ok: false, message: 'Nie znaleziono rozliczenia.' };
+  if (settlement.status === 'SETTLED') return { ok: false, message: 'To rozliczenie jest już zamknięte.' };
+
+  const account = changes.accounts.find(a => a.id === accountId && !a.deleted_at && a.is_active);
+  if (!account) return { ok: false, message: 'Wybierz aktywne konto.' };
+
+  const repaid = (changes.settlement_payments ?? [])
+    .filter(payment => payment.settlement_id === settlement.id && !payment.deleted_at)
+    .reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+  const remaining = Math.max(parseFloat(settlement.total_amount) - repaid, 0);
+  const cappedAmount = Math.min(amount, remaining);
+  if (cappedAmount <= 0) return { ok: false, message: 'Rozliczenie nie ma pozostałej kwoty.' };
+
+  const updatedAt = nowIso();
+  const transactionId = crypto.randomUUID();
+  const paymentId = crypto.randomUUID();
+  const transactionType = settlement.direction === 'LENT' ? 'INCOME' : 'EXPENSE';
+  const balanceDelta = settlement.direction === 'LENT' ? cappedAmount : -cappedAmount;
+  const isFullyPaid = cappedAmount >= remaining;
+  const sync = await postSyncChanges({
+    accounts: [cloneAccountWithBalance(account, parseFloat(account.balance) + balanceDelta, updatedAt)],
+    transactions: [
+      ledgerTransactionPayload({
+        id: transactionId,
+        type: transactionType,
+        amount: cappedAmount,
+        account,
+        date: paidAt,
+        note: `${ledgerNotePrefix} ${settlement.counterparty_name}`,
+        updatedAt,
+      }),
+    ],
+    settlement_payments: [
+      {
+        id: paymentId,
+        settlement_id: settlement.id,
+        account_id: account.id,
+        transaction_id: transactionId,
+        amount: money(cappedAmount),
+        paid_at: dateToNoonUtc(paidAt),
+        note: note || null,
+        updated_at: updatedAt,
+        deleted_at: null,
+        version: 1,
+      },
+    ],
+    settlements: isFullyPaid ? [settlementStatusPayload(settlement, 'SETTLED', updatedAt)] : [],
+  });
+
+  const failure = sync ? syncFailureMessage(sync.errors, sync.conflicts) : 'Nie udało się zapisać wpłaty.';
+  if (failure) return { ok: false, message: failure };
+
+  revalidateFinancePaths();
+  return { ok: true, id: paymentId, message: isFullyPaid ? 'Rozliczenie zostało zamknięte.' : 'Wpłata została zapisana.' };
+}
+
+export async function addSettlementPaymentAction(input: unknown): Promise<ActionResult> {
+  const parsed = settlementPaymentInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0]?.message ?? 'Niepoprawne dane wpłaty.' };
+  }
+
+  return addSettlementPayment({
+    ...parsed.data,
+    ledgerNotePrefix: 'Spłata rozliczenia:',
+  });
+}
+
+export async function settleSettlementAction(input: unknown): Promise<ActionResult> {
+  const parsed = settleSettlementInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0]?.message ?? 'Niepoprawne dane rozliczenia.' };
+  }
+
+  const changes = await getServerChanges();
+  if (!changes) return { ok: false, message: 'Nie udało się pobrać aktualnych danych.' };
+  const settlement = (changes.settlements ?? []).find(item => item.id === parsed.data.settlementId && !item.deleted_at);
+  if (!settlement) return { ok: false, message: 'Nie znaleziono rozliczenia.' };
+  const repaid = (changes.settlement_payments ?? [])
+    .filter(payment => payment.settlement_id === settlement.id && !payment.deleted_at)
+    .reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+  const remaining = Math.max(parseFloat(settlement.total_amount) - repaid, 0);
+
+  if (remaining <= 0) {
+    const updatedAt = nowIso();
+    const sync = await postSyncChanges({
+      settlements: [settlementStatusPayload(settlement, 'SETTLED', updatedAt)],
+    });
+    const failure = sync ? syncFailureMessage(sync.errors, sync.conflicts) : 'Nie udało się zamknąć rozliczenia.';
+    if (failure) return { ok: false, message: failure };
+    revalidateFinancePaths();
+    return { ok: true, id: settlement.id, message: 'Rozliczenie zostało zamknięte.' };
+  }
+
+  return addSettlementPayment({
+    settlementId: parsed.data.settlementId,
+    accountId: parsed.data.accountId,
+    amount: remaining,
+    paidAt: parsed.data.paidAt,
+    note: '',
+    ledgerNotePrefix: 'Rozliczenie do zera:',
+  });
 }
 
 const budgetInputSchema = z.object({

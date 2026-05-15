@@ -1,11 +1,14 @@
 'use client';
 
-import { useState } from 'react';
-import { AlertTriangle, CheckCircle2, Clock, HandCoins, Send } from 'lucide-react';
+import { CSSProperties, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+import { AlertTriangle, CheckCircle2, Clock, HandCoins, Plus, Save, Send, WalletCards, X } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { pl } from 'date-fns/locale';
+import { toast } from 'sonner';
+import { addSettlementPaymentAction, createSettlementAction, settleSettlementAction } from '@/app/actions/sync';
 import { T } from '@/lib/tokens';
-import { Settlement } from '@/lib/data';
+import { Account, Settlement } from '@/lib/data';
 import { useActiveMonthData } from '@/lib/useActiveMonthData';
 import Card from '@/components/ui/Card';
 import PrivacyAmount from '@/components/ui/PrivacyAmount';
@@ -31,8 +34,10 @@ function filterSettlement(settlement: Settlement, filter: SettlementFilter) {
 }
 
 export default function SettlementsScreen() {
-  const { settlements } = useActiveMonthData();
+  const { settlements, accounts } = useActiveMonthData();
   const [filter, setFilter] = useState<SettlementFilter>('active');
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [paymentSettlement, setPaymentSettlement] = useState<Settlement | null>(null);
   const activeSettlements = settlements.filter(item => item.status === 'ACTIVE' && item.remainingAmount > 0);
   const owedToMe = activeSettlements
     .filter(item => item.direction === 'LENT')
@@ -58,8 +63,12 @@ export default function SettlementsScreen() {
             <HandCoins size={34} color={T.accent} />
           </div>
           <h1 style={{ fontSize: 24, color: T.dark, marginBottom: 8 }}>Brak rozliczeń</h1>
-          <p style={{ fontSize: 14, color: T.muted, lineHeight: 1.5 }}>Rozliczenia z aplikacji mobilnej pojawią się tutaj razem z kwotą pozostałą do spłaty i terminami.</p>
+          <p style={{ fontSize: 14, color: T.muted, lineHeight: 1.5, marginBottom: 18 }}>Rozliczenia z aplikacji mobilnej pojawią się tutaj razem z kwotą pozostałą do spłaty i terminami.</p>
+          <button onClick={() => setIsCreateOpen(true)} style={primaryButtonStyle}>
+            <Plus size={16} color="white" /> Dodaj rozliczenie
+          </button>
         </div>
+        {isCreateOpen && <SettlementFormModal accounts={accounts} onClose={() => setIsCreateOpen(false)} />}
       </div>
     );
   }
@@ -77,33 +86,40 @@ export default function SettlementsScreen() {
         <MetricCard label="Przeterminowane" value={overdueCount} color={T.warn} numeric />
       </div>
 
-      <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 2 }}>
-        {FILTERS.map(item => (
-          <button
-            key={item.id}
-            onClick={() => setFilter(item.id)}
-            style={{
-              height: 34,
-              padding: '0 12px',
-              borderRadius: 999,
-              border: `1px solid ${filter === item.id ? T.accent : T.border}`,
-              background: filter === item.id ? T.accent : T.card,
-              color: filter === item.id ? 'white' : T.mid,
-              fontSize: 13,
-              fontWeight: 800,
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {item.label} {counts[item.id]}
-          </button>
-        ))}
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 2 }}>
+          {FILTERS.map(item => (
+            <button
+              key={item.id}
+              onClick={() => setFilter(item.id)}
+              style={{
+                height: 34,
+                padding: '0 12px',
+                borderRadius: 999,
+                border: `1px solid ${filter === item.id ? T.accent : T.border}`,
+                background: filter === item.id ? T.accent : T.card,
+                color: filter === item.id ? 'white' : T.mid,
+                fontSize: 13,
+                fontWeight: 800,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {item.label} {counts[item.id]}
+            </button>
+          ))}
+        </div>
+        <button aria-label="Dodaj rozliczenie" onClick={() => setIsCreateOpen(true)} style={{ ...primaryButtonStyle, height: 36, padding: '0 14px', flexShrink: 0 }}>
+          <Plus size={16} color="white" /> Dodaj
+        </button>
       </div>
 
       <div className="settlements-list-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         {filteredSettlements.map(settlement => (
-          <SettlementCard key={settlement.id} settlement={settlement} />
+          <SettlementCard key={settlement.id} settlement={settlement} accounts={accounts} onPay={() => setPaymentSettlement(settlement)} />
         ))}
       </div>
+      {isCreateOpen && <SettlementFormModal accounts={accounts} onClose={() => setIsCreateOpen(false)} />}
+      {paymentSettlement && <PaymentModal settlement={paymentSettlement} accounts={accounts} onClose={() => setPaymentSettlement(null)} />}
     </div>
   );
 }
@@ -126,13 +142,36 @@ function MetricCard({ label, value, color, numeric = false }: { label: string; v
   );
 }
 
-function SettlementCard({ settlement }: { settlement: Settlement }) {
+function SettlementCard({ settlement, accounts, onPay }: { settlement: Settlement; accounts: Account[]; onPay: () => void }) {
+  const router = useRouter();
+  const [isSettling, startSettleTransition] = useTransition();
   const isLent = settlement.direction === 'LENT';
   const settled = isSettled(settlement);
   const amountColor = settled ? T.muted : isLent ? T.income : T.expense;
   const dueLabel = settlement.dueDate
     ? format(parseISO(settlement.dueDate), 'd MMMM yyyy', { locale: pl })
     : 'Bez terminu';
+  const defaultAccountId = settlement.accountId && accounts.some(account => account.id === settlement.accountId)
+    ? settlement.accountId
+    : accounts[0]?.id ?? '';
+
+  const settle = () => {
+    startSettleTransition(async () => {
+      const result = await settleSettlementAction({
+        settlementId: settlement.id,
+        accountId: defaultAccountId,
+        paidAt: new Date().toISOString().slice(0, 10),
+      });
+
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
+
+      toast.success(result.message);
+      router.refresh();
+    });
+  };
 
   return (
     <Card style={{ padding: 16 }}>
@@ -151,12 +190,243 @@ function SettlementCard({ settlement }: { settlement: Settlement }) {
         </div>
       </div>
 
-      <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.border}`, display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'center' }}>
+      <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.border}`, display: 'grid', gridTemplateColumns: settled ? '1fr auto' : '1fr auto auto', gap: 10, alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: settlement.isOverdue ? T.expense : T.muted, fontSize: 12, fontWeight: 750 }}>
           <Clock size={14} /> {settlement.isOverdue ? `${dueLabel} · po terminie` : dueLabel}
         </div>
         <div style={{ color: T.muted, fontSize: 12, fontWeight: 700 }}>{settlement.payments.length} wpłat</div>
+        {!settled && (
+          <>
+            <button onClick={onPay} style={smallButtonStyle}>
+              <WalletCards size={14} /> Wpłata
+            </button>
+            <button onClick={settle} disabled={isSettling || !defaultAccountId} style={{ ...smallButtonStyle, background: T.incomeSoft, color: T.income, opacity: isSettling || !defaultAccountId ? 0.55 : 1 }}>
+              <CheckCircle2 size={14} /> {isSettling ? '...' : 'Do zera'}
+            </button>
+          </>
+        )}
       </div>
     </Card>
   );
 }
+
+function todayDate() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function SettlementFormModal({ accounts, onClose }: { accounts: Account[]; onClose: () => void }) {
+  const router = useRouter();
+  const [direction, setDirection] = useState<'LENT' | 'BORROWED'>('LENT');
+  const [amount, setAmount] = useState('');
+  const [date, setDate] = useState(todayDate);
+  const [dueDate, setDueDate] = useState('');
+  const [accountId, setAccountId] = useState(accounts[0]?.id ?? '');
+  const [counterpartyName, setCounterpartyName] = useState('');
+  const [counterpartyEmail, setCounterpartyEmail] = useState('');
+  const [note, setNote] = useState('');
+  const [isPending, startTransition] = useTransition();
+  const amountValue = Number(amount);
+  const canSubmit = amountValue > 0 && !!accountId && counterpartyName.trim().length > 0;
+
+  const submit = () => {
+    startTransition(async () => {
+      const result = await createSettlementAction({
+        direction,
+        amount: amountValue,
+        date,
+        dueDate: dueDate || null,
+        accountId,
+        counterpartyName,
+        counterpartyEmail,
+        note,
+        reminderDaysBefore: 1,
+      });
+
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
+
+      toast.success(result.message);
+      onClose();
+      router.refresh();
+    });
+  };
+
+  return (
+    <ModalFrame title="Nowe rozliczenie" onClose={onClose}>
+      <div style={{ display: 'grid', gap: 12 }}>
+        <Segmented
+          value={direction}
+          options={[
+            { value: 'LENT', label: 'Do odebrania' },
+            { value: 'BORROWED', label: 'Do spłaty' },
+          ]}
+          onChange={setDirection}
+        />
+        <input aria-label="Osoba rozliczenia" placeholder="Osoba" value={counterpartyName} onChange={event => setCounterpartyName(event.target.value)} style={inputStyle} />
+        <input aria-label="Kwota rozliczenia" placeholder="Kwota" type="number" min="0.01" step="0.01" value={amount} onChange={event => setAmount(event.target.value)} style={inputStyle} />
+        <select aria-label="Konto rozliczenia" value={accountId} onChange={event => setAccountId(event.target.value)} style={inputStyle}>
+          {accounts.map(account => <option key={account.id} value={account.id}>{account.name} · {account.currency}</option>)}
+        </select>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <input aria-label="Data rozliczenia" type="date" value={date} onChange={event => setDate(event.target.value)} style={inputStyle} />
+          <input aria-label="Termin rozliczenia" type="date" value={dueDate} onChange={event => setDueDate(event.target.value)} style={inputStyle} />
+        </div>
+        <input aria-label="Email osoby" placeholder="Email" value={counterpartyEmail} onChange={event => setCounterpartyEmail(event.target.value)} style={inputStyle} />
+        <input aria-label="Notatka rozliczenia" placeholder="Notatka" value={note} onChange={event => setNote(event.target.value)} style={inputStyle} />
+        <button onClick={submit} disabled={!canSubmit || isPending} style={{ ...primaryButtonStyle, height: 42, opacity: !canSubmit || isPending ? 0.55 : 1 }}>
+          <Save size={16} color="white" /> {isPending ? 'Zapisywanie...' : 'Zapisz rozliczenie'}
+        </button>
+      </div>
+    </ModalFrame>
+  );
+}
+
+function PaymentModal({ settlement, accounts, onClose }: { settlement: Settlement; accounts: Account[]; onClose: () => void }) {
+  const router = useRouter();
+  const [amount, setAmount] = useState(String(settlement.remainingAmount.toFixed(2)));
+  const [paidAt, setPaidAt] = useState(todayDate);
+  const [accountId, setAccountId] = useState(
+    settlement.accountId && accounts.some(account => account.id === settlement.accountId) ? settlement.accountId : accounts[0]?.id ?? ''
+  );
+  const [note, setNote] = useState('');
+  const [isPending, startTransition] = useTransition();
+  const amountValue = Number(amount);
+  const canSubmit = amountValue > 0 && !!accountId;
+
+  const submit = () => {
+    startTransition(async () => {
+      const result = await addSettlementPaymentAction({
+        settlementId: settlement.id,
+        accountId,
+        amount: amountValue,
+        paidAt,
+        note,
+      });
+
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
+
+      toast.success(result.message);
+      onClose();
+      router.refresh();
+    });
+  };
+
+  return (
+    <ModalFrame title="Wpłata rozliczenia" onClose={onClose}>
+      <div style={{ display: 'grid', gap: 12 }}>
+        <Card style={{ padding: 14, background: T.bg }}>
+          <div style={{ color: T.dark, fontSize: 15, fontWeight: 850 }}>{settlement.counterpartyName}</div>
+          <div style={{ color: T.muted, fontSize: 12, marginTop: 4 }}>Pozostało <PrivacyAmount amount={settlement.remainingAmount} /></div>
+        </Card>
+        <input aria-label="Kwota wpłaty" type="number" min="0.01" step="0.01" value={amount} onChange={event => setAmount(event.target.value)} style={inputStyle} />
+        <select aria-label="Konto wpłaty" value={accountId} onChange={event => setAccountId(event.target.value)} style={inputStyle}>
+          {accounts.map(account => <option key={account.id} value={account.id}>{account.name} · {account.currency}</option>)}
+        </select>
+        <input aria-label="Data wpłaty" type="date" value={paidAt} onChange={event => setPaidAt(event.target.value)} style={inputStyle} />
+        <input aria-label="Notatka wpłaty" placeholder="Notatka" value={note} onChange={event => setNote(event.target.value)} style={inputStyle} />
+        <button onClick={submit} disabled={!canSubmit || isPending} style={{ ...primaryButtonStyle, height: 42, opacity: !canSubmit || isPending ? 0.55 : 1 }}>
+          <Save size={16} color="white" /> {isPending ? 'Zapisywanie...' : 'Zapisz wpłatę'}
+        </button>
+      </div>
+    </ModalFrame>
+  );
+}
+
+function ModalFrame({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  return (
+    <div role="dialog" aria-modal="true" aria-label={title} style={{
+      position: 'fixed', inset: 0, background: 'rgba(15,23,42,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 210, backdropFilter: 'blur(4px)', padding: 16,
+    }}>
+      <Card style={{ width: 460, maxWidth: '100%', maxHeight: '90vh', overflowY: 'auto', padding: 0, boxShadow: '0 20px 60px rgba(0,0,0,.2)' }}>
+        <div style={{ padding: '18px 20px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ fontWeight: 850, fontSize: 16, color: T.dark }}>{title}</div>
+          <button aria-label="Zamknij" onClick={onClose} style={{ color: T.muted, padding: 4, border: 'none', background: 'none', cursor: 'pointer' }}>
+            <X size={18} />
+          </button>
+        </div>
+        <div style={{ padding: 20 }}>{children}</div>
+      </Card>
+    </div>
+  );
+}
+
+function Segmented<TValue extends string>({
+  value,
+  options,
+  onChange,
+}: {
+  value: TValue;
+  options: Array<{ value: TValue; label: string }>;
+  onChange: (value: TValue) => void;
+}) {
+  return (
+    <div style={{ display: 'flex', gap: 6, background: T.bg, borderRadius: T.radiusSm, padding: 4 }}>
+      {options.map(option => (
+        <button
+          key={option.value}
+          onClick={() => onChange(option.value)}
+          style={{
+            flex: 1,
+            padding: '8px 10px',
+            borderRadius: 6,
+            background: value === option.value ? T.card : 'transparent',
+            color: value === option.value ? T.accent : T.muted,
+            fontWeight: 850,
+            boxShadow: value === option.value ? '0 1px 4px rgba(0,0,0,.1)' : 'none',
+          }}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+const inputStyle: CSSProperties = {
+  height: 40,
+  padding: '0 12px',
+  borderRadius: T.radiusSm,
+  border: `1px solid ${T.border}`,
+  background: T.card,
+  color: T.dark,
+  fontSize: 13,
+  fontFamily: 'inherit',
+  outline: 'none',
+};
+
+const primaryButtonStyle: CSSProperties = {
+  border: 'none',
+  borderRadius: T.radiusSm,
+  background: T.accent,
+  color: 'white',
+  fontWeight: 850,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 8,
+  height: 40,
+  padding: '0 16px',
+  cursor: 'pointer',
+};
+
+const smallButtonStyle: CSSProperties = {
+  border: 'none',
+  borderRadius: 8,
+  background: T.accentLight,
+  color: T.accent,
+  fontWeight: 850,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 6,
+  height: 30,
+  padding: '0 10px',
+  cursor: 'pointer',
+  fontSize: 12,
+  whiteSpace: 'nowrap',
+};
