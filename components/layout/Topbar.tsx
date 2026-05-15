@@ -30,7 +30,11 @@ interface TopbarProps {
 
 export default function Topbar({ subtitle, actions }: TopbarProps) {
   const pathname = usePathname();
-  const title = TITLES[pathname] ?? (pathname.startsWith('/categories/') ? 'Szczegóły kategorii' : '');
+  const title = TITLES[pathname] ?? (
+    pathname.startsWith('/categories/') ? 'Szczegóły kategorii'
+      : pathname.startsWith('/accounts/') ? 'Szczegóły konta'
+        : ''
+  );
   const openCommand = useSumaUiStore(state => state.openCommand);
   const privacyMode = useSumaUiStore(state => state.privacyMode);
   const togglePrivacyMode = useSumaUiStore(state => state.togglePrivacyMode);

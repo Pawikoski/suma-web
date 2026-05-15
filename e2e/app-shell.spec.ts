@@ -247,6 +247,21 @@ test('opens account details from command search with URL state', async ({ page }
   await expect(page.getByText('Historia — Cash')).toBeVisible();
 });
 
+test('opens account detail route directly', async ({ page }) => {
+  await login(page);
+
+  await page.goto('/accounts?month=2026-05');
+  await page.getByText('Cash').first().click();
+  await expect(page.getByText('Historia — Cash')).toBeVisible();
+
+  const accountId = new URL(page.url()).searchParams.get('account');
+  expect(accountId).toBeTruthy();
+  await page.goto(`/accounts/${accountId}?month=2026-05`);
+
+  await expect(page).toHaveURL(new RegExp(`/accounts/${accountId}\\?month=2026-05`));
+  await expect(page.getByText('Historia — Cash')).toBeVisible();
+});
+
 test('opens account creation and edit dialogs', async ({ page }) => {
   await login(page);
   await page.goto('/accounts?month=2026-05');

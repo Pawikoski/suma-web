@@ -1,6 +1,6 @@
 'use client';
 import { CSSProperties, useMemo, useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { parseAsString, useQueryState } from 'nuqs';
 import { CalendarClock, ClipboardList, Pencil, Percent, Plus, Save, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -20,10 +20,11 @@ import Sparkline from '@/components/ui/Sparkline';
 import Icon from '@/components/ui/Icon';
 import PrivacyAmount from '@/components/ui/PrivacyAmount';
 
-export default function AccountsScreen() {
+export default function AccountsScreen({ initialAccountId }: { initialAccountId?: string }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { accounts, transactions, accountInterest, accountBudgets, activeMonth } = useActiveMonthData();
-  const [selectedAccountId, setSelectedAccountId] = useQueryState('account', parseAsString.withDefault(accounts[0]?.id ?? ''));
+  const [selectedAccountId, setSelectedAccountId] = useQueryState('account', parseAsString.withDefault(initialAccountId ?? accounts[0]?.id ?? ''));
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const selected = useMemo(
@@ -55,7 +56,13 @@ export default function AccountsScreen() {
         {accounts.map(a => (
           <Card
             key={a.id}
-            onClick={() => void setSelectedAccountId(a.id)}
+            onClick={() => {
+              if (pathname.startsWith('/accounts/')) {
+                router.push(`/accounts/${a.id}?month=${activeMonth}`);
+                return;
+              }
+              void setSelectedAccountId(a.id);
+            }}
             style={{
               padding: 18, cursor: 'pointer',
               background: selected?.id === a.id ? `linear-gradient(135deg,${a.color},${a.color2})` : 'white',
