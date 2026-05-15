@@ -416,6 +416,7 @@ export default function TransactionsScreen() {
   const [selectedId, setSelectedId] = useQueryState('id');
   const [accountId, setAccountId] = useQueryState('account', parseAsString.withDefault('all'));
   const [categoryId, setCategoryId] = useQueryState('category', parseAsString.withDefault('all'));
+  const [dateFilter, setDateFilter] = useQueryState('date', parseAsString.withDefault(''));
   const [query, setQuery] = useQueryState('q', parseAsString.withDefault(''));
   const [minAmount, setMinAmount] = useQueryState('min', parseAsString.withDefault(''));
   const [maxAmount, setMaxAmount] = useQueryState('max', parseAsString.withDefault(''));
@@ -436,6 +437,7 @@ export default function TransactionsScreen() {
       const absoluteAmount = Math.abs(t.amount);
       if (activeMonth !== 'all' && !t.date.startsWith(activeMonth)) return false;
       if (filter !== 'all' && t.type !== filter) return false;
+      if (dateFilter && t.date !== dateFilter) return false;
       if (accountId !== 'all' && t.accountId !== accountId && t.toAccountId !== accountId) return false;
       if (categoryFilterIds && (!t.categoryId || !categoryFilterIds.has(t.categoryId))) return false;
       if (min !== null && !Number.isNaN(min) && absoluteAmount < min) return false;
@@ -445,7 +447,7 @@ export default function TransactionsScreen() {
         .filter(Boolean)
         .some(value => String(value).toLocaleLowerCase('pl-PL').includes(textQuery));
     });
-  }, [accountId, activeMonth, allTransactions, categories, categoryId, filter, maxAmount, minAmount, query]);
+  }, [accountId, activeMonth, allTransactions, categories, categoryId, dateFilter, filter, maxAmount, minAmount, query]);
   const income = filtered.filter(t => t.type === 'income').reduce((sum, tx) => sum + tx.amount, 0);
   const expense = Math.abs(filtered.filter(t => t.type === 'expense').reduce((sum, tx) => sum + tx.amount, 0));
   const selectedTransactions = useMemo(
@@ -527,10 +529,11 @@ export default function TransactionsScreen() {
     void setQuery('');
     void setAccountId('all');
     void setCategoryId('all');
+    void setDateFilter('');
     void setMinAmount('');
     void setMaxAmount('');
     void setFilter('all');
-  }, [setAccountId, setCategoryId, setFilter, setMaxAmount, setMinAmount, setQuery]);
+  }, [setAccountId, setCategoryId, setDateFilter, setFilter, setMaxAmount, setMinAmount, setQuery]);
 
   return (
     <div className="transactions-layout" style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
@@ -554,7 +557,7 @@ export default function TransactionsScreen() {
             ))}
           </div>
 
-          <Card className="transaction-filter-card" style={{ padding: 12, display: 'grid', gridTemplateColumns: '1.2fr .8fr .9fr .9fr .6fr .6fr auto auto', gap: 10, alignItems: 'center' }}>
+          <Card className="transaction-filter-card" style={{ padding: 12, display: 'grid', gridTemplateColumns: '1.2fr .8fr .9fr .9fr .75fr .6fr .6fr auto auto', gap: 10, alignItems: 'center' }}>
             <input
               aria-label="Szukaj transakcji"
               value={query}
@@ -574,6 +577,13 @@ export default function TransactionsScreen() {
               <option value="all">Wszystkie kategorie</option>
               {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
+            <input
+              aria-label="Data transakcji"
+              type="date"
+              value={dateFilter}
+              onChange={e => void setDateFilter(e.target.value)}
+              style={selectStyle}
+            />
             <input
               aria-label="Kwota od"
               type="number"

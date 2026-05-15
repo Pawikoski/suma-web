@@ -310,6 +310,7 @@ button {
   .home-screen,
   .accounts-screen,
   .budget-screen,
+  .calendar-screen,
   .categories-screen {
     padding: 16px !important;
   }

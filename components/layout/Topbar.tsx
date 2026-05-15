@@ -11,6 +11,7 @@ import { useActiveMonthData } from '@/lib/useActiveMonthData';
 const TITLES: Record<string, string> = {
   '/':              'Home',
   '/transactions':  'Transakcje',
+  '/calendar':      'Kalendarz',
   '/recurring':     'Opłaty stałe',
   '/settlements':   'Rozliczenia',
   '/categories':    'Kategorie',

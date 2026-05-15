@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { BarChart2, ClipboardList, HandCoins, Home, LineChart, MoreHorizontal, Plus, Repeat2, Tag, UploadCloud, Wallet } from 'lucide-react';
+import { BarChart2, CalendarDays, ClipboardList, HandCoins, Home, LineChart, MoreHorizontal, Plus, Repeat2, Tag, UploadCloud, Wallet } from 'lucide-react';
 import { T } from '@/lib/tokens';
 import { useActiveMonthData } from '@/lib/useActiveMonthData';
 
@@ -16,6 +16,7 @@ const NAV = [
 ] as const;
 
 const MORE_NAV = [
+  { href: '/calendar', label: 'Kalendarz', Icon: CalendarDays },
   { href: '/recurring', label: 'Opłaty stałe', Icon: Repeat2 },
   { href: '/settlements', label: 'Rozliczenia', Icon: HandCoins },
   { href: '/investments', label: 'Inwestycje', Icon: LineChart },

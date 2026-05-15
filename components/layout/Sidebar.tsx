@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, ClipboardList, Tag, Wallet, BarChart2, Plus, LogOut, Repeat2, UploadCloud, HandCoins, LineChart } from 'lucide-react';
+import { Home, ClipboardList, Tag, Wallet, BarChart2, Plus, LogOut, Repeat2, UploadCloud, HandCoins, LineChart, CalendarDays } from 'lucide-react';
 import { format, parse } from 'date-fns';
 import { pl } from 'date-fns/locale';
 import { logout } from '@/app/actions/auth';
@@ -11,6 +11,7 @@ import { useActiveMonthData } from '@/lib/useActiveMonthData';
 const NAV = [
   { href: '/',              label: 'Home',       Icon: Home },
   { href: '/transactions',  label: 'Transakcje', Icon: ClipboardList },
+  { href: '/calendar',      label: 'Kalendarz', Icon: CalendarDays },
   { href: '/recurring',     label: 'Opłaty stałe', Icon: Repeat2 },
   { href: '/settlements',   label: 'Rozliczenia', Icon: HandCoins },
   { href: '/categories',    label: 'Kategorie',  Icon: Tag },

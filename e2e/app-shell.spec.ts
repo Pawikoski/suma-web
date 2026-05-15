@@ -98,6 +98,24 @@ test('opens recurring payments from navigation', async ({ page }) => {
   await expect(page.getByText(/Miesięczne obciążenie|Brak opłat stałych/)).toBeVisible();
 });
 
+test('opens calendar and filters transactions by day', async ({ page }) => {
+  await login(page);
+
+  await page.getByRole('link', { name: 'Kalendarz' }).click();
+
+  await expect(page).toHaveURL(/\/calendar\?month=2026-05/);
+  await expect(page.getByRole('heading', { name: /maj 2026/i })).toBeVisible();
+
+  const day = page.locator('button[aria-label^="Dzień"]:not([disabled])').first();
+  await expect(day).toBeVisible();
+  const label = await day.getAttribute('aria-label');
+  await day.click();
+
+  await expect(page).toHaveURL(/\/transactions\?date=\d{4}-\d{2}-\d{2}&month=\d{4}-\d{2}/);
+  await expect(page.getByLabel('Data transakcji')).toHaveValue(/\d{4}-\d{2}-\d{2}/);
+  expect(label).toContain('Dzień');
+});
+
 test('opens recurring payment creation dialog', async ({ page }) => {
   await login(page);
   await page.goto('/recurring?month=2026-05');
