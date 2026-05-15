@@ -202,6 +202,17 @@ test('opens settings workspace from navigation', async ({ page }) => {
   await expect(page.getByText('Włączone')).toBeVisible();
 });
 
+test('opens budget notification settings from settings', async ({ page }) => {
+  await login(page);
+
+  await page.goto('/settings?month=2026-05');
+  await page.getByRole('link', { name: /Alerty budżetowe/ }).click();
+
+  await expect(page).toHaveURL(/\/settings\/budget-notifications\?month=2026-05/);
+  await expect(page.getByRole('heading', { name: 'Alerty budżetowe' })).toBeVisible();
+  await expect(page.getByText('Monitorowane budżety')).toBeVisible();
+});
+
 test('previews analyzed import rows without saving them', async ({ page }) => {
   await login(page);
   await page.route('**/api/imports/analyze', async route => {
