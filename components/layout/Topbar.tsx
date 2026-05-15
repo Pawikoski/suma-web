@@ -34,7 +34,9 @@ export default function Topbar({ subtitle, actions }: TopbarProps) {
     pathname.startsWith('/categories/') ? 'Szczegóły kategorii'
       : pathname.startsWith('/accounts/') ? 'Szczegóły konta'
         : pathname.startsWith('/investments/') ? 'Szczegóły inwestycji'
-          : pathname.startsWith('/settings/') ? 'Ustawienia'
+          : pathname.startsWith('/settings/app-notification-reader') ? 'Czytanie powiadomień'
+            : pathname.startsWith('/settings/budget-notifications') ? 'Alerty budżetowe'
+              : pathname.startsWith('/settings/') ? 'Ustawienia'
             : ''
   );
   const openCommand = useSumaUiStore(state => state.openCommand);

@@ -313,6 +313,7 @@ button {
   .calendar-screen,
   .category-detail-screen,
   .categories-screen,
+  .app-notification-reader-screen,
   .budget-notifications-screen,
   .settings-screen {
     padding: 16px !important;
@@ -337,6 +338,7 @@ button {
   .reports-summary-grid,
   .reports-chart-grid,
   .import-export-grid,
+  .app-notification-reader-summary-grid,
   .budget-notifications-summary-grid,
   .import-preview-header,
   .import-preview-grid {

@@ -213,6 +213,17 @@ test('opens budget notification settings from settings', async ({ page }) => {
   await expect(page.getByText('Monitorowane budżety')).toBeVisible();
 });
 
+test('opens app notification reader settings from settings', async ({ page }) => {
+  await login(page);
+
+  await page.goto('/settings?month=2026-05');
+  await page.getByRole('link', { name: /Czytanie powiadomień bankowych/ }).click();
+
+  await expect(page).toHaveURL(/\/settings\/app-notification-reader\?month=2026-05/);
+  await expect(page.getByRole('heading', { name: 'Czytanie powiadomień bankowych' })).toBeVisible();
+  await expect(page.getByText('Z parsera', { exact: true })).toBeVisible();
+});
+
 test('previews analyzed import rows without saving them', async ({ page }) => {
   await login(page);
   await page.route('**/api/imports/analyze', async route => {

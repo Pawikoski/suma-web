@@ -66,9 +66,9 @@ function syncFixture(): SyncServerChanges {
         location_name: null,
         location_address: null,
         is_from_receipt: false,
-        is_from_notification_parser: false,
-        review_status: null,
-        parser_notification_key: null,
+        is_from_notification_parser: true,
+        review_status: 'PENDING',
+        parser_notification_key: 'bank-app:abc',
         count_in_summary: true,
         summary_amount: null,
       },
@@ -256,6 +256,11 @@ describe('mapSyncData', () => {
     expect(data.transactions[0].photos).toEqual([
       { id: 'photo-current', mimeType: 'image/jpeg', contentHash: 'hash-1', imageBase64: 'ZmFrZQ==' },
     ]);
+    expect(data.transactions[0]).toMatchObject({
+      isFromNotificationParser: true,
+      reviewStatus: 'PENDING',
+      parserNotificationKey: 'bank-app:abc',
+    });
   });
 
   it('maps category budget and month spending from splits', () => {

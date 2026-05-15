@@ -74,7 +74,9 @@ export default function SettingsScreen() {
           <SettingsRow icon={<Bell size={18} />} title="Alerty budżetowe" description="Monitorowanie progów budżetów dla aktywnego miesiąca" value="Otwórz" />
         </Link>
         <Divider />
-        <SettingsRow icon={<Bell size={18} />} title="Czytanie powiadomień bankowych" description="Integracja systemowa Androida" value="Android" />
+        <Link href={`/settings/app-notification-reader?${navMonth}`} style={{ textDecoration: 'none' }}>
+          <SettingsRow icon={<Bell size={18} />} title="Czytanie powiadomień bankowych" description="Transakcje z parsera powiadomień Androida" value="Otwórz" />
+        </Link>
       </Section>
 
       <Section title="Dane">

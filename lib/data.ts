@@ -59,6 +59,9 @@ export interface Transaction {
   type: TransactionType;
   loc?: string;
   countInSummary: boolean;
+  isFromNotificationParser: boolean;
+  reviewStatus: string | null;
+  parserNotificationKey: string | null;
   splitIds: string[];
   splits: TransactionSplitSummary[];
   photos: TransactionPhotoSummary[];

@@ -170,6 +170,9 @@ export function mapSyncData(data: SyncServerChanges, yearMonth: string): MappedD
         type: t.type === 'EXPENSE' ? 'expense' : t.type === 'INCOME' ? 'income' : 'transfer',
         loc: t.location_name ?? undefined,
         countInSummary: t.count_in_summary,
+        isFromNotificationParser: t.is_from_notification_parser,
+        reviewStatus: t.review_status,
+        parserNotificationKey: t.parser_notification_key,
         splitIds: splits.map(s => s.id),
         splits: splits.map(s => ({
           id: s.id,
