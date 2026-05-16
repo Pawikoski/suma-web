@@ -31,7 +31,8 @@ interface TopbarProps {
 export default function Topbar({ subtitle, actions }: TopbarProps) {
   const pathname = usePathname();
   const title = TITLES[pathname] ?? (
-    pathname.startsWith('/categories/') ? 'Szczegóły kategorii'
+    pathname === '/screen-gallery' ? 'Screen Gallery'
+      : pathname.startsWith('/categories/') ? 'Szczegóły kategorii'
       : pathname.startsWith('/accounts/') ? 'Szczegóły konta'
         : pathname.startsWith('/investments/') ? 'Szczegóły inwestycji'
           : pathname.startsWith('/settings/app-notification-reader') ? 'Czytanie powiadomień'

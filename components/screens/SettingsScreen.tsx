@@ -2,7 +2,7 @@
 
 import { CSSProperties, ReactNode } from 'react';
 import Link from 'next/link';
-import { BarChart2, Bell, Cloud, Database, Download, Eye, EyeOff, FileJson, Globe2, Lock, LogOut, Palette, UploadCloud, Wallet } from 'lucide-react';
+import { BarChart2, Bell, Cloud, Database, Download, Eye, EyeOff, FileJson, Globe2, Grid2X2, Lock, LogOut, Palette, UploadCloud, Wallet } from 'lucide-react';
 import { logout } from '@/app/actions/auth';
 import { T } from '@/lib/tokens';
 import { useActiveMonthData } from '@/lib/useActiveMonthData';
@@ -105,6 +105,12 @@ export default function SettingsScreen() {
             <Database size={16} /> Budżety
           </Link>
         </div>
+      </Section>
+
+      <Section title="Developer">
+        <Link href={`/screen-gallery?${navMonth}`} style={{ textDecoration: 'none' }}>
+          <SettingsRow icon={<Grid2X2 size={18} />} title="Screen Gallery" description="Katalog ekranów i stanów UI na danych z workspace" value="Otwórz" />
+        </Link>
       </Section>
     </div>
   );

@@ -61,8 +61,9 @@ test('opens add transaction sheet in the selected month', async ({ page }) => {
   await page.getByRole('button', { name: 'Poprzedni miesiąc' }).click();
   await page.getByRole('button', { name: 'Dodaj transakcję' }).click();
 
+  const day = String(Math.min(new Date().getDate(), 30)).padStart(2, '0');
   await expect(page.getByRole('dialog', { name: 'Nowa transakcja' })).toBeVisible();
-  await expect(page.getByLabel('Data transakcji')).toHaveValue('2026-04-15');
+  await expect(page.getByLabel('Data transakcji')).toHaveValue(`2026-04-${day}`);
 });
 
 test('opens transactions filtered by category from categories screen', async ({ page }) => {
@@ -222,6 +223,18 @@ test('opens app notification reader settings from settings', async ({ page }) =>
   await expect(page).toHaveURL(/\/settings\/app-notification-reader\?month=2026-05/);
   await expect(page.getByRole('heading', { name: 'Czytanie powiadomień bankowych' })).toBeVisible();
   await expect(page.getByText('Z parsera', { exact: true })).toBeVisible();
+});
+
+test('opens screen gallery from settings', async ({ page }) => {
+  await login(page);
+
+  await page.goto('/settings?month=2026-05');
+  await page.getByRole('link', { name: /Screen Gallery/ }).click();
+
+  await expect(page).toHaveURL(/\/screen-gallery\?month=2026-05/);
+  await expect(page.getByRole('heading', { name: 'Screen Gallery' })).toBeVisible();
+  await expect(page.getByText('Pełny stan')).toBeVisible();
+  await expect(page.getByText('Ukryte kwoty')).toBeVisible();
 });
 
 test('previews analyzed import rows without saving them', async ({ page }) => {
