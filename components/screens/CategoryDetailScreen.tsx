@@ -6,7 +6,7 @@ import { ArrowLeft, ListFilter, Pencil } from 'lucide-react';
 import { T } from '@/lib/tokens';
 import { Category, Transaction } from '@/lib/data';
 import { fmtPLN } from '@/lib/utils';
-import { categoryAndDescendantIds } from '@/lib/category-hierarchy';
+import { categoryAndDescendantIds, effectiveCategoryBudget } from '@/lib/category-hierarchy';
 import { useActiveMonthData } from '@/lib/useActiveMonthData';
 import Card from '@/components/ui/Card';
 import Bar from '@/components/ui/Bar';
@@ -57,7 +57,7 @@ export default function CategoryDetailScreen({ categoryId }: { categoryId: strin
   const recent = relatedTransactions
     .sort((a, b) => b.transaction.dateTime.localeCompare(a.transaction.dateTime))
     .slice(0, 6);
-  const budget = category.budget ?? children.reduce((sum, child) => sum + (child.budget ?? 0), 0);
+  const budget = effectiveCategoryBudget(categories, category.id);
   const effectiveBudget = budget > 0 ? budget : null;
   const budgetPct = effectiveBudget ? expense / effectiveBudget * 100 : 0;
 

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { AlertTriangle, ArrowLeft, Bell } from 'lucide-react';
 import { T } from '@/lib/tokens';
 import { fmtPLN } from '@/lib/utils';
+import { categoryBudgetUsages } from '@/lib/category-hierarchy';
 import { useActiveMonthData } from '@/lib/useActiveMonthData';
 import Card from '@/components/ui/Card';
 import Bar from '@/components/ui/Bar';
@@ -13,19 +14,18 @@ import PrivacyAmount from '@/components/ui/PrivacyAmount';
 
 export default function BudgetNotificationsScreen() {
   const { accountBudgets, accounts, categories, activeMonth, transactions } = useActiveMonthData();
-  const categoryAlerts = categories
-    .filter(category => category.budget && category.budget > 0)
-    .map(category => {
-      const pct = category.spent / category.budget! * 100;
+  const categoryAlerts = categoryBudgetUsages(categories)
+    .map(({ category, budget, spent, pct, isSubLimit }) => {
       return {
         id: category.id,
         label: category.name,
         icon: category.icon,
         bg: category.bg,
         color: category.color,
-        spent: category.spent,
-        budget: category.budget!,
+        spent,
+        budget,
         pct,
+        isSubLimit,
         kind: 'category' as const,
       };
     });
@@ -45,6 +45,7 @@ export default function BudgetNotificationsScreen() {
         spent,
         budget: budget.amount,
         pct,
+        isSubLimit: false,
         kind: 'account' as const,
       };
     })
@@ -94,7 +95,7 @@ export default function BudgetNotificationsScreen() {
                   </span>
                   <span style={{ flex: 1, minWidth: 0 }}>
                     <span style={{ display: 'block', color: T.dark, fontSize: 14, fontWeight: 850, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{alert.label}</span>
-                    <span style={{ display: 'block', color: T.muted, fontSize: 11 }}>{alert.kind === 'account' ? 'Konto' : 'Kategoria'}</span>
+                    <span style={{ display: 'block', color: T.muted, fontSize: 11 }}>{alert.kind === 'account' ? 'Konto' : alert.isSubLimit ? 'Podlimit kategorii' : 'Kategoria'}</span>
                   </span>
                   <span style={{ textAlign: 'right' }}>
                     <PrivacyAmount amount={alert.spent} style={{ display: 'block', color: alert.pct >= 100 ? T.expense : T.dark, fontSize: 14, fontWeight: 900 }} />

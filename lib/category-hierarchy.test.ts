@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { Category } from './data';
-import { categoryAndDescendantIds, groupCategoriesForView } from './category-hierarchy';
+import {
+  categoryAndDescendantIds,
+  categoryBudgetUsages,
+  effectiveCategoryBudget,
+  groupCategoriesForView,
+  nonOverlappingCategoryBudgetSummary,
+} from './category-hierarchy';
 
 const category = (overrides: Partial<Category>): Category => ({
   id: 'cat',
@@ -54,5 +60,31 @@ describe('groupCategoriesForView', () => {
     ], 'root');
 
     expect(Array.from(ids).sort()).toEqual(['child', 'grandchild', 'root']);
+  });
+
+  it('treats parent budget as an envelope and child budget as a sublimit', () => {
+    const categories = [
+      category({ id: 'food', budget: 1000, spent: 100 }),
+      category({ id: 'kebab', parentCategoryId: 'food', budget: 300, spent: 250 }),
+    ];
+
+    const groups = groupCategoriesForView(categories, 'expense');
+    const usages = categoryBudgetUsages(categories);
+    const summary = nonOverlappingCategoryBudgetSummary(categories);
+
+    expect(groups[0]).toMatchObject({ totalBudget: 1000, totalSpent: 350 });
+    expect(usages.find(item => item.category.id === 'kebab')?.isSubLimit).toBe(true);
+    expect(summary).toEqual({ budget: 1000, spent: 350 });
+  });
+
+  it('uses child budgets as group budget when parent has no own budget', () => {
+    const categories = [
+      category({ id: 'food', budget: null }),
+      category({ id: 'kebab', parentCategoryId: 'food', budget: 300 }),
+      category({ id: 'groceries', parentCategoryId: 'food', budget: 500 }),
+    ];
+
+    expect(effectiveCategoryBudget(categories, 'food')).toBe(800);
+    expect(groupCategoriesForView(categories, 'expense')[0].totalBudget).toBe(800);
   });
 });

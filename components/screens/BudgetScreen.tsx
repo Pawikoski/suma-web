@@ -7,6 +7,7 @@ import { upsertAccountBudgetAction, upsertCategoryBudgetAction, upsertOverallBud
 import { T } from '@/lib/tokens';
 import { fmtPLN } from '@/lib/utils';
 import { Account, AccountBudget, Category, Transaction } from '@/lib/data';
+import { categoryBudgetUsages, nonOverlappingCategoryBudgetSummary } from '@/lib/category-hierarchy';
 import { useActiveMonthData } from '@/lib/useActiveMonthData';
 import Card from '@/components/ui/Card';
 import Bar from '@/components/ui/Bar';
@@ -20,6 +21,9 @@ export default function BudgetScreen() {
   const [overallPending, startOverallTransition] = useTransition();
 
   const spent = categories.reduce((s, c) => s + c.spent, 0);
+  const categoryUsages = categoryBudgetUsages(categories);
+  const categoryUsageById = new Map(categoryUsages.map(item => [item.category.id, item]));
+  const categoryBudgetSummary = nonOverlappingCategoryBudgetSummary(categories);
   const totalBudget = overallBudget ?? 0;
   const pct = totalBudget > 0 ? (spent / totalBudget * 100) : 0;
 
@@ -28,9 +32,9 @@ export default function BudgetScreen() {
   const daysLeft = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate() - now.getDate();
 
   const statusGroups = [
-    { label: 'OK',            count: categories.filter(c => c.budget && c.spent / c.budget! <= 0.8).length,                              color: T.income },
-    { label: 'Blisko limitu', count: categories.filter(c => c.budget && c.spent / c.budget! > 0.8 && c.spent / c.budget! <= 1).length,   color: T.warn },
-    { label: 'Przekroczone',  count: categories.filter(c => c.budget && c.spent / c.budget! > 1).length,                                 color: T.expense },
+    { label: 'OK',            count: categoryUsages.filter(item => item.pct <= 80).length,                 color: T.income },
+    { label: 'Blisko limitu', count: categoryUsages.filter(item => item.pct > 80 && item.pct <= 100).length, color: T.warn },
+    { label: 'Przekroczone',  count: categoryUsages.filter(item => item.pct > 100).length,                  color: T.expense },
   ];
 
   const saveOverall = () => {
@@ -94,6 +98,11 @@ export default function BudgetScreen() {
 
         <Card style={{ padding: 20 }}>
           <div style={{ fontSize: 13, color: T.muted, fontWeight: 500, marginBottom: 12 }}>Kategorie w budżecie</div>
+          <div style={{ fontSize: 12, color: T.muted, marginBottom: 12 }}>
+            {categoryBudgetSummary.budget > 0
+              ? `${fmtPLN(categoryBudgetSummary.spent)} z ${fmtPLN(categoryBudgetSummary.budget)} bez dublowania podlimitów`
+              : 'Brak ustawionych budżetów kategorii'}
+          </div>
           {statusGroups.map(s => (
             <div key={s.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -128,10 +137,12 @@ export default function BudgetScreen() {
 
       <div className="budget-category-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         {categories.map(c => {
-          const catPct = c.budget ? c.spent / c.budget * 100 : 0;
+          const usage = categoryUsageById.get(c.id);
+          const spentForBudget = usage?.spent ?? c.spent;
+          const catPct = c.budget ? spentForBudget / c.budget * 100 : 0;
           const over = catPct > 100;
           return (
-            <CategoryBudgetCard key={c.id} category={c} catPct={catPct} over={over} />
+            <CategoryBudgetCard key={c.id} category={c} spent={spentForBudget} catPct={catPct} over={over} isSubLimit={usage?.isSubLimit ?? false} />
           );
         })}
       </div>
@@ -220,7 +231,7 @@ function AccountBudgetCard({ account, activeMonth, budget, spent }: { account: A
   );
 }
 
-function CategoryBudgetCard({ category: c, catPct, over }: { category: Category; catPct: number; over: boolean }) {
+function CategoryBudgetCard({ category: c, spent, catPct, over, isSubLimit }: { category: Category; spent: number; catPct: number; over: boolean; isSubLimit: boolean }) {
   const router = useRouter();
   const [draft, setDraft] = useState(c.budget ? String(c.budget) : '');
   const [pending, startTransition] = useTransition();
@@ -245,10 +256,10 @@ function CategoryBudgetCard({ category: c, catPct, over }: { category: Category;
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: T.dark }}>{c.name}</div>
-                  <div style={{ fontSize: 12, color: T.muted }}>{c.txCount} transakcji</div>
+                  <div style={{ fontSize: 12, color: T.muted }}>{c.txCount} transakcji{isSubLimit ? ' · podlimit' : ''}</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <PrivacyAmount amount={c.spent} style={{ display: 'block', fontSize: 14, fontWeight: 700, color: over ? T.expense : T.dark }} />
+                  <PrivacyAmount amount={spent} style={{ display: 'block', fontSize: 14, fontWeight: 700, color: over ? T.expense : T.dark }} />
                   <div style={{ fontSize: 11, color: T.faint }}>{c.budget ? `z ${fmtPLN(c.budget)}` : 'bez budżetu'}</div>
                 </div>
               </div>
@@ -257,7 +268,7 @@ function CategoryBudgetCard({ category: c, catPct, over }: { category: Category;
                   <Bar pct={catPct} color={over ? T.expense : c.color} />
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
                     <span style={{ fontSize: 11, color: over ? T.expense : T.muted }}>
-                      {over ? `Przekroczono o ${fmtPLN(c.spent - c.budget)}` : `Pozostało ${fmtPLN(c.budget - c.spent)}`}
+                      {over ? `Przekroczono o ${fmtPLN(spent - c.budget)}` : `Pozostało ${fmtPLN(c.budget - spent)}`}
                     </span>
                     <span style={{ fontSize: 11, fontWeight: 600, color: over ? T.expense : T.accent }}>{Math.round(catPct)}%</span>
                   </div>

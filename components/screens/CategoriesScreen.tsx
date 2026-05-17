@@ -8,7 +8,7 @@ import { T } from '@/lib/tokens';
 import { fmtPLN } from '@/lib/utils';
 import { useActiveMonthData } from '@/lib/useActiveMonthData';
 import { Category } from '@/lib/data';
-import { groupCategoriesForView } from '@/lib/category-hierarchy';
+import { categoryBudgetUsages, groupCategoriesForView } from '@/lib/category-hierarchy';
 import Card from '@/components/ui/Card';
 import Bar from '@/components/ui/Bar';
 import Donut from '@/components/ui/Donut';
@@ -34,6 +34,7 @@ export default function CategoriesScreen() {
   const categoryGroups = groupCategoriesForView(categories, view);
   const totalSpent = visibleCategories.reduce((s, c) => s + c.spent, 0);
   const topCategories = [...visibleCategories].sort((a, b) => b.spent - a.spent);
+  const budgetUsages = categoryBudgetUsages(visibleCategories).sort((a, b) => b.pct - a.pct);
 
   const now = new Date(`${activeMonth}-15T12:00:00`);
   const monthLabel = now.toLocaleString('pl-PL', { month: 'long', year: 'numeric' });
@@ -137,11 +138,10 @@ export default function CategoriesScreen() {
             </div>
           </Card>
 
-          {visibleCategories.some(c => c.budget) && (
+          {budgetUsages.length > 0 && (
             <Card style={{ padding: 16, background: T.accentLight }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: T.accent, marginBottom: 8 }}>Podsumowanie budżetów</div>
-              {topCategories.filter(c => c.budget).map(c => {
-                const pct = c.spent / c.budget! * 100;
+              {budgetUsages.map(({ category: c, pct }) => {
                 return (
                   <div key={c.id} style={{ marginBottom: 10 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
