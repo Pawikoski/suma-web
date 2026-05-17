@@ -152,9 +152,10 @@ function SettlementCard({ settlement, accounts, onPay }: { settlement: Settlemen
   const dueLabel = settlement.dueDate
     ? format(parseISO(settlement.dueDate), 'd MMMM yyyy', { locale: pl })
     : 'Bez terminu';
-  const defaultAccountId = settlement.accountId && accounts.some(account => account.id === settlement.accountId)
+  const paymentAccounts = accounts.filter(account => account.currency === settlement.currency && !account.deletedAt);
+  const defaultAccountId = settlement.accountId && paymentAccounts.some(account => account.id === settlement.accountId)
     ? settlement.accountId
-    : accounts[0]?.id ?? '';
+    : paymentAccounts[0]?.id ?? '';
 
   const settle = () => {
     startSettleTransition(async () => {
@@ -236,17 +237,18 @@ function todayDate() {
 
 function SettlementFormModal({ accounts, onClose }: { accounts: Account[]; onClose: () => void }) {
   const router = useRouter();
+  const availableAccounts = accounts.filter(account => !account.deletedAt);
   const [direction, setDirection] = useState<'LENT' | 'BORROWED'>('LENT');
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(todayDate);
   const [dueDate, setDueDate] = useState('');
-  const [accountId, setAccountId] = useState(accounts[0]?.id ?? '');
+  const [accountId, setAccountId] = useState(availableAccounts[0]?.id ?? '');
   const [counterpartyName, setCounterpartyName] = useState('');
   const [counterpartyEmail, setCounterpartyEmail] = useState('');
   const [note, setNote] = useState('');
   const [isPending, startTransition] = useTransition();
   const amountValue = Number(amount);
-  const canSubmit = amountValue > 0 && !!accountId && counterpartyName.trim().length > 0;
+  const canSubmit = Number.isFinite(amountValue) && amountValue >= 0.01 && !!accountId && counterpartyName.trim().length > 0;
 
   const submit = () => {
     startTransition(async () => {
@@ -287,7 +289,7 @@ function SettlementFormModal({ accounts, onClose }: { accounts: Account[]; onClo
         <input aria-label="Osoba rozliczenia" placeholder="Osoba" value={counterpartyName} onChange={event => setCounterpartyName(event.target.value)} style={inputStyle} />
         <input aria-label="Kwota rozliczenia" placeholder="Kwota" type="number" min="0.01" step="0.01" value={amount} onChange={event => setAmount(event.target.value)} style={inputStyle} />
         <select aria-label="Konto rozliczenia" value={accountId} onChange={event => setAccountId(event.target.value)} style={inputStyle}>
-          {accounts.map(account => <option key={account.id} value={account.id}>{account.name} · {account.currency}</option>)}
+          {availableAccounts.map(account => <option key={account.id} value={account.id}>{account.name} · {account.currency}</option>)}
         </select>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <input aria-label="Data rozliczenia" type="date" value={date} onChange={event => setDate(event.target.value)} style={inputStyle} />
@@ -305,15 +307,16 @@ function SettlementFormModal({ accounts, onClose }: { accounts: Account[]; onClo
 
 function PaymentModal({ settlement, accounts, onClose }: { settlement: Settlement; accounts: Account[]; onClose: () => void }) {
   const router = useRouter();
+  const paymentAccounts = accounts.filter(account => account.currency === settlement.currency && !account.deletedAt);
   const [amount, setAmount] = useState(String(settlement.remainingAmount.toFixed(2)));
   const [paidAt, setPaidAt] = useState(todayDate);
   const [accountId, setAccountId] = useState(
-    settlement.accountId && accounts.some(account => account.id === settlement.accountId) ? settlement.accountId : accounts[0]?.id ?? ''
+    settlement.accountId && paymentAccounts.some(account => account.id === settlement.accountId) ? settlement.accountId : paymentAccounts[0]?.id ?? ''
   );
   const [note, setNote] = useState('');
   const [isPending, startTransition] = useTransition();
   const amountValue = Number(amount);
-  const canSubmit = amountValue > 0 && !!accountId;
+  const canSubmit = Number.isFinite(amountValue) && amountValue >= 0.01 && !!accountId;
 
   const submit = () => {
     startTransition(async () => {
@@ -345,7 +348,7 @@ function PaymentModal({ settlement, accounts, onClose }: { settlement: Settlemen
         </Card>
         <input aria-label="Kwota wpłaty" type="number" min="0.01" step="0.01" value={amount} onChange={event => setAmount(event.target.value)} style={inputStyle} />
         <select aria-label="Konto wpłaty" value={accountId} onChange={event => setAccountId(event.target.value)} style={inputStyle}>
-          {accounts.map(account => <option key={account.id} value={account.id}>{account.name} · {account.currency}</option>)}
+          {paymentAccounts.map(account => <option key={account.id} value={account.id}>{account.name} · {account.currency}</option>)}
         </select>
         <input aria-label="Data wpłaty" type="date" value={paidAt} onChange={event => setPaidAt(event.target.value)} style={inputStyle} />
         <input aria-label="Notatka wpłaty" placeholder="Notatka" value={note} onChange={event => setNote(event.target.value)} style={inputStyle} />

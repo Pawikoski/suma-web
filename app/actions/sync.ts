@@ -43,7 +43,7 @@ const transactionUpdateInputSchema = transactionInputSchema.extend({
 
 const settlementInputSchema = z.object({
   direction: z.enum(['LENT', 'BORROWED']),
-  amount: z.coerce.number().positive('Podaj kwotę większą od zera.'),
+  amount: z.coerce.number().refine(Number.isFinite, 'Podaj poprawną kwotę.').min(0.01, 'Podaj kwotę co najmniej 0,01.'),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   accountId: z.string().min(1),
@@ -56,7 +56,7 @@ const settlementInputSchema = z.object({
 const settlementPaymentInputSchema = z.object({
   settlementId: z.string().min(1),
   accountId: z.string().min(1),
-  amount: z.coerce.number().positive('Podaj kwotę większą od zera.'),
+  amount: z.coerce.number().refine(Number.isFinite, 'Podaj poprawną kwotę.').min(0.01, 'Podaj kwotę co najmniej 0,01.'),
   paidAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   note: z.string().trim().max(500).optional().default(''),
 });
@@ -148,7 +148,8 @@ const accountInterestInputSchema = z.object({
   path: ['endDate'],
 });
 
-const money = (value: number) => value.toFixed(2);
+const roundMoney = (value: number) => Math.round(value * 100) / 100;
+const money = (value: number) => roundMoney(value).toFixed(2);
 const nowIso = () => new Date().toISOString();
 const dateToNoonUtc = (date: string) => `${date}T12:00:00.000Z`;
 
@@ -894,6 +895,7 @@ export async function createSettlementAction(input: unknown): Promise<ActionResu
   }
 
   const data = parsed.data;
+  const amount = roundMoney(data.amount);
   const changes = await getServerChanges();
   if (!changes) return { ok: false, message: 'Nie udało się pobrać aktualnych danych.' };
 
@@ -904,14 +906,14 @@ export async function createSettlementAction(input: unknown): Promise<ActionResu
   const transactionId = crypto.randomUUID();
   const settlementId = crypto.randomUUID();
   const transactionType = data.direction === 'LENT' ? 'EXPENSE' : 'INCOME';
-  const balanceDelta = data.direction === 'LENT' ? -data.amount : data.amount;
+  const balanceDelta = data.direction === 'LENT' ? -amount : amount;
   const sync = await postSyncChanges({
     accounts: [cloneAccountWithBalance(account, parseFloat(account.balance) + balanceDelta, updatedAt)],
     transactions: [
       ledgerTransactionPayload({
         id: transactionId,
         type: transactionType,
-        amount: data.amount,
+        amount,
         account,
         date: data.date,
         note: `Rozliczenie: ${data.counterpartyName}`,
@@ -926,7 +928,7 @@ export async function createSettlementAction(input: unknown): Promise<ActionResu
         transaction_id: transactionId,
         counterparty_name: data.counterpartyName,
         counterparty_email: data.counterpartyEmail || null,
-        total_amount: money(data.amount),
+        total_amount: money(amount),
         currency: account.currency,
         note: data.note || null,
         due_date: data.dueDate ? dateToNoonUtc(data.dueDate) : null,
@@ -970,20 +972,21 @@ async function addSettlementPayment({
 
   const account = changes.accounts.find(a => a.id === accountId && !a.deleted_at && a.is_active);
   if (!account) return { ok: false, message: 'Wybierz aktywne konto.' };
+  if (account.currency !== settlement.currency) return { ok: false, message: `Wybierz konto w walucie ${settlement.currency}.` };
 
   const repaid = (changes.settlement_payments ?? [])
     .filter(payment => payment.settlement_id === settlement.id && !payment.deleted_at)
     .reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
   const remaining = Math.max(parseFloat(settlement.total_amount) - repaid, 0);
-  const cappedAmount = Math.min(amount, remaining);
-  if (cappedAmount <= 0) return { ok: false, message: 'Rozliczenie nie ma pozostałej kwoty.' };
+  const cappedAmount = roundMoney(Math.min(roundMoney(amount), remaining));
+  if (cappedAmount < 0.01) return { ok: false, message: 'Rozliczenie nie ma pozostałej kwoty.' };
 
   const updatedAt = nowIso();
   const transactionId = crypto.randomUUID();
   const paymentId = crypto.randomUUID();
   const transactionType = settlement.direction === 'LENT' ? 'INCOME' : 'EXPENSE';
   const balanceDelta = settlement.direction === 'LENT' ? cappedAmount : -cappedAmount;
-  const isFullyPaid = cappedAmount >= remaining;
+  const isFullyPaid = roundMoney(remaining - cappedAmount) < 0.01;
   const sync = await postSyncChanges({
     accounts: [cloneAccountWithBalance(account, parseFloat(account.balance) + balanceDelta, updatedAt)],
     transactions: [
