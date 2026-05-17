@@ -14,6 +14,15 @@ export interface Account {
   sortOrder: number;
   includeInNetWorth: boolean;
   notes: string | null;
+  liabilityKind: string | null;
+  creditLimit: number | null;
+  statementDay: number | null;
+  paymentDueDay: number | null;
+  liabilityPrincipal: number | null;
+  liabilityMonthlyPayment: number | null;
+  paymentAccountId: string | null;
+  creditCardLast4: string | null;
+  creditCardTheme: string | null;
   updatedAt: string;
   deletedAt: string | null;
   version: number;

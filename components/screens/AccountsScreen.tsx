@@ -270,6 +270,17 @@ function AccountFormModal({ account, onClose }: { account?: Account; onClose: ()
   const [currency, setCurrency] = useState(account?.currency ?? 'PLN');
   const [includeInNetWorth, setIncludeInNetWorth] = useState(account?.includeInNetWorth ?? true);
   const [notes, setNotes] = useState(account?.notes ?? '');
+  const [liabilityKind, setLiabilityKind] = useState<'CREDIT_CARD' | 'LOAN' | 'MORTGAGE' | 'INSTALLMENT_LOAN' | 'OTHER'>(
+    (account?.liabilityKind as 'CREDIT_CARD' | 'LOAN' | 'MORTGAGE' | 'INSTALLMENT_LOAN' | 'OTHER') ?? 'CREDIT_CARD'
+  );
+  const [creditLimit, setCreditLimit] = useState(account?.creditLimit === null || account?.creditLimit === undefined ? '' : String(account.creditLimit));
+  const [statementDay, setStatementDay] = useState(account?.statementDay === null || account?.statementDay === undefined ? '' : String(account.statementDay));
+  const [paymentDueDay, setPaymentDueDay] = useState(account?.paymentDueDay === null || account?.paymentDueDay === undefined ? '' : String(account.paymentDueDay));
+  const [paymentAccountId, setPaymentAccountId] = useState(account?.paymentAccountId ?? '');
+  const [creditCardLast4, setCreditCardLast4] = useState(account?.creditCardLast4 ?? '');
+  const [creditCardTheme, setCreditCardTheme] = useState(account?.creditCardTheme ?? '#4F46E5');
+  const [liabilityPrincipal, setLiabilityPrincipal] = useState(account?.liabilityPrincipal === null || account?.liabilityPrincipal === undefined ? '' : String(account.liabilityPrincipal));
+  const [liabilityInstallment, setLiabilityInstallment] = useState(account?.liabilityMonthlyPayment === null || account?.liabilityMonthlyPayment === undefined ? '' : String(account.liabilityMonthlyPayment));
   const [interestEnabled, setInterestEnabled] = useState(Boolean(initialInterest));
   const [annualRatePercent, setAnnualRatePercent] = useState(initialInterest ? String(initialInterest.annualRatePercent) : '');
   const [useFullBalance, setUseFullBalance] = useState(initialInterest?.baseAmount === null);
@@ -293,6 +304,19 @@ function AccountFormModal({ account, onClose }: { account?: Account; onClose: ()
   const incomeCategories = categories.filter(category => category.types.includes('INCOME'));
   const targetAccounts = accounts.filter(item => item.id !== account?.id);
   const effectiveCategory = availableCategories.some(item => item.value === category) ? category : 'BASIC';
+  const isLiability = effectiveCategory === 'LIABILITY';
+  const isCreditCard = isLiability && liabilityKind === 'CREDIT_CARD';
+  const paymentAccountOptions = accounts.filter(item =>
+    item.id !== account?.id &&
+    item.category !== 'LIABILITY' &&
+    item.currency === currency &&
+    !item.deletedAt
+  );
+  const creditLimitValue = creditLimit.trim() ? Number(creditLimit) : null;
+  const statementDayValue = statementDay.trim() ? Number(statementDay) : null;
+  const paymentDueDayValue = paymentDueDay.trim() ? Number(paymentDueDay) : null;
+  const liabilityPrincipalValue = liabilityPrincipal.trim() ? Number(liabilityPrincipal) : null;
+  const liabilityInstallmentValue = liabilityInstallment.trim() ? Number(liabilityInstallment) : null;
   const interestValid = !interestEnabled || (
     Number.isFinite(rateValue) && rateValue >= 0 &&
     Number.isFinite(taxValue) && taxValue >= 0 &&
@@ -300,7 +324,20 @@ function AccountFormModal({ account, onClose }: { account?: Account; onClose: ()
     endDate >= startDate &&
     (afterMaturityAction !== 'TRANSFER' || Boolean(targetAccountId))
   );
-  const canSubmit = name.trim().length > 0 && Number.isFinite(amountValue) && currency.trim().length >= 3 && interestValid;
+  const liabilityValid = !isLiability || (
+    amountValue >= 0 &&
+    (!isCreditCard || (
+      (creditLimitValue === null || (Number.isFinite(creditLimitValue) && creditLimitValue >= 0)) &&
+      (statementDayValue === null || (Number.isInteger(statementDayValue) && statementDayValue >= 1 && statementDayValue <= 31)) &&
+      (paymentDueDayValue === null || (Number.isInteger(paymentDueDayValue) && paymentDueDayValue >= 1 && paymentDueDayValue <= 31)) &&
+      (!paymentAccountId || paymentAccountOptions.some(item => item.id === paymentAccountId))
+    )) &&
+    (isCreditCard || (
+      (liabilityPrincipalValue === null || (Number.isFinite(liabilityPrincipalValue) && liabilityPrincipalValue >= 0)) &&
+      (liabilityInstallmentValue === null || (Number.isFinite(liabilityInstallmentValue) && liabilityInstallmentValue >= 0))
+    ))
+  );
+  const canSubmit = name.trim().length > 0 && Number.isFinite(amountValue) && currency.trim().length >= 3 && interestValid && liabilityValid;
 
   const submit = () => {
     startTransition(async () => {
@@ -313,6 +350,15 @@ function AccountFormModal({ account, onClose }: { account?: Account; onClose: ()
         currency,
         includeInNetWorth,
         notes,
+        liabilityKind: isLiability ? liabilityKind : null,
+        creditLimit: isCreditCard ? creditLimitValue : null,
+        statementDay: isCreditCard ? statementDayValue : null,
+        paymentDueDay: isCreditCard ? paymentDueDayValue : null,
+        paymentAccountId: isCreditCard ? paymentAccountId || null : null,
+        creditCardLast4: isCreditCard ? creditCardLast4 || null : null,
+        creditCardTheme: isCreditCard ? creditCardTheme : null,
+        liabilityPrincipal: isLiability && !isCreditCard ? liabilityPrincipalValue : null,
+        liabilityMonthlyPayment: isLiability && !isCreditCard ? liabilityInstallmentValue : null,
       };
       const result = account ? await updateAccountAction(payload) : await createAccountAction(payload);
 
@@ -384,6 +430,40 @@ function AccountFormModal({ account, onClose }: { account?: Account; onClose: ()
             Wliczaj do majątku
           </label>
           <input aria-label="Notatka konta" placeholder="Notatka" value={notes} onChange={event => setNotes(event.target.value)} style={inputStyle} />
+          {isLiability && (
+            <div style={{ border: `1px solid ${T.border}`, borderRadius: 12, padding: 14, display: 'grid', gap: 12 }}>
+              <div style={{ color: T.dark, fontSize: 13, fontWeight: 850 }}>Szczegóły zobowiązania</div>
+              <select aria-label="Typ zobowiązania" value={liabilityKind} onChange={event => setLiabilityKind(event.target.value as typeof liabilityKind)} style={inputStyle}>
+                <option value="CREDIT_CARD">Karta kredytowa</option>
+                <option value="LOAN">Kredyt/pożyczka</option>
+                <option value="MORTGAGE">Hipoteka</option>
+                <option value="INSTALLMENT_LOAN">Kredyt ratalny</option>
+                <option value="OTHER">Inne zobowiązanie</option>
+              </select>
+              {isCreditCard ? (
+                <>
+                  <select aria-label="Konto do spłat karty" value={paymentAccountId} onChange={event => setPaymentAccountId(event.target.value)} style={inputStyle}>
+                    <option value="">Bez konta do spłat</option>
+                    {paymentAccountOptions.map(item => <option key={item.id} value={item.id}>{item.name} · {item.currency}</option>)}
+                  </select>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <input aria-label="Limit karty" type="number" min="0" step="0.01" placeholder="Limit" value={creditLimit} onChange={event => setCreditLimit(event.target.value)} style={inputStyle} />
+                    <input aria-label="Ostatnie cyfry karty" inputMode="numeric" maxLength={4} placeholder="Ostatnie 4 cyfry" value={creditCardLast4} onChange={event => setCreditCardLast4(event.target.value.replace(/\D/g, '').slice(0, 4))} style={inputStyle} />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <input aria-label="Dzień wyciągu" type="number" min="1" max="31" placeholder="Dzień wyciągu" value={statementDay} onChange={event => setStatementDay(event.target.value)} style={inputStyle} />
+                    <input aria-label="Dzień spłaty" type="number" min="1" max="31" placeholder="Dzień spłaty" value={paymentDueDay} onChange={event => setPaymentDueDay(event.target.value)} style={inputStyle} />
+                  </div>
+                  <input aria-label="Kolor karty" type="color" value={creditCardTheme} onChange={event => setCreditCardTheme(event.target.value)} style={{ ...inputStyle, padding: 4 }} />
+                </>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <input aria-label="Kapitał zobowiązania" type="number" min="0" step="0.01" placeholder="Kapitał" value={liabilityPrincipal} onChange={event => setLiabilityPrincipal(event.target.value)} style={inputStyle} />
+                  <input aria-label="Miesięczna rata zobowiązania" type="number" min="0" step="0.01" placeholder="Rata miesięczna" value={liabilityInstallment} onChange={event => setLiabilityInstallment(event.target.value)} style={inputStyle} />
+                </div>
+              )}
+            </div>
+          )}
           {account && (
             <div style={{ border: `1px solid ${T.border}`, borderRadius: 12, padding: 14, display: 'grid', gap: 12 }}>
               <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, color: T.dark, fontSize: 13, fontWeight: 850 }}>

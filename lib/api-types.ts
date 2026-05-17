@@ -15,6 +15,15 @@ export interface SyncAccount {
   icon_bg: string | null;
   icon_color: string | null;
   notes: string | null;
+  liability_kind: string | null;
+  credit_limit: string | null;
+  statement_day: number | null;
+  payment_due_day: number | null;
+  liability_principal: string | null;
+  liability_monthly_payment: string | null;
+  payment_account_id: string | null;
+  credit_card_last4: string | null;
+  credit_card_theme: string | null;
   updated_at: string;
   deleted_at: string | null;
   version: number;

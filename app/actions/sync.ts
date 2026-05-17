@@ -89,6 +89,15 @@ const accountInputSchema = z.object({
   currency: z.string().trim().min(3).max(12).transform(value => value.toUpperCase()),
   includeInNetWorth: z.coerce.boolean().optional().default(true),
   notes: z.string().trim().max(1000).optional().default(''),
+  liabilityKind: z.enum(['CREDIT_CARD', 'LOAN', 'MORTGAGE', 'INSTALLMENT_LOAN', 'OTHER']).nullable().optional(),
+  creditLimit: z.coerce.number().nonnegative().nullable().optional(),
+  statementDay: z.coerce.number().int().min(1).max(31).nullable().optional(),
+  paymentDueDay: z.coerce.number().int().min(1).max(31).nullable().optional(),
+  liabilityPrincipal: z.coerce.number().nonnegative().nullable().optional(),
+  liabilityMonthlyPayment: z.coerce.number().nonnegative().nullable().optional(),
+  paymentAccountId: z.string().nullable().optional(),
+  creditCardLast4: z.string().trim().regex(/^\d{0,4}$/).nullable().optional(),
+  creditCardTheme: z.string().trim().regex(/^#[0-9A-Fa-f]{6}$/).nullable().optional(),
 });
 
 const accountUpdateInputSchema = accountInputSchema.extend({
@@ -150,6 +159,11 @@ const accountInterestInputSchema = z.object({
 
 const roundMoney = (value: number) => Math.round(value * 100) / 100;
 const money = (value: number) => roundMoney(value).toFixed(2);
+const nullableMoney = (value: number | string | null | undefined) => {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) ? money(parsed) : null;
+};
 const nowIso = () => new Date().toISOString();
 const dateToNoonUtc = (date: string) => `${date}T12:00:00.000Z`;
 
@@ -169,10 +183,45 @@ function cloneAccountWithBalance(account: SyncAccount, balance: number, updatedA
     icon_bg: account.icon_bg ?? '#FFFFFF',
     icon_color: account.icon_color ?? '#000000',
     notes: account.notes,
+    liability_kind: account.liability_kind,
+    credit_limit: account.credit_limit,
+    statement_day: account.statement_day,
+    payment_due_day: account.payment_due_day,
+    liability_principal: account.liability_principal,
+    liability_monthly_payment: account.liability_monthly_payment,
+    payment_account_id: account.payment_account_id,
+    credit_card_last4: account.credit_card_last4,
+    credit_card_theme: account.credit_card_theme,
     updated_at: updatedAt,
     deleted_at: null,
     version: account.version,
   };
+}
+
+function accountBalanceDelta(
+  account: SyncAccount,
+  type: SyncTransaction['type'],
+  role: 'FROM' | 'TO',
+  amount: number
+) {
+  const normalizedAmount = Math.abs(amount);
+  const baseDelta = type === 'INCOME'
+    ? (role === 'FROM' ? normalizedAmount : 0)
+    : type === 'EXPENSE'
+      ? (role === 'FROM' ? -normalizedAmount : 0)
+      : (role === 'FROM' ? -normalizedAmount : normalizedAmount);
+  return account.category === 'LIABILITY' ? -baseDelta : baseDelta;
+}
+
+function balanceAfterTransaction(
+  account: SyncAccount,
+  balance: number,
+  type: SyncTransaction['type'],
+  role: 'FROM' | 'TO',
+  amount: number,
+  multiplier = 1
+) {
+  return balance + accountBalanceDelta(account, type, role, amount) * multiplier;
 }
 
 function accountAppearance(type: 'CASH' | 'BANK' | 'PROPERTY' | 'INVESTMENT') {
@@ -195,6 +244,28 @@ function normalizeAccountCategory(type: 'CASH' | 'BANK' | 'PROPERTY' | 'INVESTME
   return category;
 }
 
+function validateAccountLiabilityInput(
+  data: z.infer<typeof accountInputSchema>,
+  existingId: string | null,
+  changes: SyncServerChanges
+) {
+  const category = normalizeAccountCategory(data.type, data.category);
+  if (!Number.isFinite(data.balance)) return 'Podaj poprawne saldo konta.';
+  if (category !== 'LIABILITY') return null;
+  if (data.balance < 0) return 'Saldo zobowiązania wpisz jako wartość dodatnią.';
+
+  const kind = data.liabilityKind ?? 'OTHER';
+  if (kind !== 'CREDIT_CARD') return null;
+  const paymentAccountId = data.paymentAccountId ?? null;
+  if (!paymentAccountId) return null;
+  if (paymentAccountId === existingId) return 'Karta kredytowa nie może spłacać samej siebie.';
+  const paymentAccount = changes.accounts.find(account => account.id === paymentAccountId && !account.deleted_at && account.is_active);
+  if (!paymentAccount) return 'Wybierz aktywne konto do spłat.';
+  if (paymentAccount.category === 'LIABILITY') return 'Konto do spłat musi być kontem aktywów.';
+  if (paymentAccount.currency !== data.currency) return 'Konto do spłat musi mieć tę samą walutę.';
+  return null;
+}
+
 function accountPayload(
   data: z.infer<typeof accountInputSchema>,
   existing: SyncAccount | undefined,
@@ -209,6 +280,8 @@ function accountPayload(
       }
     : accountAppearance(data.type);
   const category = normalizeAccountCategory(data.type, data.category);
+  const liabilityKind = category === 'LIABILITY' ? data.liabilityKind ?? existing?.liability_kind ?? 'OTHER' : null;
+  const isCreditCard = liabilityKind === 'CREDIT_CARD';
 
   return {
     id: existing?.id ?? crypto.randomUUID(),
@@ -225,6 +298,15 @@ function accountPayload(
     icon_bg: appearance.icon_bg,
     icon_color: appearance.icon_color,
     notes: data.notes || null,
+    liability_kind: liabilityKind,
+    credit_limit: isCreditCard ? nullableMoney(data.creditLimit ?? existing?.credit_limit ?? null) : null,
+    statement_day: isCreditCard ? data.statementDay ?? existing?.statement_day ?? null : null,
+    payment_due_day: isCreditCard ? data.paymentDueDay ?? existing?.payment_due_day ?? null : null,
+    liability_principal: category === 'LIABILITY' && !isCreditCard ? nullableMoney(data.liabilityPrincipal ?? existing?.liability_principal ?? null) : null,
+    liability_monthly_payment: category === 'LIABILITY' && !isCreditCard ? nullableMoney(data.liabilityMonthlyPayment ?? existing?.liability_monthly_payment ?? null) : null,
+    payment_account_id: isCreditCard ? data.paymentAccountId ?? existing?.payment_account_id ?? null : null,
+    credit_card_last4: isCreditCard ? (data.creditCardLast4 ?? existing?.credit_card_last4 ?? null) || null : null,
+    credit_card_theme: isCreditCard ? data.creditCardTheme ?? existing?.credit_card_theme ?? '#4F46E5' : null,
     updated_at: updatedAt,
     deleted_at: null,
     version: existing?.version ?? 1,
@@ -390,13 +472,22 @@ export async function createTransactionAction(input: unknown): Promise<ActionRes
   const transactionId = crypto.randomUUID();
   const splitId = crypto.randomUUID();
   const amount = data.amount;
-  const nextFromBalance = data.type === 'income'
-    ? parseFloat(fromAccount.balance) + amount
-    : parseFloat(fromAccount.balance) - amount;
+  const transactionType = data.type.toUpperCase() as SyncTransaction['type'];
+  const nextFromBalance = balanceAfterTransaction(
+    fromAccount,
+    parseFloat(fromAccount.balance),
+    transactionType,
+    'FROM',
+    amount
+  );
 
   const accounts = [cloneAccountWithBalance(fromAccount, nextFromBalance, updatedAt)];
   if (toAccount) {
-    accounts.push(cloneAccountWithBalance(toAccount, parseFloat(toAccount.balance) + amount, updatedAt));
+    accounts.push(cloneAccountWithBalance(
+      toAccount,
+      balanceAfterTransaction(toAccount, parseFloat(toAccount.balance), 'TRANSFER', 'TO', amount),
+      updatedAt
+    ));
   }
 
   const sync = await postSyncChanges({
@@ -404,7 +495,7 @@ export async function createTransactionAction(input: unknown): Promise<ActionRes
     transactions: [
       {
         id: transactionId,
-        type: data.type.toUpperCase(),
+        type: transactionType,
         total_amount: money(amount),
         from_account_id: fromAccount.id,
         to_account_id: toAccount?.id ?? null,
@@ -767,28 +858,36 @@ export async function updateTransactionAction(input: unknown): Promise<ActionRes
     accountBalances.set(accountId, balance);
     return balance;
   };
-  const addBalance = (accountId: string, delta: number) => {
+  const applyTransactionEffect = (
+    accountId: string,
+    type: SyncTransaction['type'],
+    role: 'FROM' | 'TO',
+    amount: number,
+    multiplier = 1
+  ) => {
+    const account = changes.accounts.find(a => a.id === accountId && !a.deleted_at);
     const current = getBalance(accountId);
-    if (current === null) return false;
-    accountBalances.set(accountId, current + delta);
+    if (!account || current === null) return false;
+    accountBalances.set(accountId, balanceAfterTransaction(account, current, type, role, amount, multiplier));
     return true;
   };
 
   const previousAmount = parseFloat(transaction.total_amount);
-  if (transaction.type === 'INCOME') {
-    if (!addBalance(transaction.from_account_id, -previousAmount)) return { ok: false, message: 'Nie znaleziono konta transakcji.' };
-  } else {
-    if (!addBalance(transaction.from_account_id, previousAmount)) return { ok: false, message: 'Nie znaleziono konta transakcji.' };
-    if (transaction.type === 'TRANSFER' && transaction.to_account_id && !addBalance(transaction.to_account_id, -previousAmount)) {
+  if (!applyTransactionEffect(transaction.from_account_id, transaction.type, 'FROM', previousAmount, -1)) {
+    return { ok: false, message: 'Nie znaleziono konta transakcji.' };
+  }
+  if (transaction.type === 'TRANSFER' && transaction.to_account_id) {
+    if (!applyTransactionEffect(transaction.to_account_id, transaction.type, 'TO', previousAmount, -1)) {
       return { ok: false, message: 'Nie znaleziono konta docelowego transferu.' };
     }
   }
 
-  if (data.type === 'income') {
-    if (!addBalance(fromAccount.id, data.amount)) return { ok: false, message: 'Nie znaleziono konta transakcji.' };
-  } else {
-    if (!addBalance(fromAccount.id, -data.amount)) return { ok: false, message: 'Nie znaleziono konta transakcji.' };
-    if (data.type === 'transfer' && toAccount && !addBalance(toAccount.id, data.amount)) {
+  const nextType = data.type.toUpperCase() as SyncTransaction['type'];
+  if (!applyTransactionEffect(fromAccount.id, nextType, 'FROM', data.amount)) {
+    return { ok: false, message: 'Nie znaleziono konta transakcji.' };
+  }
+  if (nextType === 'TRANSFER' && toAccount) {
+    if (!applyTransactionEffect(toAccount.id, nextType, 'TO', data.amount)) {
       return { ok: false, message: 'Nie znaleziono konta docelowego transferu.' };
     }
   }
@@ -850,17 +949,24 @@ export async function deleteTransactionsAction(transactionIds: string[]): Promis
   for (const transaction of transactions as SyncTransaction[]) {
     const amount = parseFloat(transaction.total_amount);
     const fromBalance = getAccountBalance(transaction.from_account_id);
+    const fromAccount = changes.accounts.find(a => a.id === transaction.from_account_id && !a.deleted_at);
     if (fromBalance === null) return { ok: false, message: 'Nie znaleziono konta transakcji.' };
+    if (!fromAccount) return { ok: false, message: 'Nie znaleziono konta transakcji.' };
 
     accountBalances.set(
       transaction.from_account_id,
-      transaction.type === 'INCOME' ? fromBalance - amount : fromBalance + amount
+      balanceAfterTransaction(fromAccount, fromBalance, transaction.type, 'FROM', amount, -1)
     );
 
     if (transaction.type === 'TRANSFER' && transaction.to_account_id) {
       const toBalance = getAccountBalance(transaction.to_account_id);
+      const toAccount = changes.accounts.find(a => a.id === transaction.to_account_id && !a.deleted_at);
       if (toBalance === null) return { ok: false, message: 'Nie znaleziono konta docelowego transferu.' };
-      accountBalances.set(transaction.to_account_id, toBalance - amount);
+      if (!toAccount) return { ok: false, message: 'Nie znaleziono konta docelowego transferu.' };
+      accountBalances.set(
+        transaction.to_account_id,
+        balanceAfterTransaction(toAccount, toBalance, transaction.type, 'TO', amount, -1)
+      );
     }
   }
 
@@ -906,9 +1012,12 @@ export async function createSettlementAction(input: unknown): Promise<ActionResu
   const transactionId = crypto.randomUUID();
   const settlementId = crypto.randomUUID();
   const transactionType = data.direction === 'LENT' ? 'EXPENSE' : 'INCOME';
-  const balanceDelta = data.direction === 'LENT' ? -amount : amount;
   const sync = await postSyncChanges({
-    accounts: [cloneAccountWithBalance(account, parseFloat(account.balance) + balanceDelta, updatedAt)],
+    accounts: [cloneAccountWithBalance(
+      account,
+      balanceAfterTransaction(account, parseFloat(account.balance), transactionType, 'FROM', amount),
+      updatedAt
+    )],
     transactions: [
       ledgerTransactionPayload({
         id: transactionId,
@@ -985,10 +1094,13 @@ async function addSettlementPayment({
   const transactionId = crypto.randomUUID();
   const paymentId = crypto.randomUUID();
   const transactionType = settlement.direction === 'LENT' ? 'INCOME' : 'EXPENSE';
-  const balanceDelta = settlement.direction === 'LENT' ? cappedAmount : -cappedAmount;
   const isFullyPaid = roundMoney(remaining - cappedAmount) < 0.01;
   const sync = await postSyncChanges({
-    accounts: [cloneAccountWithBalance(account, parseFloat(account.balance) + balanceDelta, updatedAt)],
+    accounts: [cloneAccountWithBalance(
+      account,
+      balanceAfterTransaction(account, parseFloat(account.balance), transactionType, 'FROM', cappedAmount),
+      updatedAt
+    )],
     transactions: [
       ledgerTransactionPayload({
         id: transactionId,
@@ -1101,17 +1213,24 @@ export async function deleteSettlementAction(settlementId: string): Promise<Acti
   for (const transaction of transactions) {
     const amount = parseFloat(transaction.total_amount);
     const fromBalance = getAccountBalance(transaction.from_account_id);
+    const fromAccount = changes.accounts.find(a => a.id === transaction.from_account_id && !a.deleted_at);
     if (fromBalance === null) return { ok: false, message: 'Nie znaleziono konta powiązanej transakcji.' };
+    if (!fromAccount) return { ok: false, message: 'Nie znaleziono konta powiązanej transakcji.' };
 
     accountBalances.set(
       transaction.from_account_id,
-      transaction.type === 'INCOME' ? fromBalance - amount : fromBalance + amount
+      balanceAfterTransaction(fromAccount, fromBalance, transaction.type, 'FROM', amount, -1)
     );
 
     if (transaction.type === 'TRANSFER' && transaction.to_account_id) {
       const toBalance = getAccountBalance(transaction.to_account_id);
+      const toAccount = changes.accounts.find(a => a.id === transaction.to_account_id && !a.deleted_at);
       if (toBalance === null) return { ok: false, message: 'Nie znaleziono konta docelowego powiązanej transakcji.' };
-      accountBalances.set(transaction.to_account_id, toBalance - amount);
+      if (!toAccount) return { ok: false, message: 'Nie znaleziono konta docelowego powiązanej transakcji.' };
+      accountBalances.set(
+        transaction.to_account_id,
+        balanceAfterTransaction(toAccount, toBalance, transaction.type, 'TO', amount, -1)
+      );
     }
   }
 
@@ -1240,6 +1359,8 @@ export async function createAccountAction(input: unknown): Promise<ActionResult>
   if (changes.accounts.some(account => !account.deleted_at && normalizeName(account.name) === normalizedName)) {
     return { ok: false, message: 'Konto o tej nazwie już istnieje.' };
   }
+  const liabilityError = validateAccountLiabilityInput(parsed.data, null, changes);
+  if (liabilityError) return { ok: false, message: liabilityError };
 
   const updatedAt = nowIso();
   const maxSort = Math.max(0, ...changes.accounts.map(account => account.sort_order));
@@ -1270,6 +1391,8 @@ export async function updateAccountAction(input: unknown): Promise<ActionResult>
   if (changes.accounts.some(account => account.id !== existing.id && !account.deleted_at && normalizeName(account.name) === normalizedName)) {
     return { ok: false, message: 'Konto o tej nazwie już istnieje.' };
   }
+  const liabilityError = validateAccountLiabilityInput(parsed.data, existing.id, changes);
+  if (liabilityError) return { ok: false, message: liabilityError };
 
   const updatedAt = nowIso();
   const payload = accountPayload(parsed.data, existing, existing.sort_order, updatedAt);
@@ -1889,6 +2012,15 @@ function importedAccountPayload(name: string, balance: number, currency: string,
     icon_bg: '#EEF2FF',
     icon_color: '#6366F1',
     notes: 'Utworzone podczas importu web',
+    liability_kind: null,
+    credit_limit: null,
+    statement_day: null,
+    payment_due_day: null,
+    liability_principal: null,
+    liability_monthly_payment: null,
+    payment_account_id: null,
+    credit_card_last4: null,
+    credit_card_theme: null,
     updated_at: updatedAt,
     deleted_at: null,
     version: 1,
@@ -1991,12 +2123,21 @@ export async function confirmImportAnalysisAction(input: unknown): Promise<Actio
     const amount = imported.amount;
 
     const fromBalance = balanceByAccountId.get(fromAccount.id) ?? parseFloat(fromAccount.balance);
-    if (!fixedBalanceByAccountId.has(fromAccount.id) && imported.type === 'INCOME') balanceByAccountId.set(fromAccount.id, fromBalance + amount);
-    if (!fixedBalanceByAccountId.has(fromAccount.id) && imported.type === 'EXPENSE') balanceByAccountId.set(fromAccount.id, fromBalance - amount);
-    if (imported.type === 'TRANSFER' && toAccount) {
-      if (!fixedBalanceByAccountId.has(fromAccount.id)) balanceByAccountId.set(fromAccount.id, fromBalance - amount);
+    const importedType = imported.type as SyncTransaction['type'];
+    if (!fixedBalanceByAccountId.has(fromAccount.id)) {
+      balanceByAccountId.set(
+        fromAccount.id,
+        balanceAfterTransaction(fromAccount, fromBalance, importedType, 'FROM', amount)
+      );
+    }
+    if (importedType === 'TRANSFER' && toAccount) {
       const toBalance = balanceByAccountId.get(toAccount.id) ?? parseFloat(toAccount.balance);
-      if (!fixedBalanceByAccountId.has(toAccount.id)) balanceByAccountId.set(toAccount.id, toBalance + (imported.amount2 ?? amount));
+      if (!fixedBalanceByAccountId.has(toAccount.id)) {
+        balanceByAccountId.set(
+          toAccount.id,
+          balanceAfterTransaction(toAccount, toBalance, importedType, 'TO', imported.amount2 ?? amount)
+        );
+      }
     }
 
     transactions.push({

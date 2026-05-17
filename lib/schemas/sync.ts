@@ -25,6 +25,15 @@ export const syncAccountSchema = z.object({
   icon_bg: z.string().nullable().optional().default('#FFFFFF'),
   icon_color: z.string().nullable().optional().default('#000000'),
   notes: nullableString,
+  liability_kind: optionalNullableString.default(null),
+  credit_limit: decimalLike.nullable().optional().default(null),
+  statement_day: z.number().nullable().optional().default(null),
+  payment_due_day: z.number().nullable().optional().default(null),
+  liability_principal: decimalLike.nullable().optional().default(null),
+  liability_monthly_payment: decimalLike.nullable().optional().default(null),
+  payment_account_id: optionalNullableString.default(null),
+  credit_card_last4: optionalNullableString.default(null),
+  credit_card_theme: optionalNullableString.default(null),
 });
 
 export const syncCategorySchema = z.object({
