@@ -4,6 +4,7 @@ export const importTransactionSchema = z.object({
   date: z.string(),
   type: z.enum(['EXPENSE', 'INCOME', 'TRANSFER']),
   from_account: z.string(),
+  to_category_parent: z.string().nullable().optional(),
   to_category: z.string().nullable().optional(),
   to_account: z.string().nullable().optional(),
   amount: z.number(),

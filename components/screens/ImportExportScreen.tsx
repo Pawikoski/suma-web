@@ -225,7 +225,7 @@ function ImportPreview({
                   <td style={tdStyle}>{tx.date}</td>
                   <td style={tdStyle}>{transactionTypeLabel(tx.type)}</td>
                   <td style={tdStyle}>{tx.from_account}</td>
-                  <td style={tdStyle}>{tx.type === 'TRANSFER' ? tx.to_account : tx.to_category || 'Inne'}</td>
+                  <td style={tdStyle}>{tx.type === 'TRANSFER' ? tx.to_account : [tx.to_category_parent, tx.to_category || 'Inne'].filter(Boolean).join(' / ')}</td>
                   <td style={{ ...tdStyle, color: T.muted }}>{tx.notes || '-'}</td>
                   <td style={{ ...tdStyle, textAlign: 'right', color: tx.type === 'EXPENSE' ? T.expense : T.income, fontWeight: 850 }}>
                     <PrivacyAmount amount={tx.type === 'EXPENSE' ? -tx.amount : tx.amount} signed />

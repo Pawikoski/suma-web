@@ -21,6 +21,7 @@ import {
   SyncTransaction,
   SyncTransactionSplit,
 } from '@/lib/api-types';
+import { inferImportedCategoryHierarchy } from '@/lib/import-category-hierarchy';
 import { importAnalysisSchema } from '@/lib/schemas/import-analysis';
 
 export type ActionResult =
@@ -2027,7 +2028,13 @@ function importedAccountPayload(name: string, balance: number, currency: string,
   };
 }
 
-function importedCategoryPayload(name: string, type: 'EXPENSE' | 'INCOME', sortOrder: number, updatedAt: string) {
+function importedCategoryPayload(
+  name: string,
+  type: 'EXPENSE' | 'INCOME',
+  sortOrder: number,
+  updatedAt: string,
+  parentCategoryId: string | null = null
+) {
   return {
     id: crypto.randomUUID(),
     name,
@@ -2038,7 +2045,7 @@ function importedCategoryPayload(name: string, type: 'EXPENSE' | 'INCOME', sortO
     sort_order: sortOrder,
     is_default: false,
     is_system: false,
-    parent_category_id: null,
+    parent_category_id: parentCategoryId,
     updated_at: updatedAt,
     deleted_at: null,
     version: 1,
@@ -2070,7 +2077,8 @@ export async function confirmImportAnalysisAction(input: unknown): Promise<Actio
   const balanceByAccountId = new Map<string, number>();
   const fixedBalanceByAccountId = new Map<string, number>();
   const accountsToSync = new Map<string, SyncAccount | ReturnType<typeof importedAccountPayload>>();
-  const categoriesToSync = new Map<string, ReturnType<typeof importedCategoryPayload>>();
+  const categoriesToSync = new Map<string, SyncCategory | ReturnType<typeof importedCategoryPayload>>();
+  const importCreatedCategoryIds = new Set<string>();
   let maxAccountSort = Math.max(0, ...changes.accounts.map(account => account.sort_order));
   let maxCategorySort = Math.max(0, ...changes.categories.map(category => category.sort_order));
 
@@ -2096,15 +2104,65 @@ export async function confirmImportAnalysisAction(input: unknown): Promise<Actio
     return account;
   };
 
-  const resolveCategory = (name: string, type: 'EXPENSE' | 'INCOME') => {
-    const normalized = normalizeName(name || 'Import');
-    const existing = categoryByName.get(normalized);
-    if (existing) return existing;
+  const ensureCategoryType = (
+    category: SyncCategory | ReturnType<typeof importedCategoryPayload>,
+    type: 'EXPENSE' | 'INCOME'
+  ) => {
+    if (category.types.includes(type) || category.is_system) return category;
+    const updated = {
+      ...category,
+      types: [...category.types, type],
+      updated_at: updatedAt,
+    };
+    categoryByName.set(normalizeName(updated.name), updated);
+    categoriesToSync.set(updated.id, updated);
+    return updated;
+  };
 
-    const category = importedCategoryPayload(name || 'Import', type, ++maxCategorySort, updatedAt);
+  const resolveSingleCategory = (name: string, type: 'EXPENSE' | 'INCOME', parentCategoryId: string | null = null) => {
+    const displayName = name || 'Import';
+    const normalized = normalizeName(displayName);
+    const existing = categoryByName.get(normalized);
+    if (existing) {
+      const typed = ensureCategoryType(existing, type);
+      if (
+        parentCategoryId &&
+        !typed.parent_category_id &&
+        typed.parent_category_id !== parentCategoryId &&
+        importCreatedCategoryIds.has(typed.id) &&
+        !typed.is_system
+      ) {
+        const reparented = {
+          ...typed,
+          parent_category_id: parentCategoryId,
+          updated_at: updatedAt,
+        };
+        categoryByName.set(normalized, reparented);
+        categoriesToSync.set(reparented.id, reparented);
+        return reparented;
+      }
+      return typed;
+    }
+
+    const category = importedCategoryPayload(displayName, type, ++maxCategorySort, updatedAt, parentCategoryId);
     categoryByName.set(normalized, category);
     categoriesToSync.set(category.id, category);
+    importCreatedCategoryIds.add(category.id);
     return category;
+  };
+
+  const resolveCategory = (name: string, type: 'EXPENSE' | 'INCOME', parentName?: string | null) => {
+    const importedName = name || 'Import';
+    const hierarchy = parentName?.trim()
+      ? { parentName: parentName.trim(), categoryName: importedName.trim() || 'Import' }
+      : inferImportedCategoryHierarchy(importedName);
+    if (!hierarchy.parentName) return resolveSingleCategory(hierarchy.categoryName, type);
+
+    const parent = resolveSingleCategory(hierarchy.parentName, type);
+    if (parent.parent_category_id) {
+      return resolveSingleCategory(importedName, type);
+    }
+    return resolveSingleCategory(hierarchy.categoryName, type, parent.id);
   };
 
   const transactions: Array<Record<string, unknown>> = [];
@@ -2117,7 +2175,11 @@ export async function confirmImportAnalysisAction(input: unknown): Promise<Actio
       : null;
     const category = imported.type === 'TRANSFER'
       ? null
-      : resolveCategory(imported.to_category || (imported.type === 'INCOME' ? 'Przychody z importu' : 'Wydatki z importu'), imported.type);
+      : resolveCategory(
+        imported.to_category || (imported.type === 'INCOME' ? 'Przychody z importu' : 'Wydatki z importu'),
+        imported.type,
+        imported.to_category_parent
+      );
 
     const transactionId = crypto.randomUUID();
     const amount = imported.amount;

@@ -12,6 +12,7 @@ describe('importAnalysisSchema', () => {
           date: '2026-05-10',
           type: 'EXPENSE',
           from_account: 'Cash',
+          to_category_parent: 'Home',
           to_category: 'Food',
           to_account: null,
           amount: 42.5,
@@ -24,7 +25,7 @@ describe('importAnalysisSchema', () => {
       accounts: [{ name: 'Cash', balance: null, currency: 'PLN' }],
     });
 
-    expect(result.transactions[0]).toMatchObject({ type: 'EXPENSE', amount: 42.5 });
+    expect(result.transactions[0]).toMatchObject({ type: 'EXPENSE', amount: 42.5, to_category_parent: 'Home' });
   });
 
   it('rejects unknown transaction types', () => {
