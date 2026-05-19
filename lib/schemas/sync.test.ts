@@ -166,6 +166,98 @@ describe('parseSyncResponse', () => {
     });
   });
 
+  it('validates investment holdings and transactions at the sync boundary', () => {
+    const result = parseSyncResponse({
+      ...baseSyncResponse,
+      server_changes: {
+        ...baseSyncResponse.server_changes,
+        investment_holdings: [
+          {
+            id: 'holding-1',
+            account_id: 'acc-invest',
+            symbol: 'AAPL',
+            name: 'Apple',
+            investment_type: 'STOCK',
+            quantity: 0,
+            unit_price: '100.00',
+            currency: 'PLN',
+            purchase_currency: 'PLN',
+            notes: '',
+            updated_at: '2026-05-01T10:00:00Z',
+            deleted_at: null,
+            version: 1,
+          },
+        ],
+        investment_transactions: [
+          {
+            id: 'investment-tx-1',
+            holding_id: 'holding-1',
+            type: 'BUY',
+            quantity: 2,
+            unit_price: '100.00',
+            currency: 'PLN',
+            date: '2026-05-01T10:00:00Z',
+            notes: '',
+            updated_at: '2026-05-01T10:00:00Z',
+            deleted_at: null,
+            version: 1,
+          },
+        ],
+      },
+    });
+
+    expect(result.server_changes.investment_holdings[0]).toMatchObject({ id: 'holding-1', quantity: 0 });
+    expect(result.server_changes.investment_transactions[0]).toMatchObject({ id: 'investment-tx-1', quantity: 2 });
+  });
+
+  it('rejects invalid investment amounts at the sync boundary', () => {
+    expect(() => parseSyncResponse({
+      ...baseSyncResponse,
+      server_changes: {
+        ...baseSyncResponse.server_changes,
+        investment_holdings: [
+          {
+            id: 'holding-1',
+            account_id: 'acc-invest',
+            symbol: 'AAPL',
+            name: 'Apple',
+            investment_type: 'STOCK',
+            quantity: -1,
+            unit_price: '100.00',
+            currency: 'PLN',
+            purchase_currency: 'PLN',
+            notes: '',
+            updated_at: '2026-05-01T10:00:00Z',
+            deleted_at: null,
+            version: 1,
+          },
+        ],
+      },
+    })).toThrow();
+
+    expect(() => parseSyncResponse({
+      ...baseSyncResponse,
+      server_changes: {
+        ...baseSyncResponse.server_changes,
+        investment_transactions: [
+          {
+            id: 'investment-tx-1',
+            holding_id: 'holding-1',
+            type: 'BUY',
+            quantity: 2,
+            unit_price: '0.00',
+            currency: 'PLN',
+            date: '2026-05-01T10:00:00Z',
+            notes: '',
+            updated_at: '2026-05-01T10:00:00Z',
+            deleted_at: null,
+            version: 1,
+          },
+        ],
+      },
+    })).toThrow();
+  });
+
   it('validates transaction photos at the sync boundary', () => {
     const result = parseSyncResponse({
       ...baseSyncResponse,

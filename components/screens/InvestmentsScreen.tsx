@@ -35,34 +35,38 @@ export default function InvestmentsScreen({ initialAccountId = 'all' }: { initia
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingHolding, setEditingHolding] = useState<InvestmentHolding | null>(null);
   const [tradeHolding, setTradeHolding] = useState<{ holding: InvestmentHolding; type: 'BUY' | 'SELL' } | null>(null);
-  const investmentAccounts = accounts.filter(account => account.rawType === 'INVESTMENT');
+  const investmentAccounts = accounts.filter(account => account.rawType === 'INVESTMENT' && account.category !== 'LIABILITY' && !account.deletedAt);
+  const investmentAccountIds = new Set(investmentAccounts.map(account => account.id));
   const filtered = accountId === 'all'
-    ? investmentHoldings
-    : investmentHoldings.filter(holding => holding.accountId === accountId);
-  const totalValue = filtered.reduce((sum, holding) => sum + holding.value, 0);
+    ? investmentHoldings.filter(holding => holding.accountId && investmentAccountIds.has(holding.accountId))
+    : investmentHoldings.filter(holding => holding.accountId === accountId && investmentAccountIds.has(holding.accountId));
+  const selectedAccounts = accountId === 'all'
+    ? investmentAccounts
+    : investmentAccounts.filter(account => account.id === accountId);
+  const investmentValue = filtered.reduce((sum, holding) => sum + holding.value, 0);
+  const freeCash = selectedAccounts.reduce((sum, account) => sum + account.balance, 0);
+  const totalValue = investmentValue + freeCash;
   const transactionCount = filtered.reduce((sum, holding) => sum + holding.transactions.length, 0);
+  const accountById = useMemo(() => new Map(investmentAccounts.map(account => [account.id, account])), [investmentAccounts]);
   const byType = useMemo(() => {
     const result = new Map<InvestmentType, number>();
     for (const holding of filtered) result.set(holding.investmentType, (result.get(holding.investmentType) ?? 0) + holding.value);
     return Array.from(result.entries()).sort((a, b) => b[1] - a[1]);
   }, [filtered]);
 
-  if (investmentHoldings.length === 0) {
+  if (investmentAccounts.length === 0) {
     return (
       <div className="screen investments-screen" style={{ minHeight: '100%', padding: 24, display: 'grid', placeItems: 'center' }}>
         <div style={{ maxWidth: 430, textAlign: 'center' }}>
           <div style={{ width: 72, height: 72, borderRadius: 20, margin: '0 auto 18px', background: T.accentLight, display: 'grid', placeItems: 'center' }}>
             <LineChart size={34} color={T.accent} />
           </div>
-          <h1 style={{ fontSize: 24, color: T.dark, marginBottom: 8 }}>Brak inwestycji</h1>
-          <p style={{ fontSize: 14, color: T.muted, lineHeight: 1.5 }}>Portfel inwestycyjny z aplikacji mobilnej pojawi się tutaj razem z pozycjami, wyceną i historią operacji.</p>
-          {investmentAccounts.length > 0 && (
-            <button onClick={() => setIsCreateOpen(true)} style={{ ...primaryButtonStyle, margin: '18px auto 0' }}>
-              <Plus size={16} color="white" /> Dodaj pozycję
-            </button>
-          )}
+          <h1 style={{ fontSize: 24, color: T.dark, marginBottom: 8 }}>Brak kont inwestycyjnych</h1>
+          <p style={{ fontSize: 14, color: T.muted, lineHeight: 1.5 }}>Dodaj konto typu Inwestycje w sekcji Konta, a potem wróć tutaj, żeby prowadzić pozycje, wolne środki i historię operacji.</p>
+          <button onClick={() => router.push(`/accounts?month=${activeMonth}`)} style={{ ...primaryButtonStyle, margin: '18px auto 0' }}>
+            <BriefcaseBusiness size={16} color="white" /> Przejdź do kont
+          </button>
         </div>
-        {isCreateOpen && <HoldingFormModal accounts={investmentAccounts} onClose={() => setIsCreateOpen(false)} />}
       </div>
     );
   }
@@ -81,14 +85,15 @@ export default function InvestmentsScreen({ initialAccountId = 'all' }: { initia
         )}
       </div>
 
-      <div className="investments-summary-grid" style={{ display: 'grid', gridTemplateColumns: '1.4fr .8fr .8fr', gap: 14 }}>
+      <div className="investments-summary-grid" style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr .8fr', gap: 14 }}>
         <Card style={{ padding: 24, background: T.card }}>
-          <div style={{ color: T.muted, fontSize: 12, fontWeight: 850, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>Wartość portfela</div>
+          <div style={{ color: T.muted, fontSize: 12, fontWeight: 850, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>Wartość łączna</div>
           <PrivacyAmount amount={totalValue} style={{ display: 'block', color: T.dark, fontSize: 34, fontWeight: 850 }} />
-          <div style={{ color: T.muted, fontSize: 13, marginTop: 10 }}>{filtered.length} pozycji w wybranym zakresie</div>
+          <div style={{ color: T.muted, fontSize: 13, marginTop: 10 }}>{filtered.length} pozycji plus wolne środki</div>
         </Card>
-        <MetricCard icon={<BriefcaseBusiness size={20} color={T.accent} />} label="Konta inwestycyjne" value={investmentAccounts.length} />
-        <MetricCard icon={<Coins size={20} color={T.warn} />} label="Operacje" value={transactionCount} />
+        <AmountMetricCard icon={<LineChart size={20} color={T.accent} />} label="Pozycje inwestycyjne" value={investmentValue} />
+        <AmountMetricCard icon={<Coins size={20} color={T.warn} />} label="Wolne środki" value={freeCash} />
+        <MetricCard icon={<BriefcaseBusiness size={20} color={T.accent} />} label="Operacje" value={transactionCount} />
       </div>
 
       <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 2 }}>
@@ -117,24 +122,31 @@ export default function InvestmentsScreen({ initialAccountId = 'all' }: { initia
 
       <div className="investments-layout-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 16 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          {filtered.map(holding => (
-            <HoldingCard
-              key={holding.id}
-              holding={holding}
-              onBuy={() => setTradeHolding({ holding, type: 'BUY' })}
-              onSell={() => setTradeHolding({ holding, type: 'SELL' })}
-              onEdit={() => setEditingHolding(holding)}
-            />
-          ))}
+          {filtered.length === 0 ? (
+            <EmptyHoldingsCard onCreate={() => setIsCreateOpen(true)} />
+          ) : (
+            filtered.map(holding => (
+              <HoldingCard
+                key={holding.id}
+                holding={holding}
+                onBuy={() => setTradeHolding({ holding, type: 'BUY' })}
+                onSell={() => setTradeHolding({ holding, type: 'SELL' })}
+                onEdit={() => setEditingHolding(holding)}
+              />
+            ))
+          )}
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <Card style={{ padding: 18 }}>
             <div style={{ color: T.dark, fontSize: 15, fontWeight: 850, marginBottom: 14 }}>Struktura portfela</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {byType.length === 0 && (
+                <div style={{ color: T.muted, fontSize: 13, lineHeight: 1.45 }}>Brak pozycji w wybranym koncie. Wolne środki są pokazane w podsumowaniu.</div>
+              )}
               {byType.map(([type, value]) => {
                 const meta = TYPE_META[type];
-                const pct = totalValue > 0 ? value / totalValue * 100 : 0;
+                const pct = investmentValue > 0 ? value / investmentValue * 100 : 0;
                 return (
                   <div key={type}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginBottom: 5 }}>
@@ -153,6 +165,9 @@ export default function InvestmentsScreen({ initialAccountId = 'all' }: { initia
           <Card style={{ padding: 18 }}>
             <div style={{ color: T.dark, fontSize: 15, fontWeight: 850, marginBottom: 14 }}>Ostatnie operacje</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {transactionCount === 0 && (
+                <div style={{ color: T.muted, fontSize: 13, lineHeight: 1.45 }}>Kupno, sprzedaż i koszt otwarcia pojawią się tutaj po pierwszym zapisie operacji.</div>
+              )}
               {filtered
                 .flatMap(holding => holding.transactions.map(tx => ({ tx, holding })))
                 .sort((a, b) => b.tx.date.localeCompare(a.tx.date))
@@ -178,7 +193,7 @@ export default function InvestmentsScreen({ initialAccountId = 'all' }: { initia
       </div>
       {isCreateOpen && <HoldingFormModal accounts={investmentAccounts} onClose={() => setIsCreateOpen(false)} />}
       {editingHolding && <HoldingFormModal accounts={investmentAccounts} holding={editingHolding} onClose={() => setEditingHolding(null)} />}
-      {tradeHolding && <TradeModal holding={tradeHolding.holding} type={tradeHolding.type} onClose={() => setTradeHolding(null)} />}
+      {tradeHolding && <TradeModal holding={tradeHolding.holding} account={tradeHolding.holding.accountId ? accountById.get(tradeHolding.holding.accountId) ?? null : null} type={tradeHolding.type} onClose={() => setTradeHolding(null)} />}
     </div>
   );
 }
@@ -190,6 +205,35 @@ function MetricCard({ icon, label, value }: { icon: React.ReactNode; label: stri
       <div>
         <div style={{ color: T.dark, fontSize: 26, fontWeight: 850 }}>{value}</div>
         <div style={{ color: T.muted, fontSize: 12, fontWeight: 750 }}>{label}</div>
+      </div>
+    </Card>
+  );
+}
+
+function AmountMetricCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: number }) {
+  return (
+    <Card style={{ padding: 18, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 126 }}>
+      <div style={{ width: 38, height: 38, borderRadius: 12, background: T.bg, display: 'grid', placeItems: 'center' }}>{icon}</div>
+      <div>
+        <PrivacyAmount amount={value} style={{ display: 'block', color: T.dark, fontSize: 22, fontWeight: 850 }} />
+        <div style={{ color: T.muted, fontSize: 12, fontWeight: 750 }}>{label}</div>
+      </div>
+    </Card>
+  );
+}
+
+function EmptyHoldingsCard({ onCreate }: { onCreate: () => void }) {
+  return (
+    <Card style={{ padding: 24, minHeight: 260, display: 'grid', placeItems: 'center', gridColumn: '1 / -1' }}>
+      <div style={{ maxWidth: 430, textAlign: 'center' }}>
+        <div style={{ width: 56, height: 56, borderRadius: 16, margin: '0 auto 14px', background: T.accentLight, display: 'grid', placeItems: 'center' }}>
+          <LineChart size={26} color={T.accent} />
+        </div>
+        <div style={{ color: T.dark, fontSize: 18, fontWeight: 850, marginBottom: 6 }}>Brak pozycji w portfelu</div>
+        <div style={{ color: T.muted, fontSize: 13, lineHeight: 1.5, marginBottom: 16 }}>Dodaj pierwszą pozycję z kosztem otwarcia. Web zapisze historię inwestycji bez zmiany wolnych środków konta.</div>
+        <button onClick={onCreate} style={{ ...primaryButtonStyle, margin: '0 auto' }}>
+          <Plus size={16} color="white" /> Dodaj pozycję
+        </button>
       </div>
     </Card>
   );
@@ -283,6 +327,7 @@ function HoldingFormModal({
   const [isPending, startTransition] = useTransition();
   const quantityValue = Number(quantity);
   const unitPriceValue = Number(unitPrice);
+  const openingValue = Number.isFinite(quantityValue) && Number.isFinite(unitPriceValue) ? quantityValue * unitPriceValue : 0;
   const canSubmit = Boolean(accountId && symbol.trim() && name.trim() && Number.isFinite(quantityValue) && quantityValue > 0 && Number.isFinite(unitPriceValue) && unitPriceValue > 0);
 
   const submit = () => {
@@ -351,6 +396,12 @@ function HoldingFormModal({
           <input aria-label="Cena jednostki" type="number" min="0" step="0.01" placeholder="Cena" value={unitPrice} onChange={event => setUnitPrice(event.target.value)} style={inputStyle} />
           <input aria-label="Waluta" value={currency} onChange={event => setCurrency(event.target.value.toUpperCase())} style={inputStyle} />
         </div>
+        <div style={{ padding: 12, borderRadius: 12, background: T.bg, color: T.mid, fontSize: 12, lineHeight: 1.45 }}>
+          {holding ? 'Edycja zmienia aktualny stan pozycji bez dopisywania nowej operacji.' : 'Koszt otwarcia zapisze pozycję i historię początkową, ale nie zmieni wolnych środków konta.'}
+          {!holding && openingValue > 0 && (
+            <span> Wartość początkowa: <PrivacyAmount amount={openingValue} style={{ fontWeight: 850 }} />.</span>
+          )}
+        </div>
         <input aria-label="Notatka inwestycji" placeholder="Notatka" value={notes} onChange={event => setNotes(event.target.value)} style={inputStyle} />
         <div style={{ display: 'flex', gap: 10 }}>
           <button onClick={submit} disabled={!canSubmit || isPending} style={{ ...primaryButtonStyle, flex: 1, height: 42, opacity: !canSubmit || isPending ? 0.55 : 1 }}>
@@ -367,7 +418,7 @@ function HoldingFormModal({
   );
 }
 
-function TradeModal({ holding, type, onClose }: { holding: InvestmentHolding; type: 'BUY' | 'SELL'; onClose: () => void }) {
+function TradeModal({ holding, account, type, onClose }: { holding: InvestmentHolding; account: Account | null; type: 'BUY' | 'SELL'; onClose: () => void }) {
   const router = useRouter();
   const [quantity, setQuantity] = useState('');
   const [unitPrice, setUnitPrice] = useState(String(holding.unitPrice.toFixed(2)));
@@ -375,8 +426,11 @@ function TradeModal({ holding, type, onClose }: { holding: InvestmentHolding; ty
   const [isPending, startTransition] = useTransition();
   const quantityValue = Number(quantity);
   const unitPriceValue = Number(unitPrice);
+  const operationValue = Number.isFinite(quantityValue) && Number.isFinite(unitPriceValue) ? quantityValue * unitPriceValue : 0;
+  const freeCash = account?.balance ?? 0;
   const isTooMuch = type === 'SELL' && quantityValue > holding.quantity;
-  const canSubmit = Number.isFinite(quantityValue) && quantityValue > 0 && Number.isFinite(unitPriceValue) && unitPriceValue > 0 && !isTooMuch;
+  const isInsufficientCash = type === 'BUY' && operationValue > freeCash + 0.000001;
+  const canSubmit = Number.isFinite(quantityValue) && quantityValue > 0 && Number.isFinite(unitPriceValue) && unitPriceValue > 0 && !isTooMuch && !isInsufficientCash && Boolean(account);
   const title = type === 'BUY' ? `Kup ${holding.symbol}` : `Sprzedaj ${holding.symbol}`;
 
   const submit = () => {
@@ -404,12 +458,15 @@ function TradeModal({ holding, type, onClose }: { holding: InvestmentHolding; ty
     <ModalShell title={title} onClose={onClose}>
       <div style={{ display: 'grid', gap: 12 }}>
         <div style={{ padding: 12, borderRadius: 12, background: T.bg, color: T.mid, fontSize: 13 }}>
-          Posiadasz <strong>{formatQuantity(holding.quantity)}</strong> po średniej cenie <PrivacyAmount amount={holding.unitPrice} style={{ fontWeight: 850 }} /> {holding.currency}.
+          <div>Posiadasz <strong>{formatQuantity(holding.quantity)}</strong> po średniej cenie <PrivacyAmount amount={holding.unitPrice} style={{ fontWeight: 850 }} /> {holding.currency}.</div>
+          <div style={{ marginTop: 6 }}>Wolne środki: <PrivacyAmount amount={freeCash} style={{ fontWeight: 850 }} />. Wartość operacji: <PrivacyAmount amount={operationValue} style={{ fontWeight: 850 }} />.</div>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <input aria-label="Ilość operacji" type="number" min="0" step="0.00000001" placeholder="Ilość" value={quantity} onChange={event => setQuantity(event.target.value)} style={inputStyle} />
           <input aria-label="Cena operacji" type="number" min="0" step="0.01" placeholder="Cena" value={unitPrice} onChange={event => setUnitPrice(event.target.value)} style={inputStyle} />
         </div>
+        {!account && <div style={{ color: T.expense, fontSize: 12, fontWeight: 750 }}>Nie znaleziono aktywnego konta inwestycyjnego dla tej pozycji.</div>}
+        {isInsufficientCash && <div style={{ color: T.expense, fontSize: 12, fontWeight: 750 }}>Brak wystarczających wolnych środków na tym koncie.</div>}
         {isTooMuch && <div style={{ color: T.expense, fontSize: 12, fontWeight: 750 }}>Nie możesz sprzedać więcej jednostek niż posiadasz.</div>}
         <input aria-label="Notatka operacji" placeholder="Notatka" value={notes} onChange={event => setNotes(event.target.value)} style={inputStyle} />
         <button onClick={submit} disabled={!canSubmit || isPending} style={{ ...primaryButtonStyle, height: 42, background: type === 'BUY' ? T.income : T.expense, opacity: !canSubmit || isPending ? 0.55 : 1 }}>

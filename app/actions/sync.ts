@@ -438,6 +438,10 @@ function syncFailureMessage(errors: unknown[], conflicts: unknown[]) {
   return null;
 }
 
+function isActiveInvestmentAssetAccount(account: SyncAccount | undefined): account is SyncAccount {
+  return Boolean(account && !account.deleted_at && account.is_active && account.type === 'INVESTMENT' && account.category !== 'LIABILITY');
+}
+
 async function getServerChanges(): Promise<SyncServerChanges | null> {
   const sync = await fetchSync();
   return sync?.server_changes ?? null;
@@ -1518,8 +1522,8 @@ export async function createInvestmentHoldingAction(input: unknown): Promise<Act
   const changes = await getServerChanges();
   if (!changes) return { ok: false, message: 'Nie udało się pobrać aktualnych danych.' };
 
-  const account = changes.accounts.find(account => account.id === parsed.data.accountId && !account.deleted_at && account.is_active);
-  if (!account || account.type !== 'INVESTMENT') return { ok: false, message: 'Wybierz aktywne konto inwestycyjne.' };
+  const account = changes.accounts.find(account => account.id === parsed.data.accountId);
+  if (!isActiveInvestmentAssetAccount(account)) return { ok: false, message: 'Wybierz aktywne konto inwestycyjne.' };
 
   const normalizedSymbol = parsed.data.symbol.toLocaleUpperCase('pl-PL');
   const existing = (changes.investment_holdings ?? []).find(
@@ -1539,7 +1543,6 @@ export async function createInvestmentHoldingAction(input: unknown): Promise<Act
     : investmentHoldingPayload(parsed.data, undefined, updatedAt);
 
   const sync = await postSyncChanges({
-    accounts: [cloneAccountWithBalance(account, parseFloat(account.balance) - cost, updatedAt)],
     investment_holdings: [holding],
     investment_transactions: [
       {
@@ -1575,8 +1578,8 @@ export async function updateInvestmentHoldingAction(input: unknown): Promise<Act
   const existing = (changes.investment_holdings ?? []).find(holding => holding.id === parsed.data.id && !holding.deleted_at);
   if (!existing) return { ok: false, message: 'Nie znaleziono pozycji.' };
 
-  const account = changes.accounts.find(account => account.id === parsed.data.accountId && !account.deleted_at && account.is_active);
-  if (!account || account.type !== 'INVESTMENT') return { ok: false, message: 'Wybierz aktywne konto inwestycyjne.' };
+  const account = changes.accounts.find(account => account.id === parsed.data.accountId);
+  if (!isActiveInvestmentAssetAccount(account)) return { ok: false, message: 'Wybierz aktywne konto inwestycyjne.' };
 
   const normalizedSymbol = parsed.data.symbol.toLocaleUpperCase('pl-PL');
   const duplicate = (changes.investment_holdings ?? []).some(
@@ -1606,8 +1609,8 @@ export async function tradeInvestmentHoldingAction(input: unknown): Promise<Acti
   const holding = (changes.investment_holdings ?? []).find(item => item.id === parsed.data.holdingId && !item.deleted_at);
   if (!holding) return { ok: false, message: 'Nie znaleziono pozycji.' };
 
-  const account = changes.accounts.find(account => account.id === holding.account_id && !account.deleted_at && account.is_active);
-  if (!account) return { ok: false, message: 'Nie znaleziono konta inwestycyjnego.' };
+  const account = changes.accounts.find(account => account.id === holding.account_id);
+  if (!isActiveInvestmentAssetAccount(account)) return { ok: false, message: 'Nie znaleziono aktywnego konta inwestycyjnego.' };
 
   if (parsed.data.type === 'SELL' && parsed.data.quantity > holding.quantity) {
     return { ok: false, message: 'Nie możesz sprzedać więcej jednostek niż posiadasz.' };
@@ -1615,6 +1618,11 @@ export async function tradeInvestmentHoldingAction(input: unknown): Promise<Acti
 
   const updatedAt = nowIso();
   const value = parsed.data.quantity * parsed.data.unitPrice;
+  const accountBalance = parseFloat(account.balance);
+  if (!Number.isFinite(accountBalance)) return { ok: false, message: 'Saldo konta inwestycyjnego jest niepoprawne.' };
+  if (parsed.data.type === 'BUY' && value > accountBalance + 0.000001) {
+    return { ok: false, message: 'Brak wystarczających wolnych środków na tym koncie.' };
+  }
   const currentPrice = parseFloat(holding.unit_price);
   const newQuantity = parsed.data.type === 'BUY'
     ? holding.quantity + parsed.data.quantity

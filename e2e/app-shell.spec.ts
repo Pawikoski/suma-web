@@ -28,7 +28,7 @@ test('mobile more menu exposes secondary workspaces', async ({ page }) => {
   await page.getByRole('menuitem', { name: 'Inwestycje' }).click();
 
   await expect(page).toHaveURL(/\/investments\?month=2026-05/);
-  await expect(page.getByRole('heading', { name: 'Brak inwestycji' }).or(page.getByText('Wartość portfela'))).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Brak kont inwestycyjnych' }).or(page.getByText('Wartość łączna'))).toBeVisible();
 });
 
 test('command search navigates to app views', async ({ page }) => {
@@ -168,7 +168,7 @@ test('opens investments from navigation', async ({ page }) => {
   await page.getByRole('link', { name: 'Inwestycje' }).click();
 
   await expect(page).toHaveURL(/\/investments\?month=2026-05/);
-  await expect(page.getByRole('heading', { name: 'Brak inwestycji' }).or(page.getByText('Wartość portfela'))).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Brak kont inwestycyjnych' }).or(page.getByText('Wartość łączna'))).toBeVisible();
 });
 
 test('opens investment detail route directly', async ({ page }) => {
@@ -178,7 +178,7 @@ test('opens investment detail route directly', async ({ page }) => {
 
   await expect(page).toHaveURL(/\/investments\/demo-account\?month=2026-05/);
   await expect(page.getByText('Szczegóły inwestycji')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Brak inwestycji' }).or(page.getByText('Wartość portfela'))).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Brak kont inwestycyjnych' }).or(page.getByText('Wartość łączna'))).toBeVisible();
 });
 
 test('opens import and export workspace from navigation', async ({ page }) => {

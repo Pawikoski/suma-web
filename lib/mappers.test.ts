@@ -331,4 +331,87 @@ describe('mapSyncData', () => {
       endDate: '2026-08-01',
     });
   });
+
+  it('keeps investment holdings only for active investment asset accounts', () => {
+    const fixture = syncFixture();
+    fixture.accounts.push(
+      {
+        ...baseChange,
+        id: 'acc-invest',
+        name: 'Broker',
+        type: 'INVESTMENT',
+        category: 'BASIC',
+        balance: '500.00',
+        currency: 'PLN',
+        sort_order: 2,
+        is_default: false,
+        is_active: true,
+        include_in_net_worth: true,
+        icon_name: 'ShowChart',
+        icon_bg: '#EDE9FE',
+        icon_color: '#8B5CF6',
+        notes: null,
+        liability_kind: null,
+        credit_limit: null,
+        statement_day: null,
+        payment_due_day: null,
+        liability_principal: null,
+        liability_monthly_payment: null,
+        payment_account_id: null,
+        credit_card_last4: null,
+        credit_card_theme: null,
+      }
+    );
+    fixture.investment_holdings = [
+      {
+        ...baseChange,
+        id: 'holding-valid',
+        account_id: 'acc-invest',
+        symbol: 'AAPL',
+        name: 'Apple',
+        investment_type: 'STOCK',
+        quantity: 2,
+        unit_price: '100.00',
+        currency: 'PLN',
+        purchase_currency: 'PLN',
+        notes: '',
+      },
+      {
+        ...baseChange,
+        id: 'holding-cash',
+        account_id: 'acc-cash',
+        symbol: 'MSFT',
+        name: 'Microsoft',
+        investment_type: 'STOCK',
+        quantity: 1,
+        unit_price: '80.00',
+        currency: 'PLN',
+        purchase_currency: 'PLN',
+        notes: '',
+      },
+    ];
+    fixture.investment_transactions = [
+      {
+        ...baseChange,
+        id: 'investment-tx-valid',
+        holding_id: 'holding-valid',
+        type: 'BUY',
+        quantity: 2,
+        unit_price: '100.00',
+        currency: 'PLN',
+        date: '2026-05-10T10:00:00Z',
+        notes: '',
+      },
+    ];
+
+    const data = mapSyncData(fixture, '2026-05');
+
+    expect(data.investmentHoldings).toHaveLength(1);
+    expect(data.investmentHoldings[0]).toMatchObject({
+      id: 'holding-valid',
+      accountName: 'Broker',
+      value: 200,
+      transactions: [{ id: 'investment-tx-valid' }],
+    });
+  });
 });

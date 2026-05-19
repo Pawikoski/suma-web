@@ -255,7 +255,11 @@ export function mapSyncData(data: SyncServerChanges, yearMonth: string): MappedD
   }
 
   const investmentHoldings: InvestmentHolding[] = (data.investment_holdings ?? [])
-    .filter(holding => !holding.deleted_at)
+    .filter(holding => {
+      if (holding.deleted_at || !holding.account_id) return false;
+      const account = mappedAccountById.get(holding.account_id);
+      return Boolean(account && account.rawType === 'INVESTMENT' && account.category !== 'LIABILITY');
+    })
     .map(holding => {
       const account = holding.account_id ? mappedAccountById.get(holding.account_id) : null;
       const unitPrice = parseFloat(holding.unit_price);

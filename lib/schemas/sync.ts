@@ -3,6 +3,10 @@ import { z } from 'zod';
 const nullableString = z.string().nullable();
 const optionalNullableString = z.string().nullable().optional();
 const decimalLike = z.union([z.string(), z.number()]).transform(String);
+const positiveDecimalLike = decimalLike.refine(value => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0;
+}, 'Wartość musi być większa od zera.');
 const syncBaseFields = {
   id: z.string(),
   updated_at: z.string(),
@@ -168,8 +172,8 @@ export const syncInvestmentHoldingSchema = z.object({
   symbol: z.string(),
   name: z.string(),
   investment_type: z.enum(['STOCK', 'ETF', 'CRYPTO', 'PRECIOUS_METAL']),
-  quantity: z.number(),
-  unit_price: decimalLike,
+  quantity: z.number().nonnegative(),
+  unit_price: positiveDecimalLike,
   currency: z.string(),
   purchase_currency: z.string(),
   notes: z.string().optional().default(''),
@@ -179,8 +183,8 @@ export const syncInvestmentTransactionSchema = z.object({
   ...syncBaseFields,
   holding_id: optionalNullableString.default(null),
   type: z.enum(['BUY', 'SELL']),
-  quantity: z.number(),
-  unit_price: decimalLike,
+  quantity: z.number().positive(),
+  unit_price: positiveDecimalLike,
   currency: z.string(),
   date: z.string(),
   notes: z.string().optional().default(''),
