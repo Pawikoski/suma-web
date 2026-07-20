@@ -5,6 +5,7 @@ import { format, parse } from 'date-fns';
 import { pl } from 'date-fns/locale';
 import { T } from '@/lib/tokens';
 import { useActiveMonthData } from '@/lib/useActiveMonthData';
+import { formatMoney } from '@/lib/utils';
 import Card from '@/components/ui/Card';
 import PrivacyAmount from '@/components/ui/PrivacyAmount';
 
@@ -20,13 +21,13 @@ function moneyTick(value: number) {
   return `${Math.round(value / 1000)}k`;
 }
 
-function moneyTooltip(value: unknown) {
+function moneyTooltip(value: unknown, currency: string) {
   const amount = typeof value === 'number' ? value : Number(value ?? 0);
-  return `${amount.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} zł`;
+  return formatMoney(amount, currency);
 }
 
 export default function ReportsScreen() {
-  const { activeMonth, allTransactions, categories } = useActiveMonthData();
+  const { activeMonth, allTransactions, categories, baseCurrency } = useActiveMonthData();
   const visibleTransactions = activeMonth === 'all'
     ? allTransactions
     : allTransactions.filter(tx => tx.date.startsWith(activeMonth));
@@ -64,10 +65,10 @@ export default function ReportsScreen() {
   return (
     <div className="screen reports-screen" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 18 }}>
       <div className="reports-summary-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 14 }}>
-        <ReportMetric label="Przychody" value={income} color={T.income} />
-        <ReportMetric label="Wydatki" value={expense} color={T.expense} />
-        <ReportMetric label="Bilans" value={net} color={net >= 0 ? T.income : T.expense} signed />
-        <ReportMetric label="Transakcje" value={visibleTransactions.length} color={T.accent} numeric />
+        <ReportMetric label="Przychody" value={income} currency={baseCurrency} color={T.income} />
+        <ReportMetric label="Wydatki" value={expense} currency={baseCurrency} color={T.expense} />
+        <ReportMetric label="Bilans" value={net} currency={baseCurrency} color={net >= 0 ? T.income : T.expense} signed />
+        <ReportMetric label="Transakcje" value={visibleTransactions.length} currency={baseCurrency} color={T.accent} numeric />
       </div>
 
       <div className="reports-chart-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
@@ -81,7 +82,7 @@ export default function ReportsScreen() {
                 <CartesianGrid stroke={T.border} vertical={false} />
                 <XAxis dataKey="label" tick={{ fill: T.muted, fontSize: 12 }} axisLine={false} tickLine={false} />
                 <YAxis tickFormatter={moneyTick} tick={{ fill: T.muted, fontSize: 12 }} axisLine={false} tickLine={false} />
-                <Tooltip formatter={moneyTooltip} />
+                <Tooltip formatter={value => moneyTooltip(value, baseCurrency)} />
                 <Bar dataKey="income" name="Przychody" fill={T.income} radius={[6, 6, 0, 0]} />
                 <Bar dataKey="expense" name="Wydatki" fill={T.expense} radius={[6, 6, 0, 0]} />
               </BarChart>
@@ -100,7 +101,7 @@ export default function ReportsScreen() {
                   <Pie data={categoryData} dataKey="value" nameKey="name" innerRadius={56} outerRadius={88} paddingAngle={2}>
                     {categoryData.map(item => <Cell key={item.name} fill={item.color} />)}
                   </Pie>
-                  <Tooltip formatter={moneyTooltip} />
+                  <Tooltip formatter={value => moneyTooltip(value, baseCurrency)} />
                 </PieChart>
               </ResponsiveContainer>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
@@ -108,7 +109,7 @@ export default function ReportsScreen() {
                   <div key={item.name} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ width: 9, height: 9, borderRadius: 999, background: item.color, flexShrink: 0 }} />
                     <span style={{ color: T.muted, fontSize: 12, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
-                    <PrivacyAmount amount={item.value} style={{ color: T.mid, fontSize: 12, fontWeight: 800 }} />
+                    <PrivacyAmount amount={item.value} currency={baseCurrency} style={{ color: T.mid, fontSize: 12, fontWeight: 800 }} />
                   </div>
                 ))}
               </div>
@@ -127,7 +128,7 @@ export default function ReportsScreen() {
               <CartesianGrid stroke={T.border} vertical={false} />
               <XAxis dataKey="label" tick={{ fill: T.muted, fontSize: 12 }} axisLine={false} tickLine={false} />
               <YAxis tickFormatter={moneyTick} tick={{ fill: T.muted, fontSize: 12 }} axisLine={false} tickLine={false} />
-              <Tooltip formatter={moneyTooltip} />
+              <Tooltip formatter={value => moneyTooltip(value, baseCurrency)} />
               <Line type="monotone" dataKey="cumulative" name="Bilans" stroke={T.accent} strokeWidth={3} dot={{ r: 4, fill: T.accent }} />
             </LineChart>
           </ResponsiveContainer>
@@ -137,14 +138,14 @@ export default function ReportsScreen() {
   );
 }
 
-function ReportMetric({ label, value, color, signed = false, numeric = false }: { label: string; value: number; color: string; signed?: boolean; numeric?: boolean }) {
+function ReportMetric({ label, value, currency, color, signed = false, numeric = false }: { label: string; value: number; currency: string; color: string; signed?: boolean; numeric?: boolean }) {
   return (
     <Card style={{ padding: 18 }}>
       <div style={{ color: T.muted, fontSize: 12, fontWeight: 750, marginBottom: 8 }}>{label}</div>
       {numeric ? (
         <div style={{ color, fontSize: 28, fontWeight: 850 }}>{value}</div>
       ) : (
-        <PrivacyAmount amount={value} signed={signed} style={{ display: 'block', color, fontSize: 24, fontWeight: 850 }} />
+        <PrivacyAmount amount={value} currency={currency} signed={signed} style={{ display: 'block', color, fontSize: 24, fontWeight: 850 }} />
       )}
     </Card>
   );

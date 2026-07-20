@@ -10,6 +10,7 @@ import { T } from '@/lib/tokens';
 import { Account, Category, Transaction } from '@/lib/data';
 import { useActiveMonthData } from '@/lib/useActiveMonthData';
 import { categoryAndDescendantIds } from '@/lib/category-hierarchy';
+import { formatMoneyShort } from '@/lib/utils';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import Icon from '@/components/ui/Icon';
@@ -115,7 +116,7 @@ function TxDetailPanel({
         </div>
         <Badge type={tx.type} />
         <div style={{ fontSize: 34, fontWeight: 800, color: amtColor, marginTop: 10, letterSpacing: '-1px' }}>
-          <PrivacyAmount amount={Math.abs(tx.amount)} prefix={tx.type === 'expense' ? '-' : tx.type === 'income' ? '+' : ''} style={{ font: 'inherit' }} />
+          <PrivacyAmount amount={Math.abs(tx.amount)} currency={tx.currency} prefix={tx.type === 'expense' ? '-' : tx.type === 'income' ? '+' : ''} style={{ font: 'inherit' }} />
         </div>
         <div style={{ fontSize: 15, color: T.muted, marginTop: 4 }}>{tx.cat}</div>
       </Card>
@@ -321,7 +322,7 @@ const TransactionsTable = memo(function TransactionsTable({ transactions, onSele
         const tx = row.original;
         return (
           <span style={{ fontSize: 16, fontWeight: 800, color: tx.type === 'expense' ? T.expense : tx.type === 'income' ? T.income : T.mid }}>
-            <PrivacyAmount amount={Math.abs(tx.amount)} prefix={tx.type === 'expense' ? '-' : tx.type === 'income' ? '+' : ''} style={{ font: 'inherit' }} />
+            <PrivacyAmount amount={Math.abs(tx.amount)} currency={tx.currency} prefix={tx.type === 'expense' ? '-' : tx.type === 'income' ? '+' : ''} style={{ font: 'inherit' }} />
           </span>
         );
       },
@@ -411,7 +412,7 @@ const TransactionsTable = memo(function TransactionsTable({ transactions, onSele
 
 export default function TransactionsScreen() {
   const router = useRouter();
-  const { accounts, categories, allTransactions, activeMonth, setActiveMonthParam, availableMonths } = useActiveMonthData();
+  const { accounts, categories, allTransactions, activeMonth, setActiveMonthParam, availableMonths, baseCurrency } = useActiveMonthData();
   const [filter, setFilter] = useQueryState('type', parseAsStringLiteral(TX_FILTERS).withDefault('all'));
   const [selectedId, setSelectedId] = useQueryState('id');
   const [accountId, setAccountId] = useQueryState('account', parseAsString.withDefault('all'));
@@ -605,8 +606,8 @@ export default function TransactionsScreen() {
               style={selectStyle}
             />
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', fontSize: 13, color: T.muted, whiteSpace: 'nowrap' }}>
-              <strong style={{ color: T.income }}>+{income.toLocaleString('pl-PL', { maximumFractionDigits: 0 })} zł</strong>
-              <strong style={{ color: T.expense }}>-{expense.toLocaleString('pl-PL', { maximumFractionDigits: 0 })} zł</strong>
+              <strong style={{ color: T.income }}>+{formatMoneyShort(income, baseCurrency)}</strong>
+              <strong style={{ color: T.expense }}>-{formatMoneyShort(expense, baseCurrency)}</strong>
             </div>
             <button
               aria-label="Wyczyść filtry"
@@ -631,10 +632,10 @@ export default function TransactionsScreen() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
               <strong style={{ fontSize: 15 }}>{selectedTransactions.length} zazn.</strong>
               <span style={{ fontSize: 13, color: '#cbd5e1' }}>
-                Przychody: <strong style={{ color: '#86efac' }}><PrivacyAmount amount={selectedIncome} prefix="+" /></strong>
+                Przychody: <strong style={{ color: '#86efac' }}><PrivacyAmount amount={selectedIncome} currency={baseCurrency} prefix="+" /></strong>
               </span>
               <span style={{ fontSize: 13, color: '#cbd5e1' }}>
-                Wydatki: <strong style={{ color: '#fca5a5' }}><PrivacyAmount amount={selectedExpense} prefix="-" /></strong>
+                Wydatki: <strong style={{ color: '#fca5a5' }}><PrivacyAmount amount={selectedExpense} currency={baseCurrency} prefix="-" /></strong>
               </span>
             </div>
             <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>

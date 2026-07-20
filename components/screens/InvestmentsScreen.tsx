@@ -12,6 +12,7 @@ import {
 } from '@/app/actions/sync';
 import { T } from '@/lib/tokens';
 import { Account, InvestmentHolding, InvestmentType } from '@/lib/data';
+import { fallbackCurrency } from '@/lib/utils';
 import { useActiveMonthData } from '@/lib/useActiveMonthData';
 import Card from '@/components/ui/Card';
 import PrivacyAmount from '@/components/ui/PrivacyAmount';
@@ -30,7 +31,7 @@ function formatQuantity(value: number) {
 export default function InvestmentsScreen({ initialAccountId = 'all' }: { initialAccountId?: string }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { investmentHoldings, accounts, activeMonth } = useActiveMonthData();
+  const { investmentHoldings, accounts, activeMonth, baseCurrency } = useActiveMonthData();
   const [accountId, setAccountId] = useState(initialAccountId);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingHolding, setEditingHolding] = useState<InvestmentHolding | null>(null);
@@ -46,6 +47,7 @@ export default function InvestmentsScreen({ initialAccountId = 'all' }: { initia
   const investmentValue = filtered.reduce((sum, holding) => sum + holding.value, 0);
   const freeCash = selectedAccounts.reduce((sum, account) => sum + account.balance, 0);
   const totalValue = investmentValue + freeCash;
+  const portfolioCurrency = fallbackCurrency(selectedAccounts[0]?.currency, filtered[0]?.currency, baseCurrency);
   const transactionCount = filtered.reduce((sum, holding) => sum + holding.transactions.length, 0);
   const accountById = useMemo(() => new Map(investmentAccounts.map(account => [account.id, account])), [investmentAccounts]);
   const byType = useMemo(() => {
@@ -88,11 +90,11 @@ export default function InvestmentsScreen({ initialAccountId = 'all' }: { initia
       <div className="investments-summary-grid" style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr .8fr', gap: 14 }}>
         <Card style={{ padding: 24, background: T.card }}>
           <div style={{ color: T.muted, fontSize: 12, fontWeight: 850, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>Wartość łączna</div>
-          <PrivacyAmount amount={totalValue} style={{ display: 'block', color: T.dark, fontSize: 34, fontWeight: 850 }} />
+          <PrivacyAmount amount={totalValue} currency={portfolioCurrency} style={{ display: 'block', color: T.dark, fontSize: 34, fontWeight: 850 }} />
           <div style={{ color: T.muted, fontSize: 13, marginTop: 10 }}>{filtered.length} pozycji plus wolne środki</div>
         </Card>
-        <AmountMetricCard icon={<LineChart size={20} color={T.accent} />} label="Pozycje inwestycyjne" value={investmentValue} />
-        <AmountMetricCard icon={<Coins size={20} color={T.warn} />} label="Wolne środki" value={freeCash} />
+        <AmountMetricCard icon={<LineChart size={20} color={T.accent} />} label="Pozycje inwestycyjne" value={investmentValue} currency={portfolioCurrency} />
+        <AmountMetricCard icon={<Coins size={20} color={T.warn} />} label="Wolne środki" value={freeCash} currency={portfolioCurrency} />
         <MetricCard icon={<BriefcaseBusiness size={20} color={T.accent} />} label="Operacje" value={transactionCount} />
       </div>
 
@@ -191,8 +193,8 @@ export default function InvestmentsScreen({ initialAccountId = 'all' }: { initia
           </Card>
         </div>
       </div>
-      {isCreateOpen && <HoldingFormModal accounts={investmentAccounts} onClose={() => setIsCreateOpen(false)} />}
-      {editingHolding && <HoldingFormModal accounts={investmentAccounts} holding={editingHolding} onClose={() => setEditingHolding(null)} />}
+      {isCreateOpen && <HoldingFormModal accounts={investmentAccounts} baseCurrency={baseCurrency} onClose={() => setIsCreateOpen(false)} />}
+      {editingHolding && <HoldingFormModal accounts={investmentAccounts} baseCurrency={baseCurrency} holding={editingHolding} onClose={() => setEditingHolding(null)} />}
       {tradeHolding && <TradeModal holding={tradeHolding.holding} account={tradeHolding.holding.accountId ? accountById.get(tradeHolding.holding.accountId) ?? null : null} type={tradeHolding.type} onClose={() => setTradeHolding(null)} />}
     </div>
   );
@@ -210,12 +212,12 @@ function MetricCard({ icon, label, value }: { icon: React.ReactNode; label: stri
   );
 }
 
-function AmountMetricCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: number }) {
+function AmountMetricCard({ icon, label, value, currency }: { icon: React.ReactNode; label: string; value: number; currency: string }) {
   return (
     <Card style={{ padding: 18, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 126 }}>
       <div style={{ width: 38, height: 38, borderRadius: 12, background: T.bg, display: 'grid', placeItems: 'center' }}>{icon}</div>
       <div>
-        <PrivacyAmount amount={value} style={{ display: 'block', color: T.dark, fontSize: 22, fontWeight: 850 }} />
+        <PrivacyAmount amount={value} currency={currency} style={{ display: 'block', color: T.dark, fontSize: 22, fontWeight: 850 }} />
         <div style={{ color: T.muted, fontSize: 12, fontWeight: 750 }}>{label}</div>
       </div>
     </Card>
@@ -263,7 +265,7 @@ function HoldingCard({
           <div style={{ color: T.faint, fontSize: 12, marginTop: 5 }}>{holding.accountName ?? 'Bez konta'} · {meta.label}</div>
         </div>
         <div style={{ textAlign: 'right', flexShrink: 0 }}>
-          <PrivacyAmount amount={holding.value} style={{ display: 'block', color: T.dark, fontSize: 16, fontWeight: 850 }} />
+          <PrivacyAmount amount={holding.value} currency={holding.currency} style={{ display: 'block', color: T.dark, fontSize: 16, fontWeight: 850 }} />
           <div style={{ color: T.faint, fontSize: 11 }}>{holding.currency}</div>
         </div>
       </div>
@@ -274,7 +276,7 @@ function HoldingCard({
         </div>
         <div style={{ textAlign: 'right' }}>
           <div style={{ color: T.faint, fontSize: 11, fontWeight: 750 }}>Cena</div>
-          <PrivacyAmount amount={holding.unitPrice} style={{ color: T.mid, fontSize: 13, fontWeight: 850 }} />
+          <PrivacyAmount amount={holding.unitPrice} currency={holding.currency} style={{ color: T.mid, fontSize: 13, fontWeight: 850 }} />
         </div>
       </div>
       <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8 }}>
@@ -308,10 +310,12 @@ function chipStyle(active: boolean): React.CSSProperties {
 
 function HoldingFormModal({
   accounts,
+  baseCurrency,
   holding,
   onClose,
 }: {
   accounts: Account[];
+  baseCurrency: string;
   holding?: InvestmentHolding;
   onClose: () => void;
 }) {
@@ -322,7 +326,7 @@ function HoldingFormModal({
   const [investmentType, setInvestmentType] = useState<InvestmentType>(holding?.investmentType ?? 'STOCK');
   const [quantity, setQuantity] = useState(holding ? String(holding.quantity) : '');
   const [unitPrice, setUnitPrice] = useState(holding ? String(holding.unitPrice.toFixed(2)) : '');
-  const [currency, setCurrency] = useState(holding?.currency ?? accounts.find(account => account.id === accountId)?.currency ?? 'PLN');
+  const [currency, setCurrency] = useState(fallbackCurrency(holding?.currency, accounts.find(account => account.id === accountId)?.currency, baseCurrency));
   const [notes, setNotes] = useState(holding?.notes ?? '');
   const [isPending, startTransition] = useTransition();
   const quantityValue = Number(quantity);
@@ -399,7 +403,7 @@ function HoldingFormModal({
         <div style={{ padding: 12, borderRadius: 12, background: T.bg, color: T.mid, fontSize: 12, lineHeight: 1.45 }}>
           {holding ? 'Edycja zmienia aktualny stan pozycji bez dopisywania nowej operacji.' : 'Koszt otwarcia zapisze pozycję i historię początkową, ale nie zmieni wolnych środków konta.'}
           {!holding && openingValue > 0 && (
-            <span> Wartość początkowa: <PrivacyAmount amount={openingValue} style={{ fontWeight: 850 }} />.</span>
+            <span> Wartość początkowa: <PrivacyAmount amount={openingValue} currency={currency} style={{ fontWeight: 850 }} />.</span>
           )}
         </div>
         <input aria-label="Notatka inwestycji" placeholder="Notatka" value={notes} onChange={event => setNotes(event.target.value)} style={inputStyle} />
@@ -458,8 +462,8 @@ function TradeModal({ holding, account, type, onClose }: { holding: InvestmentHo
     <ModalShell title={title} onClose={onClose}>
       <div style={{ display: 'grid', gap: 12 }}>
         <div style={{ padding: 12, borderRadius: 12, background: T.bg, color: T.mid, fontSize: 13 }}>
-          <div>Posiadasz <strong>{formatQuantity(holding.quantity)}</strong> po średniej cenie <PrivacyAmount amount={holding.unitPrice} style={{ fontWeight: 850 }} /> {holding.currency}.</div>
-          <div style={{ marginTop: 6 }}>Wolne środki: <PrivacyAmount amount={freeCash} style={{ fontWeight: 850 }} />. Wartość operacji: <PrivacyAmount amount={operationValue} style={{ fontWeight: 850 }} />.</div>
+          <div>Posiadasz <strong>{formatQuantity(holding.quantity)}</strong> po średniej cenie <PrivacyAmount amount={holding.unitPrice} currency={holding.currency} style={{ fontWeight: 850 }} />.</div>
+          <div style={{ marginTop: 6 }}>Wolne środki: <PrivacyAmount amount={freeCash} currency={account?.currency ?? holding.currency} style={{ fontWeight: 850 }} />. Wartość operacji: <PrivacyAmount amount={operationValue} currency={holding.currency} style={{ fontWeight: 850 }} />.</div>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <input aria-label="Ilość operacji" type="number" min="0" step="0.00000001" placeholder="Ilość" value={quantity} onChange={event => setQuantity(event.target.value)} style={inputStyle} />

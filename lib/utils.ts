@@ -1,11 +1,32 @@
-export const fmtPLN = (n: number, showSign = false): string => {
-  const abs = Math.abs(n).toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  if (showSign) return (n >= 0 ? '+' : '-') + ' ' + abs + ' zł';
-  return abs + ' zł';
+const formatCurrency = (value: number, currency: string, digits: number): string => {
+  const code = currency.trim().toUpperCase();
+  try {
+    return Math.abs(value).toLocaleString('pl-PL', {
+      style: 'currency',
+      currency: code,
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    });
+  } catch {
+    const amount = Math.abs(value).toLocaleString('pl-PL', {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    });
+    return code ? `${amount} ${code}` : amount;
+  }
 };
 
-export const fmtShort = (n: number): string =>
-  Math.abs(n).toLocaleString('pl-PL', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ' zł';
+export const formatMoney = (value: number, currency: string, showSign = false): string => {
+  const amount = formatCurrency(value, currency, 2);
+  if (!showSign) return amount;
+  return `${value >= 0 ? '+' : '-'} ${amount}`;
+};
+
+export const formatMoneyShort = (value: number, currency: string): string =>
+  formatCurrency(value, currency, 0);
+
+export const fallbackCurrency = (...codes: Array<string | null | undefined>): string =>
+  codes.find(code => code?.trim())?.trim().toUpperCase() ?? 'PLN';
 
 export const fmtDate = (d: string): string => {
   const map: Record<string, string> = {

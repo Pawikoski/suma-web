@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { BarChart2, CalendarDays, ClipboardList, HandCoins, Home, LineChart, Repeat2, Search, Settings, Tag, UploadCloud, Wallet } from 'lucide-react';
 import { useActiveMonthData } from '@/lib/useActiveMonthData';
 import { useSumaUiStore } from '@/lib/stores/ui-store';
-import { fmtPLN } from '@/lib/utils';
+import { formatMoney } from '@/lib/utils';
 
 const QUICK_LINKS = [
   { label: 'Home', href: '/', Icon: Home },
@@ -25,7 +25,7 @@ const QUICK_LINKS = [
 
 export default function CommandPalette() {
   const router = useRouter();
-  const { accounts, categories, allTransactions, investmentHoldings, activeMonth } = useActiveMonthData();
+  const { accounts, categories, allTransactions, investmentHoldings, activeMonth, baseCurrency } = useActiveMonthData();
   const open = useSumaUiStore(state => state.isCommandOpen);
   const close = useSumaUiStore(state => state.closeCommand);
   const navHref = (href: string) => href.includes('?')
@@ -67,7 +67,7 @@ export default function CommandPalette() {
                 <ClipboardList size={18} />
                 <span>{tx.cat}</span>
                 <small>{tx.desc || tx.acc}</small>
-                <strong>{fmtPLN(Math.abs(tx.amount))}</strong>
+                <strong>{formatMoney(Math.abs(tx.amount), tx.currency)}</strong>
               </Command.Item>
             ))}
           </Command.Group>
@@ -78,7 +78,7 @@ export default function CommandPalette() {
                 <Wallet size={18} />
                 <span>{account.name}</span>
                 <small>{account.type}</small>
-                <strong>{fmtPLN(account.balance)}</strong>
+                <strong>{formatMoney(account.balance, account.currency)}</strong>
               </Command.Item>
             ))}
           </Command.Group>
@@ -89,7 +89,7 @@ export default function CommandPalette() {
                 <Tag size={18} />
                 <span>{category.name}</span>
                 <small>{category.txCount} transakcji</small>
-                <strong>{fmtPLN(category.spent)}</strong>
+                <strong>{formatMoney(category.spent, baseCurrency)}</strong>
               </Command.Item>
             ))}
           </Command.Group>
@@ -100,7 +100,7 @@ export default function CommandPalette() {
                 <LineChart size={18} />
                 <span>{holding.symbol}</span>
                 <small>{holding.accountName ?? holding.name}</small>
-                <strong>{fmtPLN(holding.value)}</strong>
+                <strong>{formatMoney(holding.value, holding.currency)}</strong>
               </Command.Item>
             ))}
           </Command.Group>

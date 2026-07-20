@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { addSettlementPaymentAction, createSettlementAction, deleteSettlementAction, settleSettlementAction } from '@/app/actions/sync';
 import { T } from '@/lib/tokens';
 import { Account, Settlement } from '@/lib/data';
+import { formatMoney } from '@/lib/utils';
 import { useActiveMonthData } from '@/lib/useActiveMonthData';
 import Card from '@/components/ui/Card';
 import PrivacyAmount from '@/components/ui/PrivacyAmount';
@@ -34,7 +35,7 @@ function filterSettlement(settlement: Settlement, filter: SettlementFilter) {
 }
 
 export default function SettlementsScreen() {
-  const { settlements, accounts } = useActiveMonthData();
+  const { settlements, accounts, baseCurrency } = useActiveMonthData();
   const [filter, setFilter] = useState<SettlementFilter>('active');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [paymentSettlement, setPaymentSettlement] = useState<Settlement | null>(null);
@@ -78,11 +79,11 @@ export default function SettlementsScreen() {
       <div className="settlements-summary-grid" style={{ display: 'grid', gridTemplateColumns: '1.4fr .8fr .8fr .8fr', gap: 14 }}>
         <Card style={{ padding: 24, background: netBalance >= 0 ? T.incomeSoft : T.expenseSoft, borderColor: netBalance >= 0 ? '#a7f3d0' : '#fecaca' }}>
           <div style={{ color: T.muted, fontSize: 12, fontWeight: 850, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>Bilans rozliczeń</div>
-          <PrivacyAmount amount={netBalance} signed style={{ display: 'block', color: netBalance >= 0 ? T.income : T.expense, fontSize: 34, fontWeight: 850 }} />
+          <PrivacyAmount amount={netBalance} currency={baseCurrency} signed style={{ display: 'block', color: netBalance >= 0 ? T.income : T.expense, fontSize: 34, fontWeight: 850 }} />
           <div style={{ color: T.muted, fontSize: 13, marginTop: 10 }}>{netBalance >= 0 ? 'Więcej pieniędzy jest do odebrania.' : 'Masz więcej do spłaty.'}</div>
         </Card>
-        <MetricCard label="Do odebrania" value={owedToMe} color={T.income} />
-        <MetricCard label="Do spłaty" value={iOwe} color={T.expense} />
+        <MetricCard label="Do odebrania" value={owedToMe} currency={baseCurrency} color={T.income} />
+        <MetricCard label="Do spłaty" value={iOwe} currency={baseCurrency} color={T.expense} />
         <MetricCard label="Przeterminowane" value={overdueCount} color={T.warn} numeric />
       </div>
 
@@ -124,7 +125,7 @@ export default function SettlementsScreen() {
   );
 }
 
-function MetricCard({ label, value, color, numeric = false }: { label: string; value: number; color: string; numeric?: boolean }) {
+function MetricCard({ label, value, currency, color, numeric = false }: { label: string; value: number; currency?: string; color: string; numeric?: boolean }) {
   return (
     <Card style={{ padding: 18, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 126 }}>
       <div style={{ width: 38, height: 38, borderRadius: 12, background: T.bg, display: 'grid', placeItems: 'center' }}>
@@ -134,7 +135,7 @@ function MetricCard({ label, value, color, numeric = false }: { label: string; v
         {numeric ? (
           <div style={{ color, fontSize: 26, fontWeight: 850 }}>{value}</div>
         ) : (
-          <PrivacyAmount amount={value} style={{ display: 'block', color, fontSize: 24, fontWeight: 850 }} />
+          <PrivacyAmount amount={value} currency={currency as string} style={{ display: 'block', color, fontSize: 24, fontWeight: 850 }} />
         )}
         <div style={{ color: T.muted, fontSize: 12, fontWeight: 750 }}>{label}</div>
       </div>
@@ -201,8 +202,8 @@ function SettlementCard({ settlement, accounts, onPay }: { settlement: Settlemen
           {settlement.note && <div style={{ color: T.faint, fontSize: 12, marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{settlement.note}</div>}
         </div>
         <div style={{ textAlign: 'right', flexShrink: 0 }}>
-          <PrivacyAmount amount={isLent ? settlement.remainingAmount : -settlement.remainingAmount} signed style={{ display: 'block', color: amountColor, fontSize: 16, fontWeight: 850 }} />
-          <div style={{ color: T.faint, fontSize: 11 }}>z {settlement.totalAmount.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {settlement.currency}</div>
+          <PrivacyAmount amount={isLent ? settlement.remainingAmount : -settlement.remainingAmount} currency={settlement.currency} signed style={{ display: 'block', color: amountColor, fontSize: 16, fontWeight: 850 }} />
+          <div style={{ color: T.faint, fontSize: 11 }}>z {formatMoney(settlement.totalAmount, settlement.currency)}</div>
         </div>
       </div>
 
@@ -344,7 +345,7 @@ function PaymentModal({ settlement, accounts, onClose }: { settlement: Settlemen
       <div style={{ display: 'grid', gap: 12 }}>
         <Card style={{ padding: 14, background: T.bg }}>
           <div style={{ color: T.dark, fontSize: 15, fontWeight: 850 }}>{settlement.counterpartyName}</div>
-          <div style={{ color: T.muted, fontSize: 12, marginTop: 4 }}>Pozostało <PrivacyAmount amount={settlement.remainingAmount} /></div>
+          <div style={{ color: T.muted, fontSize: 12, marginTop: 4 }}>Pozostało <PrivacyAmount amount={settlement.remainingAmount} currency={settlement.currency} /></div>
         </Card>
         <input aria-label="Kwota wpłaty" type="number" min="0.01" step="0.01" value={amount} onChange={event => setAmount(event.target.value)} style={inputStyle} />
         <select aria-label="Konto wpłaty" value={accountId} onChange={event => setAccountId(event.target.value)} style={inputStyle}>

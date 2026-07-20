@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { Save } from 'lucide-react';
 import { upsertAccountBudgetAction, upsertCategoryBudgetAction, upsertOverallBudgetAction } from '@/app/actions/sync';
 import { T } from '@/lib/tokens';
-import { fmtPLN } from '@/lib/utils';
+import { formatMoney, formatMoneyShort } from '@/lib/utils';
 import { Account, AccountBudget, Category, Transaction } from '@/lib/data';
 import { categoryBudgetUsages, nonOverlappingCategoryBudgetSummary } from '@/lib/category-hierarchy';
 import { useActiveMonthData } from '@/lib/useActiveMonthData';
@@ -15,7 +15,7 @@ import Icon from '@/components/ui/Icon';
 import PrivacyAmount from '@/components/ui/PrivacyAmount';
 
 export default function BudgetScreen() {
-  const { accounts, accountBudgets, categories, overallBudget, activeMonth, transactions } = useActiveMonthData();
+  const { accounts, accountBudgets, categories, overallBudget, activeMonth, transactions, baseCurrency } = useActiveMonthData();
   const router = useRouter();
   const [overallDraft, setOverallDraft] = useState(String(overallBudget ?? ''));
   const [overallPending, startOverallTransition] = useTransition();
@@ -60,15 +60,15 @@ export default function BudgetScreen() {
             <>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 12 }}>
                 <div>
-                  <PrivacyAmount amount={spent} style={{ fontSize: 32, fontWeight: 800, color: T.dark }} />
-                  <span style={{ fontSize: 15, color: T.muted, fontWeight: 400 }}> / {fmtPLN(totalBudget)}</span>
+                  <PrivacyAmount amount={spent} currency={baseCurrency} style={{ fontSize: 32, fontWeight: 800, color: T.dark }} />
+                  <span style={{ fontSize: 15, color: T.muted, fontWeight: 400 }}> / {formatMoney(totalBudget, baseCurrency)}</span>
                 </div>
                 <span style={{ fontSize: 20, fontWeight: 700, color: pct > 100 ? T.expense : T.accent }}>{Math.round(pct)}%</span>
               </div>
               <Bar pct={pct} color={pct > 100 ? T.expense : T.accent} height={10} />
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
                 <span style={{ fontSize: 12, color: T.muted }}>
-                  Pozostało: <strong style={{ color: T.income }}><PrivacyAmount amount={Math.max(totalBudget - spent, 0)} /></strong>
+                  Pozostało: <strong style={{ color: T.income }}><PrivacyAmount amount={Math.max(totalBudget - spent, 0)} currency={baseCurrency} /></strong>
                 </span>
                 <span style={{ fontSize: 12, color: T.muted }}>{daysLeft} dni do końca miesiąca</span>
               </div>
@@ -100,7 +100,7 @@ export default function BudgetScreen() {
           <div style={{ fontSize: 13, color: T.muted, fontWeight: 500, marginBottom: 12 }}>Kategorie w budżecie</div>
           <div style={{ fontSize: 12, color: T.muted, marginBottom: 12 }}>
             {categoryBudgetSummary.budget > 0
-              ? `${fmtPLN(categoryBudgetSummary.spent)} z ${fmtPLN(categoryBudgetSummary.budget)} bez dublowania podlimitów`
+              ? `${formatMoney(categoryBudgetSummary.spent, baseCurrency)} z ${formatMoney(categoryBudgetSummary.budget, baseCurrency)} bez dublowania podlimitów`
               : 'Brak ustawionych budżetów kategorii'}
           </div>
           {statusGroups.map(s => (
@@ -142,7 +142,7 @@ export default function BudgetScreen() {
           const catPct = c.budget ? spentForBudget / c.budget * 100 : 0;
           const over = catPct > 100;
           return (
-            <CategoryBudgetCard key={c.id} category={c} spent={spentForBudget} catPct={catPct} over={over} isSubLimit={usage?.isSubLimit ?? false} />
+            <CategoryBudgetCard key={c.id} category={c} spent={spentForBudget} catPct={catPct} over={over} isSubLimit={usage?.isSubLimit ?? false} currency={baseCurrency} />
           );
         })}
       </div>
@@ -191,8 +191,8 @@ function AccountBudgetCard({ account, activeMonth, budget, spent }: { account: A
           <div style={{ fontSize: 12, color: T.muted }}>{account.type}</div>
         </div>
         <div style={{ textAlign: 'right' }}>
-          <PrivacyAmount amount={spent} style={{ display: 'block', fontSize: 14, fontWeight: 800, color: over ? T.expense : T.dark }} />
-          <div style={{ fontSize: 11, color: T.faint }}>{amount > 0 ? `z ${fmtPLN(amount)}` : 'bez limitu'}</div>
+          <PrivacyAmount amount={spent} currency={account.currency} style={{ display: 'block', fontSize: 14, fontWeight: 800, color: over ? T.expense : T.dark }} />
+          <div style={{ fontSize: 11, color: T.faint }}>{amount > 0 ? `z ${formatMoneyShort(amount, account.currency)}` : 'bez limitu'}</div>
         </div>
       </div>
       {amount > 0 ? (
@@ -200,7 +200,7 @@ function AccountBudgetCard({ account, activeMonth, budget, spent }: { account: A
           <Bar pct={pct} color={over ? T.expense : account.color} />
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
             <span style={{ fontSize: 11, color: over ? T.expense : T.muted }}>
-              {over ? `Przekroczono o ${fmtPLN(spent - amount)}` : `Pozostało ${fmtPLN(amount - spent)}`}
+              {over ? `Przekroczono o ${formatMoney(spent - amount, account.currency)}` : `Pozostało ${formatMoney(amount - spent, account.currency)}`}
             </span>
             <span style={{ fontSize: 11, fontWeight: 700, color: over ? T.expense : T.accent }}>{Math.round(pct)}%</span>
           </div>
@@ -231,7 +231,7 @@ function AccountBudgetCard({ account, activeMonth, budget, spent }: { account: A
   );
 }
 
-function CategoryBudgetCard({ category: c, spent, catPct, over, isSubLimit }: { category: Category; spent: number; catPct: number; over: boolean; isSubLimit: boolean }) {
+function CategoryBudgetCard({ category: c, spent, catPct, over, isSubLimit, currency }: { category: Category; spent: number; catPct: number; over: boolean; isSubLimit: boolean; currency: string }) {
   const router = useRouter();
   const [draft, setDraft] = useState(c.budget ? String(c.budget) : '');
   const [pending, startTransition] = useTransition();
@@ -259,8 +259,8 @@ function CategoryBudgetCard({ category: c, spent, catPct, over, isSubLimit }: { 
                   <div style={{ fontSize: 12, color: T.muted }}>{c.txCount} transakcji{isSubLimit ? ' · podlimit' : ''}</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <PrivacyAmount amount={spent} style={{ display: 'block', fontSize: 14, fontWeight: 700, color: over ? T.expense : T.dark }} />
-                  <div style={{ fontSize: 11, color: T.faint }}>{c.budget ? `z ${fmtPLN(c.budget)}` : 'bez budżetu'}</div>
+	                  <PrivacyAmount amount={spent} currency={currency} style={{ display: 'block', fontSize: 14, fontWeight: 700, color: over ? T.expense : T.dark }} />
+	                  <div style={{ fontSize: 11, color: T.faint }}>{c.budget ? `z ${formatMoneyShort(c.budget, currency)}` : 'bez budżetu'}</div>
                 </div>
               </div>
               {c.budget ? (
@@ -268,7 +268,7 @@ function CategoryBudgetCard({ category: c, spent, catPct, over, isSubLimit }: { 
                   <Bar pct={catPct} color={over ? T.expense : c.color} />
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
                     <span style={{ fontSize: 11, color: over ? T.expense : T.muted }}>
-                      {over ? `Przekroczono o ${fmtPLN(spent - c.budget)}` : `Pozostało ${fmtPLN(c.budget - spent)}`}
+	                      {over ? `Przekroczono o ${formatMoney(spent - c.budget, currency)}` : `Pozostało ${formatMoney(c.budget - spent, currency)}`}
                     </span>
                     <span style={{ fontSize: 11, fontWeight: 600, color: over ? T.expense : T.accent }}>{Math.round(catPct)}%</span>
                   </div>

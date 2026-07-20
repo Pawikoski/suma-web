@@ -36,7 +36,7 @@ function buildDailyTotals(transactions: Transaction[]) {
 
 export default function CalendarScreen() {
   const router = useRouter();
-  const { allTransactions, activeMonth, yearMonth } = useActiveMonthData();
+  const { allTransactions, activeMonth, yearMonth, baseCurrency } = useActiveMonthData();
   const centerMonth = activeMonth === 'all' ? yearMonth : activeMonth;
   const centerDate = parse(centerMonth, 'yyyy-MM', new Date());
   const months = [addMonths(centerDate, -1), centerDate, addMonths(centerDate, 1)];
@@ -49,13 +49,13 @@ export default function CalendarScreen() {
   return (
     <div className="screen calendar-screen" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 18 }}>
       {months.map(month => (
-        <MonthCalendar key={monthKey(month)} month={month} dailyTotals={dailyTotals} onDayClick={openDay} />
+        <MonthCalendar key={monthKey(month)} month={month} dailyTotals={dailyTotals} currency={baseCurrency} onDayClick={openDay} />
       ))}
     </div>
   );
 }
 
-function MonthCalendar({ month, dailyTotals, onDayClick }: { month: Date; dailyTotals: Map<string, DayTotals>; onDayClick: (date: string) => void }) {
+function MonthCalendar({ month, dailyTotals, currency, onDayClick }: { month: Date; dailyTotals: Map<string, DayTotals>; currency: string; onDayClick: (date: string) => void }) {
   const days = eachDayOfInterval({ start: startOfMonth(month), end: endOfMonth(month) });
   const firstDayOffset = (getDay(days[0]) + 6) % 7;
   const emptyCells = Array.from({ length: firstDayOffset });
@@ -70,18 +70,18 @@ function MonthCalendar({ month, dailyTotals, onDayClick }: { month: Date; dailyT
     <Card style={{ padding: 18 }}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: 12, marginBottom: 8 }}>
         <div style={{ color: T.income, fontSize: 13, fontWeight: 800 }}>
-          {monthIncome > 0 ? <PrivacyAmount amount={monthIncome} prefix="+ " /> : null}
+          {monthIncome > 0 ? <PrivacyAmount amount={monthIncome} currency={currency} prefix="+ " /> : null}
         </div>
         <div style={{ textAlign: 'center' }}>
           <h1 style={{ color: T.dark, fontSize: 18, fontWeight: 900, textTransform: 'capitalize' }}>{monthLabel}</h1>
           {(monthIncome > 0 || monthExpense > 0) && (
             <div style={{ color: monthNet >= 0 ? T.income : T.expense, fontSize: 12, fontWeight: 800 }}>
-              <PrivacyAmount amount={Math.abs(monthNet)} prefix={monthNet >= 0 ? '+ ' : '- '} />
+              <PrivacyAmount amount={Math.abs(monthNet)} currency={currency} prefix={monthNet >= 0 ? '+ ' : '- '} />
             </div>
           )}
         </div>
         <div style={{ color: T.expense, fontSize: 13, fontWeight: 800, textAlign: 'right' }}>
-          {monthExpense > 0 ? <PrivacyAmount amount={monthExpense} prefix="- " /> : null}
+          {monthExpense > 0 ? <PrivacyAmount amount={monthExpense} currency={currency} prefix="- " /> : null}
         </div>
       </div>
 
@@ -125,7 +125,7 @@ function MonthCalendar({ month, dailyTotals, onDayClick }: { month: Date; dailyT
               <div style={{ fontSize: 12, fontWeight: hasData ? 900 : 600 }}>{format(day, 'd')}</div>
               {hasData && (
                 <div style={{ marginTop: 4, color: net >= 0 ? T.income : T.expense, fontSize: 11, fontWeight: 850, lineHeight: 1.1 }}>
-                  <PrivacyAmount amount={Math.abs(net)} prefix={net >= 0 ? '+ ' : '- '} />
+	                  <PrivacyAmount amount={Math.abs(net)} currency={currency} prefix={net >= 0 ? '+ ' : '- '} />
                 </div>
               )}
               {expenseFraction > 0 && (

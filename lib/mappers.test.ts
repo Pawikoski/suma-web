@@ -257,6 +257,12 @@ function syncFixture(): SyncServerChanges {
 }
 
 describe('mapSyncData', () => {
+  it('uses the user preference as the base currency before account fallbacks', () => {
+    const data = mapSyncData(syncFixture(), '2026-05', 'eur');
+
+    expect(data.baseCurrency).toBe('EUR');
+  });
+
   it('keeps all transactions while deriving the selected month view', () => {
     const data = mapSyncData(syncFixture(), '2026-05');
 

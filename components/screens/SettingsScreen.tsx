@@ -10,7 +10,7 @@ import { useSumaUiStore } from '@/lib/stores/ui-store';
 import Card from '@/components/ui/Card';
 
 export default function SettingsScreen() {
-  const { accounts, categories, allTransactions, recurringTransactions, settlements, investmentHoldings, accountInterest, userEmail, syncError, activeMonth } = useActiveMonthData();
+  const { accounts, categories, allTransactions, recurringTransactions, settlements, investmentHoldings, accountInterest, userEmail, syncError, activeMonth, baseCurrency } = useActiveMonthData();
   const privacyMode = useSumaUiStore(state => state.privacyMode);
   const togglePrivacyMode = useSumaUiStore(state => state.togglePrivacyMode);
   const expenseCategories = categories.filter(category => category.types.includes('EXPENSE'));
@@ -47,7 +47,7 @@ export default function SettingsScreen() {
         <Divider />
         <SettingsRow icon={<Globe2 size={18} />} title="Język" description="Interfejs workspace" value="Polski" />
         <Divider />
-        <SettingsRow icon={<Wallet size={18} />} title="Waluta" description="Format kwot i podsumowań" value="PLN" />
+        <SettingsRow icon={<Wallet size={18} />} title="Waluta" description="Format kwot i podsumowań" value={baseCurrency} />
       </Section>
 
       <Section title="Dodawanie transakcji">

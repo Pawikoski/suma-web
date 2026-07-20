@@ -4,7 +4,7 @@ import { ReactNode } from 'react';
 import Link from 'next/link';
 import { AlertTriangle, ArrowLeft, Bell } from 'lucide-react';
 import { T } from '@/lib/tokens';
-import { fmtPLN } from '@/lib/utils';
+import { formatMoney } from '@/lib/utils';
 import { categoryBudgetUsages } from '@/lib/category-hierarchy';
 import { useActiveMonthData } from '@/lib/useActiveMonthData';
 import Card from '@/components/ui/Card';
@@ -13,7 +13,7 @@ import Icon from '@/components/ui/Icon';
 import PrivacyAmount from '@/components/ui/PrivacyAmount';
 
 export default function BudgetNotificationsScreen() {
-  const { accountBudgets, accounts, categories, activeMonth, transactions } = useActiveMonthData();
+  const { accountBudgets, accounts, categories, activeMonth, transactions, baseCurrency } = useActiveMonthData();
   const categoryAlerts = categoryBudgetUsages(categories)
     .map(({ category, budget, spent, pct, isSubLimit }) => {
       return {
@@ -24,6 +24,7 @@ export default function BudgetNotificationsScreen() {
         color: category.color,
         spent,
         budget,
+        currency: baseCurrency,
         pct,
         isSubLimit,
         kind: 'category' as const,
@@ -44,6 +45,7 @@ export default function BudgetNotificationsScreen() {
         color: account?.color ?? T.accent,
         spent,
         budget: budget.amount,
+        currency: account?.currency ?? baseCurrency,
         pct,
         isSubLimit: false,
         kind: 'account' as const,
@@ -98,8 +100,8 @@ export default function BudgetNotificationsScreen() {
                     <span style={{ display: 'block', color: T.muted, fontSize: 11 }}>{alert.kind === 'account' ? 'Konto' : alert.isSubLimit ? 'Podlimit kategorii' : 'Kategoria'}</span>
                   </span>
                   <span style={{ textAlign: 'right' }}>
-                    <PrivacyAmount amount={alert.spent} style={{ display: 'block', color: alert.pct >= 100 ? T.expense : T.dark, fontSize: 14, fontWeight: 900 }} />
-                    <span style={{ display: 'block', color: T.faint, fontSize: 11 }}>z {fmtPLN(alert.budget)}</span>
+                    <PrivacyAmount amount={alert.spent} currency={alert.currency} style={{ display: 'block', color: alert.pct >= 100 ? T.expense : T.dark, fontSize: 14, fontWeight: 900 }} />
+                    <span style={{ display: 'block', color: T.faint, fontSize: 11 }}>z {formatMoney(alert.budget, alert.currency)}</span>
                   </span>
                 </div>
                 <Bar pct={alert.pct} color={alert.pct >= 100 ? T.expense : alert.pct >= 80 ? T.warn : alert.color} height={7} />

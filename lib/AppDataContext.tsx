@@ -1,6 +1,7 @@
 'use client';
 import { createContext, useContext } from 'react';
 import { Account, AccountBudget, AccountInterest, Category, InvestmentHolding, OverallBudget, RecurringTransaction, Settlement, Transaction } from '@/lib/data';
+import { fallbackCurrency } from '@/lib/utils';
 
 export interface AppData {
   accounts: Account[];
@@ -14,6 +15,7 @@ export interface AppData {
   settlements: Settlement[];
   overallBudget: number | null;
   overallBudgetRecord: OverallBudget | null;
+  baseCurrency: string;
   yearMonth: string;
   syncError: string | null;
   userEmail: string | null;
@@ -31,6 +33,7 @@ const AppDataContext = createContext<AppData>({
   settlements: [],
   overallBudget: null,
   overallBudgetRecord: null,
+  baseCurrency: fallbackCurrency(),
   yearMonth: '',
   syncError: null,
   userEmail: null,

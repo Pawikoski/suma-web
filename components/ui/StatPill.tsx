@@ -5,10 +5,11 @@ import PrivacyAmount from '@/components/ui/PrivacyAmount';
 interface StatPillProps {
   label: string;
   amount: number;
+  currency: string;
   type: 'income' | 'expense';
 }
 
-export default function StatPill({ label, amount, type }: StatPillProps) {
+export default function StatPill({ label, amount, currency, type }: StatPillProps) {
   const isIncome = type === 'income';
   return (
     <div style={{
@@ -19,7 +20,7 @@ export default function StatPill({ label, amount, type }: StatPillProps) {
       <span style={{ fontSize: 15, color: isIncome ? T.income : T.expense }}>{isIncome ? '↑' : '↓'}</span>
       <div>
         <div style={{ fontSize: 12, color: isIncome ? T.income : T.expense, fontWeight: 500 }}>{label}</div>
-        <PrivacyAmount amount={amount} style={{ display: 'block', fontSize: 15, fontWeight: 700, color: isIncome ? T.income : T.expense }} />
+        <PrivacyAmount amount={amount} currency={currency} style={{ display: 'block', fontSize: 15, fontWeight: 700, color: isIncome ? T.income : T.expense }} />
       </div>
     </div>
   );

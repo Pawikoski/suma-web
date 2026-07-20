@@ -8,7 +8,7 @@ import { confirmImportAnalysisAction } from '@/app/actions/sync';
 import { T } from '@/lib/tokens';
 import { useActiveMonthData } from '@/lib/useActiveMonthData';
 import { ImportAnalysis } from '@/lib/schemas/import-analysis';
-import { fmtPLN } from '@/lib/utils';
+import { formatMoney, fallbackCurrency } from '@/lib/utils';
 import Card from '@/components/ui/Card';
 import PrivacyAmount from '@/components/ui/PrivacyAmount';
 
@@ -31,7 +31,7 @@ function transactionTypeLabel(type: string) {
 
 export default function ImportExportScreen() {
   const router = useRouter();
-  const { accounts, categories, allTransactions, recurringTransactions, settlements, investmentHoldings, accountInterest } = useActiveMonthData();
+  const { accounts, categories, allTransactions, recurringTransactions, settlements, investmentHoldings, accountInterest, baseCurrency } = useActiveMonthData();
   const [state, setState] = useState<ImportState>({ status: 'idle' });
   const [isPending, startTransition] = useTransition();
   const [isConfirming, startConfirmTransition] = useTransition();
@@ -150,6 +150,7 @@ export default function ImportExportScreen() {
           fileName={state.fileName}
           analysis={state.analysis}
           duplicateCount={duplicateCount}
+          baseCurrency={baseCurrency}
           isConfirming={isConfirming}
           onConfirm={confirmImport}
         />
@@ -162,18 +163,25 @@ function ImportPreview({
   fileName,
   analysis,
   duplicateCount,
+  baseCurrency,
   isConfirming,
   onConfirm,
 }: {
   fileName: string;
   analysis: ImportAnalysis;
   duplicateCount: number;
+  baseCurrency: string;
   isConfirming: boolean;
   onConfirm: () => void;
 }) {
   const totalExpense = analysis.transactions
     .filter(tx => tx.type === 'EXPENSE')
     .reduce((sum, tx) => sum + tx.amount, 0);
+  const previewCurrency = fallbackCurrency(
+    analysis.transactions[0]?.currency,
+    analysis.accounts[0]?.currency,
+    baseCurrency
+  );
   const confidencePct = Math.round(analysis.confidence * 100);
   const confidenceColor = confidencePct >= 70 ? T.income : confidencePct >= 40 ? T.warn : T.expense;
 
@@ -228,7 +236,11 @@ function ImportPreview({
                   <td style={tdStyle}>{tx.type === 'TRANSFER' ? tx.to_account : [tx.to_category_parent, tx.to_category || 'Inne'].filter(Boolean).join(' / ')}</td>
                   <td style={{ ...tdStyle, color: T.muted }}>{tx.notes || '-'}</td>
                   <td style={{ ...tdStyle, textAlign: 'right', color: tx.type === 'EXPENSE' ? T.expense : T.income, fontWeight: 850 }}>
-                    <PrivacyAmount amount={tx.type === 'EXPENSE' ? -tx.amount : tx.amount} signed />
+                    <PrivacyAmount
+                      amount={tx.type === 'EXPENSE' ? -tx.amount : tx.amount}
+                      currency={fallbackCurrency(tx.currency, baseCurrency)}
+                      signed
+                    />
                   </td>
                 </tr>
               ))}
@@ -248,12 +260,16 @@ function ImportPreview({
             {analysis.accounts.slice(0, 8).map(account => (
               <div key={account.name} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 13 }}>
                 <span style={{ color: T.mid, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{account.name}</span>
-                <span style={{ color: T.muted, flexShrink: 0 }}>{account.balance === null ? account.currency : fmtPLN(account.balance)}</span>
+                <span style={{ color: T.muted, flexShrink: 0 }}>
+                  {account.balance === null
+                    ? fallbackCurrency(account.currency, baseCurrency)
+                    : formatMoney(account.balance, fallbackCurrency(account.currency, baseCurrency))}
+                </span>
               </div>
             ))}
           </div>
           <div style={{ color: T.dark, fontSize: 14, fontWeight: 850, marginBottom: 8 }}>Suma wydatków</div>
-          <PrivacyAmount amount={totalExpense} style={{ display: 'block', color: T.expense, fontSize: 24, fontWeight: 850 }} />
+          <PrivacyAmount amount={totalExpense} currency={previewCurrency} style={{ display: 'block', color: T.expense, fontSize: 24, fontWeight: 850 }} />
         </aside>
       </div>
     </Card>

@@ -1,5 +1,6 @@
 import { SyncServerChanges } from './api-types';
 import { Account, AccountBudget, AccountInterest, Category, InvestmentHolding, OverallBudget, RecurringTransaction, Settlement, Transaction } from './data';
+import { fallbackCurrency } from './utils';
 
 const TYPE_LABELS: Record<string, string> = {
   CASH: 'Gotówka',
@@ -32,10 +33,11 @@ export interface MappedData {
   settlements: Settlement[];
   overallBudget: number | null;
   overallBudgetRecord: OverallBudget | null;
+  baseCurrency: string;
   yearMonth: string;
 }
 
-export function mapSyncData(data: SyncServerChanges, yearMonth: string): MappedData {
+export function mapSyncData(data: SyncServerChanges, yearMonth: string, preferredCurrency?: string | null): MappedData {
   const accounts: Account[] = data.accounts
     .filter(a => !a.deleted_at && a.is_active)
     .sort((a, b) => a.sort_order - b.sort_order)
@@ -69,6 +71,10 @@ export function mapSyncData(data: SyncServerChanges, yearMonth: string): MappedD
 
   const accountById = new Map(data.accounts.map(a => [a.id, a]));
   const mappedAccountById = new Map(accounts.map(a => [a.id, a]));
+  const defaultAccountCurrency = data.accounts.find(account =>
+    !account.deleted_at && account.is_active && account.is_default
+  )?.currency;
+  const baseCurrency = fallbackCurrency(preferredCurrency, defaultAccountCurrency, accounts[0]?.currency);
 
   const categoryById = new Map(
     data.categories
@@ -173,7 +179,7 @@ export function mapSyncData(data: SyncServerChanges, yearMonth: string): MappedD
         accountId: t.from_account_id,
         toAccountId: t.to_account_id,
         toAccountName: toAccount?.name ?? null,
-        currency: t.account_currency || mappedAccount?.currency || 'PLN',
+        currency: fallbackCurrency(t.account_currency, mappedAccount?.currency, baseCurrency),
         amount: t.type === 'EXPENSE' ? -amount : amount,
         rawAmount: amount,
         type: t.type === 'EXPENSE' ? 'expense' : t.type === 'INCOME' ? 'income' : 'transfer',
@@ -207,7 +213,7 @@ export function mapSyncData(data: SyncServerChanges, yearMonth: string): MappedD
         type: r.type === 'EXPENSE' ? 'expense' : r.type === 'INCOME' ? 'income' : 'transfer',
         rawType: r.type,
         amount: r.total_amount === null ? null : parseFloat(r.total_amount),
-        currency: r.account_currency || fromAccount?.currency || 'PLN',
+        currency: fallbackCurrency(r.account_currency, fromAccount?.currency, baseCurrency),
         fromAccountId: r.from_account_id,
         fromAccountName: fromAccount?.name ?? null,
         toAccountId: r.to_account_id,
@@ -233,16 +239,19 @@ export function mapSyncData(data: SyncServerChanges, yearMonth: string): MappedD
       } satisfies RecurringTransaction;
     });
 
+  const investmentHoldingById = new Map((data.investment_holdings ?? []).map(holding => [holding.id, holding]));
   const investmentTransactionsByHoldingId = new Map<string, InvestmentHolding['transactions']>();
   for (const tx of (data.investment_transactions ?? []).filter(tx => !tx.deleted_at)) {
     if (!tx.holding_id) continue;
+    const holding = investmentHoldingById.get(tx.holding_id);
+    const account = holding?.account_id ? mappedAccountById.get(holding.account_id) : null;
     const mapped = {
       id: tx.id,
       holdingId: tx.holding_id,
       type: tx.type,
       quantity: tx.quantity,
       unitPrice: parseFloat(tx.unit_price),
-      currency: tx.currency,
+      currency: fallbackCurrency(tx.currency, holding?.purchase_currency, holding?.currency, account?.currency, baseCurrency),
       date: tx.date.slice(0, 10),
       notes: tx.notes,
       updatedAt: tx.updated_at,
@@ -264,6 +273,7 @@ export function mapSyncData(data: SyncServerChanges, yearMonth: string): MappedD
       const account = holding.account_id ? mappedAccountById.get(holding.account_id) : null;
       const unitPrice = parseFloat(holding.unit_price);
       const transactions = investmentTransactionsByHoldingId.get(holding.id) ?? [];
+      const currency = fallbackCurrency(holding.currency, account?.currency, baseCurrency);
       return {
         id: holding.id,
         accountId: holding.account_id,
@@ -274,8 +284,8 @@ export function mapSyncData(data: SyncServerChanges, yearMonth: string): MappedD
         quantity: holding.quantity,
         unitPrice,
         value: holding.quantity * unitPrice,
-        currency: holding.currency,
-        purchaseCurrency: holding.purchase_currency,
+        currency,
+        purchaseCurrency: fallbackCurrency(holding.purchase_currency, currency),
         notes: holding.notes,
         transactions: transactions.sort((a, b) => b.date.localeCompare(a.date)),
         updatedAt: holding.updated_at,
@@ -384,7 +394,7 @@ export function mapSyncData(data: SyncServerChanges, yearMonth: string): MappedD
         totalAmount,
         repaidAmount,
         remainingAmount,
-        currency: settlement.currency,
+        currency: fallbackCurrency(settlement.currency, account?.currency, baseCurrency),
         note: settlement.note,
         dueDate,
         reminderDaysBefore: settlement.reminder_days_before,
@@ -423,7 +433,7 @@ export function mapSyncData(data: SyncServerChanges, yearMonth: string): MappedD
     : null;
   const overallBudget = overallBudgetRecord?.amount ?? null;
 
-  return { accounts, categories, transactions, allTransactions, recurringTransactions, investmentHoldings, accountInterest, accountBudgets, settlements, overallBudget, overallBudgetRecord, yearMonth };
+  return { accounts, categories, transactions, allTransactions, recurringTransactions, investmentHoldings, accountInterest, accountBudgets, settlements, overallBudget, overallBudgetRecord, baseCurrency, yearMonth };
 }
 
 export function currentYearMonth(): string {

@@ -12,7 +12,7 @@ import { T } from '@/lib/tokens';
 import { Account, Category, RecurringCategory, RecurringFrequency, RecurringTransaction } from '@/lib/data';
 import { useActiveMonthData } from '@/lib/useActiveMonthData';
 import { daysUntil, monthlyRecurringCost, nextRecurringDate, recurringCategoryLabel, recurringFrequencyLabel, RECURRING_CATEGORY_META } from '@/lib/recurring';
-import { fmtPLN } from '@/lib/utils';
+import { formatMoneyShort } from '@/lib/utils';
 import Card from '@/components/ui/Card';
 import Icon from '@/components/ui/Icon';
 import PrivacyAmount from '@/components/ui/PrivacyAmount';
@@ -37,7 +37,7 @@ function accountLabel(recurring: RecurringTransaction) {
 }
 
 export default function RecurringScreen() {
-  const { recurringTransactions, accounts, categories } = useActiveMonthData();
+  const { recurringTransactions, accounts, categories, baseCurrency } = useActiveMonthData();
   const [category, setCategory] = useQueryState('category', parseAsString.withDefault(ALL_CATEGORY));
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const today = useMemo(() => new Date(), []);
@@ -82,7 +82,7 @@ export default function RecurringScreen() {
         <Card style={{ padding: 24, background: `linear-gradient(135deg, ${T.accent}, #7c3aed)`, color: 'white', overflow: 'hidden', position: 'relative' }}>
           <div style={{ position: 'absolute', right: -28, top: -36, width: 150, height: 150, borderRadius: '50%', background: 'rgba(255,255,255,.1)' }} />
           <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 1, opacity: .72, textTransform: 'uppercase', marginBottom: 8 }}>Miesięczne obciążenie</div>
-          <PrivacyAmount amount={monthlyTotal} style={{ display: 'block', fontSize: 34, fontWeight: 850, lineHeight: 1.1 }} />
+          <PrivacyAmount amount={monthlyTotal} currency={baseCurrency} style={{ display: 'block', fontSize: 34, fontWeight: 850, lineHeight: 1.1 }} />
           <div style={{ display: 'flex', gap: 28, marginTop: 22 }}>
             <SummaryStat value={activeRecurring.length} label="Opłaty stałe" />
             <SummaryStat value={paidThisMonth} label="Opłacone w miesiącu" />
@@ -282,7 +282,7 @@ function UpcomingCard({ recurring, nextDate, today }: { recurring: RecurringTran
       <div style={{ fontSize: 12, color: T.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minHeight: 18 }}>{recurring.notes || accountLabel(recurring)}</div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 8, marginTop: 10 }}>
         <span style={{ fontSize: 12, color: T.faint }}>{format(parseISO(nextDate), 'd MMM', { locale: pl })}</span>
-        <PrivacyAmount amount={signedAmount(recurring)} signed style={{ color: amountColor(recurring), fontSize: 15, fontWeight: 850 }} />
+        <PrivacyAmount amount={signedAmount(recurring)} currency={recurring.currency} signed style={{ color: amountColor(recurring), fontSize: 15, fontWeight: 850 }} />
       </div>
     </Card>
   );
@@ -323,8 +323,8 @@ function RecurringCard({ recurring, nextDate, today }: { recurring: RecurringTra
           </div>
         </div>
         <div style={{ textAlign: 'right', flexShrink: 0 }}>
-          <PrivacyAmount amount={signedAmount(recurring)} signed style={{ display: 'block', color: amountColor(recurring), fontSize: 16, fontWeight: 850 }} />
-          <div style={{ fontSize: 11, color: T.faint }}>{fmtPLN(monthlyRecurringCost(recurring))}/mc</div>
+          <PrivacyAmount amount={signedAmount(recurring)} currency={recurring.currency} signed style={{ display: 'block', color: amountColor(recurring), fontSize: 16, fontWeight: 850 }} />
+          <div style={{ fontSize: 11, color: T.faint }}>{formatMoneyShort(monthlyRecurringCost(recurring), recurring.currency)}/mc</div>
         </div>
       </div>
       <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>

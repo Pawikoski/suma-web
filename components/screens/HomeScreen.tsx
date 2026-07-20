@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ChevronRight, Sparkles } from 'lucide-react';
 import { T } from '@/lib/tokens';
-import { fmtShort } from '@/lib/utils';
+import { formatMoneyShort } from '@/lib/utils';
 import { useActiveMonthData } from '@/lib/useActiveMonthData';
 import Card from '@/components/ui/Card';
 import StatPill from '@/components/ui/StatPill';
@@ -15,7 +15,7 @@ import PrivacyAmount from '@/components/ui/PrivacyAmount';
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { accounts, categories, transactions, overallBudget, activeMonth } = useActiveMonthData();
+  const { accounts, categories, transactions, overallBudget, activeMonth, baseCurrency } = useActiveMonthData();
 
   const totalBalance = accounts.filter(a => a.includeInNetWorth).reduce((s, a) => s + a.balance, 0);
   const income = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
@@ -28,10 +28,10 @@ export default function HomeScreen() {
       <div className="home-summary-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 16 }}>
         <Card style={{ padding: 24, gridColumn: 'span 2' }}>
           <div style={{ fontSize: 14, color: T.muted, fontWeight: 500, marginBottom: 4 }}>Łączny majątek</div>
-          <PrivacyAmount amount={totalBalance} style={{ display: 'block', fontSize: 38, fontWeight: 800, color: T.dark, marginBottom: 14 }} />
+          <PrivacyAmount amount={totalBalance} currency={baseCurrency} style={{ display: 'block', fontSize: 38, fontWeight: 800, color: T.dark, marginBottom: 14 }} />
           <div style={{ display: 'flex', gap: 10 }}>
-            <StatPill label="Przychody" amount={income} type="income" />
-            <StatPill label="Wydatki" amount={expense} type="expense" />
+            <StatPill label="Przychody" amount={income} currency={baseCurrency} type="income" />
+            <StatPill label="Wydatki" amount={expense} currency={baseCurrency} type="expense" />
           </div>
         </Card>
 
@@ -39,7 +39,7 @@ export default function HomeScreen() {
           <Card style={{ padding: 24 }}>
             <div style={{ fontSize: 14, color: T.muted, fontWeight: 500, marginBottom: 6 }}>Budżet miesięczny</div>
             <div style={{ fontSize: 27, fontWeight: 700, color: T.dark, marginBottom: 8 }}>
-              <PrivacyAmount amount={expense} style={{ font: 'inherit' }} /> <span style={{ fontSize: 16, color: T.muted, fontWeight: 400 }}>/ {fmtShort(budgetAmount)}</span>
+              <PrivacyAmount amount={expense} currency={baseCurrency} style={{ font: 'inherit' }} /> <span style={{ fontSize: 16, color: T.muted, fontWeight: 400 }}>/ {formatMoneyShort(budgetAmount, baseCurrency)}</span>
             </div>
             <Bar pct={expense / budgetAmount * 100} color={T.accent} />
             <div style={{ fontSize: 14, color: T.muted, marginTop: 8 }}>{Math.round(expense / budgetAmount * 100)}% wykorzystano</div>
@@ -54,7 +54,7 @@ export default function HomeScreen() {
         <Card style={{ padding: 24 }}>
           <div style={{ fontSize: 14, color: T.muted, fontWeight: 500, marginBottom: 6 }}>Bilans miesiąca</div>
           <div style={{ fontSize: 27, fontWeight: 700, color: income - expense >= 0 ? T.income : T.expense, marginBottom: 2 }}>
-            <PrivacyAmount amount={income - expense} signed style={{ font: 'inherit' }} />
+            <PrivacyAmount amount={income - expense} currency={baseCurrency} signed style={{ font: 'inherit' }} />
           </div>
           <div style={{ marginTop: 10 }}><Sparkline color={income - expense >= 0 ? T.income : T.expense} /></div>
         </Card>
@@ -91,7 +91,7 @@ export default function HomeScreen() {
               </div>
               <div style={{ textAlign: 'right', flexShrink: 0 }}>
                 <div style={{ fontSize: 16, fontWeight: 800, color: tx.type === 'expense' ? T.expense : tx.type === 'income' ? T.income : T.mid }}>
-                  <PrivacyAmount amount={Math.abs(tx.amount)} prefix={tx.type === 'expense' ? '-' : tx.type === 'income' ? '+' : ''} style={{ font: 'inherit' }} />
+                  <PrivacyAmount amount={Math.abs(tx.amount)} currency={tx.currency} prefix={tx.type === 'expense' ? '-' : tx.type === 'income' ? '+' : ''} style={{ font: 'inherit' }} />
                 </div>
                 <div style={{ fontSize: 13, color: T.faint, marginTop: 2 }}>{tx.date.slice(5).replace('-', '.')}</div>
               </div>
@@ -110,7 +110,7 @@ export default function HomeScreen() {
                     <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <div style={{ width: 8, height: 8, borderRadius: '50%', background: c.color, flexShrink: 0 }} />
                       <span style={{ fontSize: 13, color: T.muted, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</span>
-                      <PrivacyAmount amount={c.spent} style={{ fontSize: 13, fontWeight: 700, color: T.mid, flexShrink: 0 }} />
+	                      <PrivacyAmount amount={c.spent} currency={baseCurrency} style={{ fontSize: 13, fontWeight: 700, color: T.mid, flexShrink: 0 }} />
                     </div>
                   ))}
                 </div>
@@ -124,7 +124,7 @@ export default function HomeScreen() {
               <span style={{ fontSize: 15, fontWeight: 700, color: T.accent }}>Analiza AI</span>
             </div>
             <p style={{ fontSize: 14, color: T.mid, lineHeight: 1.6 }}>
-              Masz {transactions.length} transakcji w tym miesiącu. Łącznie wydałeś <strong><PrivacyAmount amount={expense} /></strong> i zarobiłeś <strong><PrivacyAmount amount={income} /></strong>.
+	              Masz {transactions.length} transakcji w tym miesiącu. Łącznie wydałeś <strong><PrivacyAmount amount={expense} currency={baseCurrency} /></strong> i zarobiłeś <strong><PrivacyAmount amount={income} currency={baseCurrency} /></strong>.
             </p>
           </Card>
         </div>
@@ -147,7 +147,7 @@ export default function HomeScreen() {
                 <div style={{ fontSize: 15, fontWeight: 700, color: 'rgba(255,255,255,.9)' }}>{a.name}</div>
                 <Icon name={a.icon} size={22} color="rgba(255,255,255,.85)" />
               </div>
-              <PrivacyAmount amount={a.balance} style={{ display: 'block', fontSize: 24, fontWeight: 800, color: 'white' }} />
+              <PrivacyAmount amount={a.balance} currency={a.currency} style={{ display: 'block', fontSize: 24, fontWeight: 800, color: 'white' }} />
               <div style={{ fontSize: 13, color: 'rgba(255,255,255,.75)', marginTop: 4 }}>{a.type}</div>
             </Card>
           ))}

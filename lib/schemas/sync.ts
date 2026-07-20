@@ -110,7 +110,7 @@ export const syncRecurringTransactionSchema = z.object({
   to_account_id: optionalNullableString.default(null),
   type: z.enum(['EXPENSE', 'INCOME', 'TRANSFER']),
   total_amount: decimalLike.nullable().optional().default(null),
-  account_currency: z.string().optional().default('PLN'),
+  account_currency: optionalNullableString.default(null),
   transaction_amount: decimalLike.nullable().optional().default(null),
   transaction_currency: optionalNullableString.default(null),
   exchange_rate: z.number().nullable().optional().default(null),
@@ -214,7 +214,7 @@ export const syncSettlementSchema = z.object({
   counterparty_name: z.string(),
   counterparty_email: optionalNullableString.default(null),
   total_amount: decimalLike,
-  currency: z.string().optional().default('PLN'),
+  currency: optionalNullableString.default(null),
   note: optionalNullableString.default(null),
   due_date: optionalNullableString.default(null),
   reminder_days_before: z.string().optional().default('1'),
@@ -282,8 +282,18 @@ export const syncResponseSchema = z.object({
   }),
 });
 
+export const syncPreferenceSchema = z.object({
+  cloud_sync_enabled: z.boolean(),
+  default_currency: z.string().trim().min(3).transform(value => value.toUpperCase()),
+});
+
 export type ParsedSyncResponse = z.infer<typeof syncResponseSchema>;
+export type ParsedSyncPreference = z.infer<typeof syncPreferenceSchema>;
 
 export function parseSyncResponse(input: unknown): ParsedSyncResponse {
   return syncResponseSchema.parse(input);
+}
+
+export function parseSyncPreference(input: unknown): ParsedSyncPreference {
+  return syncPreferenceSchema.parse(input);
 }

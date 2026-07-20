@@ -14,7 +14,7 @@ import {
 import { T } from '@/lib/tokens';
 import { useActiveMonthData } from '@/lib/useActiveMonthData';
 import { Account, AccountInterest } from '@/lib/data';
-import { fmtPLN } from '@/lib/utils';
+import { formatMoney, formatMoneyShort } from '@/lib/utils';
 import Card from '@/components/ui/Card';
 import Sparkline from '@/components/ui/Sparkline';
 import Icon from '@/components/ui/Icon';
@@ -23,7 +23,7 @@ import PrivacyAmount from '@/components/ui/PrivacyAmount';
 export default function AccountsScreen({ initialAccountId }: { initialAccountId?: string }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { accounts, transactions, accountInterest, accountBudgets, activeMonth } = useActiveMonthData();
+  const { accounts, transactions, accountInterest, accountBudgets, activeMonth, baseCurrency } = useActiveMonthData();
   const [selectedAccountId, setSelectedAccountId] = useQueryState('account', parseAsString.withDefault(initialAccountId ?? accounts[0]?.id ?? ''));
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
@@ -45,7 +45,7 @@ export default function AccountsScreen({ initialAccountId }: { initialAccountId?
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
         <div>
           <div style={{ fontSize: 12, color: T.muted, fontWeight: 500 }}>Łączny majątek</div>
-          <PrivacyAmount amount={totalBalance} style={{ display: 'block', fontSize: 28, fontWeight: 800, color: T.dark }} />
+          <PrivacyAmount amount={totalBalance} currency={baseCurrency} style={{ display: 'block', fontSize: 28, fontWeight: 800, color: T.dark }} />
         </div>
         <button aria-label="Dodaj konto" onClick={() => setIsCreateOpen(true)} style={primaryButtonStyle}>
           <Plus size={16} color="white" /> Dodaj konto
@@ -74,7 +74,7 @@ export default function AccountsScreen({ initialAccountId }: { initialAccountId?
               <div style={{ fontSize: 13, fontWeight: 600, color: selected?.id === a.id ? 'rgba(255,255,255,.9)' : T.mid }}>{a.name}</div>
               <Icon name={a.icon} size={20} color={selected?.id === a.id ? 'rgba(255,255,255,.85)' : a.color} />
             </div>
-            <PrivacyAmount amount={a.balance} style={{ display: 'block', fontSize: 20, fontWeight: 800, color: selected?.id === a.id ? 'white' : T.dark }} />
+            <PrivacyAmount amount={a.balance} currency={a.currency} style={{ display: 'block', fontSize: 20, fontWeight: 800, color: selected?.id === a.id ? 'white' : T.dark }} />
             <div style={{ fontSize: 11, color: selected?.id === a.id ? 'rgba(255,255,255,.65)' : T.faint, marginTop: 4 }}>{a.type}</div>
           </Card>
         ))}
@@ -109,7 +109,7 @@ export default function AccountsScreen({ initialAccountId }: { initialAccountId?
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: tx.type === 'expense' ? T.expense : tx.type === 'income' ? T.income : T.mid }}>
-                    <PrivacyAmount amount={Math.abs(tx.amount)} prefix={tx.type === 'expense' ? '-' : tx.type === 'income' ? '+' : ''} style={{ font: 'inherit' }} />
+                    <PrivacyAmount amount={Math.abs(tx.amount)} currency={tx.currency} prefix={tx.type === 'expense' ? '-' : tx.type === 'income' ? '+' : ''} style={{ font: 'inherit' }} />
                   </div>
                   <div style={{ fontSize: 11, color: T.faint }}>{tx.date.slice(5).replace('-', '.')}</div>
                 </div>
@@ -129,19 +129,19 @@ export default function AccountsScreen({ initialAccountId }: { initialAccountId?
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {selectedInterest && <AccountInterestCard interest={selectedInterest} currency={selected.currency} />}
-              {selectedBudget && <AccountBudgetCard budget={selectedBudget.amount} expense={accExpense} />}
+              {selectedBudget && <AccountBudgetCard budget={selectedBudget.amount} expense={accExpense} currency={selected.currency} />}
               <div style={{ padding: 14, borderRadius: 10, background: T.incomeSoft }}>
                 <div style={{ fontSize: 12, color: T.income, fontWeight: 500 }}>Przychody</div>
-                <PrivacyAmount amount={accIncome} prefix="+" style={{ display: 'block', fontSize: 20, fontWeight: 700, color: T.income }} />
+                <PrivacyAmount amount={accIncome} currency={selected.currency} prefix="+" style={{ display: 'block', fontSize: 20, fontWeight: 700, color: T.income }} />
               </div>
               <div style={{ padding: 14, borderRadius: 10, background: T.expenseSoft }}>
                 <div style={{ fontSize: 12, color: T.expense, fontWeight: 500 }}>Wydatki</div>
-                <PrivacyAmount amount={accExpense} prefix="-" style={{ display: 'block', fontSize: 20, fontWeight: 700, color: T.expense }} />
+                <PrivacyAmount amount={accExpense} currency={selected.currency} prefix="-" style={{ display: 'block', fontSize: 20, fontWeight: 700, color: T.expense }} />
               </div>
               <div style={{ padding: 14, borderRadius: 10, background: T.bg }}>
                 <div style={{ fontSize: 12, color: T.muted, fontWeight: 500 }}>Bilans</div>
                 <div style={{ fontSize: 20, fontWeight: 700, color: accIncome - accExpense >= 0 ? T.income : T.expense }}>
-                  <PrivacyAmount amount={accIncome - accExpense} signed style={{ font: 'inherit' }} />
+                  <PrivacyAmount amount={accIncome - accExpense} currency={selected.currency} signed style={{ font: 'inherit' }} />
                 </div>
               </div>
             </div>
@@ -210,11 +210,11 @@ function AccountInterestCard({ interest, currency }: { interest: AccountInterest
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
         <div>
           <div style={{ fontSize: 11, opacity: 0.7 }}>Naliczono netto</div>
-          <PrivacyAmount amount={netAccrued} prefix="+" style={{ display: 'block', fontSize: 18, fontWeight: 850 }} />
+          <PrivacyAmount amount={netAccrued} currency={currency} prefix="+" style={{ display: 'block', fontSize: 18, fontWeight: 850 }} />
         </div>
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontSize: 11, opacity: 0.7 }}>Baza</div>
-          <PrivacyAmount amount={interest.effectiveBaseAmount} style={{ display: 'block', fontSize: 18, fontWeight: 850 }} />
+          <PrivacyAmount amount={interest.effectiveBaseAmount} currency={currency} style={{ display: 'block', fontSize: 18, fontWeight: 850 }} />
         </div>
       </div>
 
@@ -232,13 +232,13 @@ function AccountInterestCard({ interest, currency }: { interest: AccountInterest
         <div style={{ marginTop: 10, fontSize: 11, opacity: 0.82 }}>Po zapadalności transfer na: {interest.targetAccountName}</div>
       )}
       {interest.monthlyPayment !== null && (
-        <div style={{ marginTop: 10, fontSize: 11, opacity: 0.82 }}>Rata miesięczna: {interest.monthlyPayment.toLocaleString('pl-PL', { style: 'currency', currency })}</div>
+        <div style={{ marginTop: 10, fontSize: 11, opacity: 0.82 }}>Rata miesięczna: {formatMoney(interest.monthlyPayment, currency)}</div>
       )}
     </div>
   );
 }
 
-function AccountBudgetCard({ budget, expense }: { budget: number; expense: number }) {
+function AccountBudgetCard({ budget, expense, currency }: { budget: number; expense: number; currency: string }) {
   const pct = budget > 0 ? expense / budget * 100 : 0;
   const over = pct > 100;
 
@@ -249,8 +249,8 @@ function AccountBudgetCard({ budget, expense }: { budget: number; expense: numbe
         <div style={{ color: over ? T.expense : T.accent, fontSize: 13, fontWeight: 850 }}>{Math.round(pct)}%</div>
       </div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 8 }}>
-        <PrivacyAmount amount={expense} style={{ display: 'block', color: over ? T.expense : T.dark, fontSize: 20, fontWeight: 850 }} />
-        <span style={{ color: T.muted, fontSize: 12 }}>/ {fmtPLN(budget)}</span>
+        <PrivacyAmount amount={expense} currency={currency} style={{ display: 'block', color: over ? T.expense : T.dark, fontSize: 20, fontWeight: 850 }} />
+        <span style={{ color: T.muted, fontSize: 12 }}>/ {formatMoneyShort(budget, currency)}</span>
       </div>
       <div style={{ height: 7, borderRadius: 999, background: T.border, overflow: 'hidden' }}>
         <div style={{ height: '100%', width: `${Math.min(100, pct)}%`, background: over ? T.expense : T.accent }} />
@@ -261,13 +261,13 @@ function AccountBudgetCard({ budget, expense }: { budget: number; expense: numbe
 
 function AccountFormModal({ account, onClose }: { account?: Account; onClose: () => void }) {
   const router = useRouter();
-  const { accounts, categories, accountInterest } = useActiveMonthData();
+  const { accounts, categories, accountInterest, baseCurrency } = useActiveMonthData();
   const initialInterest = account ? accountInterest.find(interest => interest.accountId === account.id) ?? null : null;
   const [name, setName] = useState(account?.name ?? '');
   const [type, setType] = useState<'CASH' | 'BANK' | 'PROPERTY' | 'INVESTMENT'>((account?.rawType as 'CASH' | 'BANK' | 'PROPERTY' | 'INVESTMENT') ?? 'BANK');
   const [category, setCategory] = useState<'BASIC' | 'SAVINGS' | 'LIABILITY'>((account?.category as 'BASIC' | 'SAVINGS' | 'LIABILITY') ?? 'BASIC');
   const [balance, setBalance] = useState(account ? String(account.balance.toFixed(2)) : '0.00');
-  const [currency, setCurrency] = useState(account?.currency ?? 'PLN');
+  const [currency, setCurrency] = useState(account?.currency ?? baseCurrency);
   const [includeInNetWorth, setIncludeInNetWorth] = useState(account?.includeInNetWorth ?? true);
   const [notes, setNotes] = useState(account?.notes ?? '');
   const [liabilityKind, setLiabilityKind] = useState<'CREDIT_CARD' | 'LOAN' | 'MORTGAGE' | 'INSTALLMENT_LOAN' | 'OTHER'>(

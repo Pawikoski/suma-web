@@ -134,7 +134,7 @@ export interface SyncRecurringTransaction {
   to_account_id: string | null;
   type: 'EXPENSE' | 'INCOME' | 'TRANSFER';
   total_amount: string | null;
-  account_currency: string;
+  account_currency: string | null;
   transaction_amount: string | null;
   transaction_currency: string | null;
   exchange_rate: number | null;
@@ -170,7 +170,7 @@ export interface SyncInvestmentHolding {
   investment_type: 'STOCK' | 'ETF' | 'CRYPTO' | 'PRECIOUS_METAL';
   quantity: number;
   unit_price: string;
-  currency: string;
+  currency: string | null;
   purchase_currency: string;
   notes: string;
   updated_at: string;
@@ -184,7 +184,7 @@ export interface SyncInvestmentTransaction {
   type: 'BUY' | 'SELL';
   quantity: number;
   unit_price: string;
-  currency: string;
+  currency: string | null;
   date: string;
   notes: string;
   updated_at: string;
@@ -265,7 +265,7 @@ export interface SyncSettlement {
   counterparty_name: string;
   counterparty_email: string | null;
   total_amount: string;
-  currency: string;
+  currency: string | null;
   note: string | null;
   due_date: string | null;
   reminder_days_before: string;

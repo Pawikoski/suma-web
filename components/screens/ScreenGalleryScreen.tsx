@@ -108,7 +108,7 @@ function HomePreview({ data }: { data: ReturnType<typeof useActiveMonthData> }) 
   const topCategory = [...data.categories].sort((a, b) => b.spent - a.spent)[0];
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-      <PreviewTile icon={<Wallet size={16} color={T.accent} />} label="Majątek" value={<PrivacyAmount amount={totalBalance} />} />
+      <PreviewTile icon={<Wallet size={16} color={T.accent} />} label="Majątek" value={<PrivacyAmount amount={totalBalance} currency={data.baseCurrency} />} />
       <PreviewTile icon={<BarChart2 size={16} color={T.expense} />} label="Top kategoria" value={topCategory?.name ?? 'Brak'} />
     </div>
   );
@@ -123,7 +123,7 @@ function AccountsPreview({ data }: { data: ReturnType<typeof useActiveMonthData>
             <Icon name={account.icon} size={15} color="white" />
           </span>
           <span style={{ flex: 1, color: T.dark, fontSize: 13, fontWeight: 800 }}>{account.name}</span>
-          <PrivacyAmount amount={account.balance} style={{ color: T.mid, fontSize: 12, fontWeight: 850 }} />
+          <PrivacyAmount amount={account.balance} currency={account.currency} style={{ color: T.mid, fontSize: 12, fontWeight: 850 }} />
         </div>
       ))}
     </div>
@@ -142,7 +142,7 @@ function TransactionsPreview({ data }: { data: ReturnType<typeof useActiveMonthD
             <span style={{ display: 'block', color: T.dark, fontSize: 12, fontWeight: 850, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{transaction.desc || transaction.cat}</span>
             <span style={{ display: 'block', color: T.muted, fontSize: 10 }}>{transaction.acc}</span>
           </span>
-          <PrivacyAmount amount={Math.abs(transaction.amount)} prefix={transaction.type === 'expense' ? '- ' : '+ '} style={{ color: transaction.type === 'expense' ? T.expense : T.income, fontSize: 12, fontWeight: 900 }} />
+          <PrivacyAmount amount={Math.abs(transaction.amount)} currency={transaction.currency} prefix={transaction.type === 'expense' ? '- ' : '+ '} style={{ color: transaction.type === 'expense' ? T.expense : T.income, fontSize: 12, fontWeight: 900 }} />
         </div>
       ))}
     </div>

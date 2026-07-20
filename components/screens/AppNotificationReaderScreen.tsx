@@ -17,7 +17,7 @@ function statusLabel(status: string | null) {
 }
 
 export default function AppNotificationReaderScreen() {
-  const { allTransactions, activeMonth } = useActiveMonthData();
+  const { allTransactions, activeMonth, baseCurrency } = useActiveMonthData();
   const parsedTransactions = allTransactions.filter(transaction => transaction.isFromNotificationParser);
   const visibleTransactions = parsedTransactions.filter(transaction => activeMonth === 'all' || transaction.date.startsWith(activeMonth));
   const pendingCount = visibleTransactions.filter(transaction => transaction.reviewStatus === 'PENDING').length;
@@ -56,7 +56,7 @@ export default function AppNotificationReaderScreen() {
             <CheckCircle2 size={20} color={T.income} />
           </div>
           <div>
-            <PrivacyAmount amount={totalAmount} style={{ display: 'block', color: T.dark, fontSize: 20, fontWeight: 950 }} />
+            <PrivacyAmount amount={totalAmount} currency={baseCurrency} style={{ display: 'block', color: T.dark, fontSize: 20, fontWeight: 950 }} />
             <div style={{ color: T.muted, fontSize: 12, fontWeight: 800 }}>Kwota rozpoznana</div>
           </div>
         </Card>
@@ -80,7 +80,7 @@ export default function AppNotificationReaderScreen() {
                   <span style={{ display: 'block', color: T.dark, fontSize: 13, fontWeight: 850, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{transaction.desc || transaction.cat}</span>
                   <span style={{ display: 'block', color: T.muted, fontSize: 11 }}>{transaction.date} · {transaction.acc} · {statusLabel(transaction.reviewStatus)}</span>
                 </span>
-                <PrivacyAmount amount={Math.abs(transaction.amount)} prefix={transaction.type === 'expense' ? '- ' : '+ '} style={{ color: transaction.type === 'expense' ? T.expense : T.income, fontSize: 13, fontWeight: 900 }} />
+                <PrivacyAmount amount={Math.abs(transaction.amount)} currency={transaction.currency} prefix={transaction.type === 'expense' ? '- ' : '+ '} style={{ color: transaction.type === 'expense' ? T.expense : T.income, fontSize: 13, fontWeight: 900 }} />
               </Link>
             ))}
           </div>

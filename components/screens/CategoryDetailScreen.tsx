@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, ListFilter, Pencil } from 'lucide-react';
 import { T } from '@/lib/tokens';
 import { Category, Transaction } from '@/lib/data';
-import { fmtPLN } from '@/lib/utils';
+import { formatMoney, formatMoneyShort } from '@/lib/utils';
 import { categoryAndDescendantIds, effectiveCategoryBudget } from '@/lib/category-hierarchy';
 import { useActiveMonthData } from '@/lib/useActiveMonthData';
 import Card from '@/components/ui/Card';
@@ -28,7 +28,7 @@ function categoryTypeLabel(category: Category) {
 
 export default function CategoryDetailScreen({ categoryId }: { categoryId: string }) {
   const router = useRouter();
-  const { categories, allTransactions, activeMonth } = useActiveMonthData();
+  const { categories, allTransactions, activeMonth, baseCurrency } = useActiveMonthData();
   const category = categories.find(item => item.id === categoryId) ?? null;
 
   if (!category) {
@@ -91,10 +91,10 @@ export default function CategoryDetailScreen({ categoryId }: { categoryId: strin
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
             {category.types.includes('INCOME') && (
-              <AmountPill label="Przychody" amount={income} color={T.income} bg={T.incomeSoft} />
+              <AmountPill label="Przychody" amount={income} currency={baseCurrency} color={T.income} bg={T.incomeSoft} />
             )}
             {category.types.includes('EXPENSE') && (
-              <AmountPill label="Wydatki" amount={expense} color={T.expense} bg={T.expenseSoft} prefix="- " />
+              <AmountPill label="Wydatki" amount={expense} currency={baseCurrency} color={T.expense} bg={T.expenseSoft} prefix="- " />
             )}
           </div>
         </div>
@@ -110,13 +110,13 @@ export default function CategoryDetailScreen({ categoryId }: { categoryId: strin
                   <div style={{ fontSize: 12, color: T.muted }}>{activeMonth === 'all' ? 'Wszystkie miesiące' : activeMonth}</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <PrivacyAmount amount={expense} style={{ display: 'block', fontSize: 18, fontWeight: 900, color: budgetPct > 100 ? T.expense : T.dark }} />
-                  <div style={{ fontSize: 11, color: T.faint }}>z {fmtPLN(effectiveBudget)}</div>
+                  <PrivacyAmount amount={expense} currency={baseCurrency} style={{ display: 'block', fontSize: 18, fontWeight: 900, color: budgetPct > 100 ? T.expense : T.dark }} />
+                  <div style={{ fontSize: 11, color: T.faint }}>z {formatMoneyShort(effectiveBudget, baseCurrency)}</div>
                 </div>
               </div>
               <Bar pct={budgetPct} color={budgetPct > 100 ? T.expense : category.color} height={8} />
               <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', fontSize: 12, color: T.muted }}>
-                <span>{budgetPct > 100 ? `Przekroczono o ${fmtPLN(expense - effectiveBudget)}` : `Pozostało ${fmtPLN(effectiveBudget - expense)}`}</span>
+                <span>{budgetPct > 100 ? `Przekroczono o ${formatMoney(expense - effectiveBudget, baseCurrency)}` : `Pozostało ${formatMoney(effectiveBudget - expense, baseCurrency)}`}</span>
                 <strong style={{ color: budgetPct > 100 ? T.expense : T.accent }}>{Math.round(budgetPct)}%</strong>
               </div>
             </Card>
@@ -141,7 +141,7 @@ export default function CategoryDetailScreen({ categoryId }: { categoryId: strin
                       <span style={{ display: 'block', color: T.dark, fontSize: 13, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{child.name}</span>
                       <span style={{ display: 'block', color: T.muted, fontSize: 11 }}>{child.txCount} transakcji</span>
                     </span>
-                    <PrivacyAmount amount={child.spent} style={{ color: child.spent > (child.budget ?? Infinity) ? T.expense : T.mid, fontSize: 13, fontWeight: 850 }} />
+	                    <PrivacyAmount amount={child.spent} currency={baseCurrency} style={{ color: child.spent > (child.budget ?? Infinity) ? T.expense : T.mid, fontSize: 13, fontWeight: 850 }} />
                   </button>
                 ))}
               </div>
@@ -175,7 +175,7 @@ export default function CategoryDetailScreen({ categoryId }: { categoryId: strin
                     <span style={{ display: 'block', color: T.dark, fontSize: 13, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{transaction.desc || transaction.cat}</span>
                     <span style={{ display: 'block', color: T.muted, fontSize: 11 }}>{transaction.date} · {transaction.acc}</span>
                   </span>
-                  <PrivacyAmount amount={amount} prefix={transaction.type === 'expense' ? '- ' : '+ '} style={{ color: transaction.type === 'expense' ? T.expense : T.income, fontSize: 13, fontWeight: 900 }} />
+	                  <PrivacyAmount amount={amount} currency={transaction.currency} prefix={transaction.type === 'expense' ? '- ' : '+ '} style={{ color: transaction.type === 'expense' ? T.expense : T.income, fontSize: 13, fontWeight: 900 }} />
                 </button>
               ))}
             </div>
@@ -192,10 +192,10 @@ export default function CategoryDetailScreen({ categoryId }: { categoryId: strin
   );
 }
 
-function AmountPill({ label, amount, color, bg, prefix = '' }: { label: string; amount: number; color: string; bg: string; prefix?: string }) {
+function AmountPill({ label, amount, currency, color, bg, prefix = '' }: { label: string; amount: number; currency: string; color: string; bg: string; prefix?: string }) {
   return (
     <div style={{ minWidth: 142, borderRadius: 999, background: bg, color, padding: '8px 14px', textAlign: 'center' }}>
-      <PrivacyAmount amount={amount} prefix={prefix} style={{ display: 'block', fontSize: 15, fontWeight: 950 }} />
+      <PrivacyAmount amount={amount} currency={currency} prefix={prefix} style={{ display: 'block', fontSize: 15, fontWeight: 950 }} />
       <span style={{ display: 'block', fontSize: 11, fontWeight: 800 }}>{label}</span>
     </div>
   );

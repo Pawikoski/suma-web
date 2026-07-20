@@ -15,7 +15,7 @@ type TxType = 'expense' | 'income' | 'transfer';
 const TYPE_LABELS: Record<TxType, string> = { expense: 'Wydatek', income: 'Przychód', transfer: 'Transfer' };
 const TYPE_COLORS: Record<TxType, string> = { expense: T.expense, income: T.income, transfer: T.accent };
 
-const NUMPAD = ['7', '8', '9', '⌫', '4', '5', '6', '↺', '1', '2', '3', null, 'PLN', '0', '.', '✓'] as const;
+const NUMPAD = ['7', '8', '9', '⌫', '4', '5', '6', '↺', '1', '2', '3', null, 'currency', '0', '.', '✓'] as const;
 
 function defaultDateForMonth(activeMonth: string): string {
   const today = new Date();
@@ -32,7 +32,7 @@ interface AddTransactionModalProps {
 
 export default function AddTransactionModal({ onClose, accounts, categories }: AddTransactionModalProps) {
   const router = useRouter();
-  const { activeMonth } = useActiveMonthData();
+  const { activeMonth, baseCurrency } = useActiveMonthData();
   const [type, setType] = useState<TxType>('expense');
   const [amount, setAmount] = useState('0');
   const [note, setNote] = useState('');
@@ -45,6 +45,7 @@ export default function AddTransactionModal({ onClose, accounts, categories }: A
   const typeColor = TYPE_COLORS[type];
   const amountNumber = Number(amount);
   const account = accounts.find(a => a.id === accountId) ?? accounts[0] ?? null;
+  const accountCurrency = account?.currency ?? baseCurrency;
   const toAccount = accounts.find(a => a.id === toAccountId) ?? null;
   const eligibleCategories = useMemo(() => {
     if (type === 'transfer') return [];
@@ -59,7 +60,7 @@ export default function AddTransactionModal({ onClose, accounts, categories }: A
   const handleNum = (v: string) => {
     if (v === '⌫') { setAmount(a => a.length > 1 ? a.slice(0, -1) : '0'); return; }
     if (v === '↺') { setAmount('0'); return; }
-    if (v === 'PLN') return;
+    if (v === 'currency') return;
     if (v === '.' && amount.includes('.')) return;
     if (amount === '0' && v !== '.') { setAmount(v); return; }
     if (amount.includes('.') && amount.split('.')[1]?.length >= 2) return;
@@ -129,7 +130,7 @@ export default function AddTransactionModal({ onClose, accounts, categories }: A
           {/* Amount display */}
           <div style={{ textAlign: 'center', padding: '16px 0' }}>
             <div style={{ fontSize: 48, fontWeight: 800, color: typeColor, letterSpacing: '-2px', lineHeight: 1 }}>{amount}</div>
-            <div style={{ fontSize: 16, color: T.muted, marginTop: 4 }}>{account?.currency ?? 'PLN'}</div>
+            <div style={{ fontSize: 16, color: T.muted, marginTop: 4 }}>{accountCurrency}</div>
           </div>
 
           {/* Account & Category */}
@@ -144,7 +145,7 @@ export default function AddTransactionModal({ onClose, accounts, categories }: A
               >
                 {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
               </select>
-              <div style={{ fontSize: 11, color: T.muted }}>{account ? <PrivacyAmount amount={account.balance} /> : ''}</div>
+              <div style={{ fontSize: 11, color: T.muted }}>{account ? <PrivacyAmount amount={account.balance} currency={account.currency} /> : ''}</div>
             </div>
             <div style={{ width: 30, height: 30, borderRadius: '50%', background: T.expenseSoft, display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.expense, fontSize: 16 }}>→</div>
             <div style={{ background: T.accentLight, borderRadius: 10, padding: '10px 12px' }}>
@@ -170,7 +171,7 @@ export default function AddTransactionModal({ onClose, accounts, categories }: A
                   {eligibleCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               )}
-              <div style={{ fontSize: 11, color: T.muted }}>{type === 'transfer' ? (effectiveToAccount ? <PrivacyAmount amount={effectiveToAccount.balance} /> : '') : (category ? <PrivacyAmount amount={category.spent} /> : '')}</div>
+              <div style={{ fontSize: 11, color: T.muted }}>{type === 'transfer' ? (effectiveToAccount ? <PrivacyAmount amount={effectiveToAccount.balance} currency={effectiveToAccount.currency} /> : '') : (category ? <PrivacyAmount amount={category.spent} currency={accountCurrency} /> : '')}</div>
             </div>
           </div>
 
@@ -196,7 +197,7 @@ export default function AddTransactionModal({ onClose, accounts, categories }: A
             {NUMPAD.map((k, i) => {
               if (k === null) return <div key={i} />;
               const isConfirm = k === '✓';
-              const isSpecial = k === 'PLN' || k === '⌫' || k === '↺';
+              const isSpecial = k === 'currency' || k === '⌫' || k === '↺';
               return (
                 <button
                   key={k}
@@ -212,7 +213,7 @@ export default function AddTransactionModal({ onClose, accounts, categories }: A
                     opacity: isPending || (k === '✓' && !canSubmit) ? 0.55 : 1,
                   }}
                 >
-                  {isConfirm && isPending ? '...' : k}
+                  {isConfirm && isPending ? '...' : k === 'currency' ? accountCurrency : k}
                 </button>
               );
             })}

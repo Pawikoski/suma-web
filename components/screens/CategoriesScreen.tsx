@@ -5,7 +5,7 @@ import { Pencil, Plus, Save, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { createCategoryAction, deleteCategoryAction, updateCategoryAction } from '@/app/actions/sync';
 import { T } from '@/lib/tokens';
-import { fmtPLN } from '@/lib/utils';
+import { formatMoney, formatMoneyShort } from '@/lib/utils';
 import { useActiveMonthData } from '@/lib/useActiveMonthData';
 import { Category } from '@/lib/data';
 import { categoryBudgetUsages, groupCategoriesForView } from '@/lib/category-hierarchy';
@@ -26,7 +26,7 @@ export default function CategoriesScreen() {
   const [view, setView] = useState<string>('all');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
-  const { categories, activeMonth } = useActiveMonthData();
+  const { categories, activeMonth, baseCurrency } = useActiveMonthData();
   const visibleCategories = categories.filter(c => {
     if (view === 'all') return true;
     return c.types.includes(view.toUpperCase());
@@ -79,7 +79,8 @@ export default function CategoriesScreen() {
                   category={c}
                   amount={group.totalSpent}
                   txCount={group.totalTxCount}
-                  budget={group.totalBudget}
+	                  budget={group.totalBudget}
+	                  currency={baseCurrency}
                   childCount={group.children.length}
                   onClick={() => router.push(`/categories/${c.id}?month=${activeMonth}`)}
                   onEdit={() => setEditingCategory(c)}
@@ -87,7 +88,7 @@ export default function CategoriesScreen() {
                 {group.totalBudget && pct !== null && (
                   <div style={{ padding: '0 16px 12px' }}>
                     <Bar pct={pct} color={over ? T.expense : c.color} />
-                    {over && <div style={{ fontSize: 11, color: T.expense, marginTop: 4, fontWeight: 500 }}>Przekroczono budżet o {fmtPLN(group.totalSpent - group.totalBudget)}</div>}
+	                    {over && <div style={{ fontSize: 11, color: T.expense, marginTop: 4, fontWeight: 500 }}>Przekroczono budżet o {formatMoney(group.totalSpent - group.totalBudget, baseCurrency)}</div>}
                   </div>
                 )}
                 {group.children.length > 0 && (
@@ -98,7 +99,8 @@ export default function CategoriesScreen() {
                         category={child}
                         amount={child.spent}
                         txCount={child.txCount}
-                        budget={child.budget}
+	                        budget={child.budget}
+	                        currency={baseCurrency}
                         child
                         onClick={() => router.push(`/categories/${child.id}?month=${activeMonth}`)}
                         onEdit={() => setEditingCategory(child)}
@@ -121,7 +123,7 @@ export default function CategoriesScreen() {
                 <div style={{ width: 130, height: 130, borderRadius: '50%', background: T.bg }} />
               )}
               <div style={{ flex: 1 }}>
-                <PrivacyAmount amount={totalSpent} style={{ display: 'block', fontSize: 28, fontWeight: 800, color: T.dark, marginBottom: 4 }} />
+	                <PrivacyAmount amount={totalSpent} currency={baseCurrency} style={{ display: 'block', fontSize: 28, fontWeight: 800, color: T.dark, marginBottom: 4 }} />
                 <div style={{ fontSize: 12, color: T.muted }}>{monthLabel}</div>
                 <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {topCategories.slice(0, 4).map(c => (
@@ -169,6 +171,7 @@ function CategoryRow({
   amount,
   txCount,
   budget,
+  currency,
   childCount = 0,
   child = false,
   onClick,
@@ -177,7 +180,8 @@ function CategoryRow({
   category: Category;
   amount: number;
   txCount: number;
-  budget: number | null;
+	  budget: number | null;
+	  currency: string;
   childCount?: number;
   child?: boolean;
   onClick: () => void;
@@ -216,8 +220,8 @@ function CategoryRow({
           </div>
         </div>
         <div style={{ textAlign: 'right' }}>
-          <PrivacyAmount amount={amount} style={{ display: 'block', fontSize: 15, fontWeight: 700, color: budget && amount > budget ? T.expense : T.dark }} />
-          {budget && <div style={{ fontSize: 11, color: T.faint }}>z {fmtPLN(budget)}</div>}
+          <PrivacyAmount amount={amount} currency={currency} style={{ display: 'block', fontSize: 15, fontWeight: 700, color: budget && amount > budget ? T.expense : T.dark }} />
+          {budget && <div style={{ fontSize: 11, color: T.faint }}>z {formatMoneyShort(budget, currency)}</div>}
         </div>
         <div style={{ display: 'flex', gap: 6 }} onClick={event => event.stopPropagation()}>
           <button aria-label={`Edytuj kategorię ${c.name}`} onClick={onEdit} disabled={c.isSystem} style={{ ...iconButtonStyle, opacity: c.isSystem ? 0.4 : 1 }}>

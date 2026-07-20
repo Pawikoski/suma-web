@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseSyncResponse } from './sync';
+import { parseSyncPreference, parseSyncResponse } from './sync';
 
 const baseSyncResponse = {
   request_id: 'req-1',
@@ -327,5 +327,24 @@ describe('parseSyncResponse', () => {
     expect(result.server_changes.account_budgets[0]).toMatchObject({ budget_amount: '250.00' });
     expect(result.server_changes.account_budget_overrides[0]).toMatchObject({ year_month: '2026-05' });
     expect(result.server_changes.overall_budget_overrides[0]).toMatchObject({ budget_amount: '650.00' });
+  });
+});
+
+describe('parseSyncPreference', () => {
+  it('normalizes the selected currency returned by the API', () => {
+    expect(parseSyncPreference({
+      cloud_sync_enabled: false,
+      default_currency: 'eur',
+    })).toEqual({
+      cloud_sync_enabled: false,
+      default_currency: 'EUR',
+    });
+  });
+
+  it('rejects an empty default currency', () => {
+    expect(() => parseSyncPreference({
+      cloud_sync_enabled: false,
+      default_currency: '',
+    })).toThrow();
   });
 });
