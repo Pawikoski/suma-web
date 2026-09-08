@@ -212,7 +212,11 @@ function TxDetailPanel({
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(82px,1fr))', gap: 10 }}>
             {tx.photos.map(photo => (
               <div key={photo.id} style={{ aspectRatio: '1', borderRadius: 12, overflow: 'hidden', background: T.bg, border: `1px solid ${T.border}`, display: 'grid', placeItems: 'center' }}>
-                {photo.imageBase64 ? (
+                {photo.imageBase64 && photo.mimeType === 'application/pdf' ? (
+                  <a href={`data:application/pdf;base64,${photo.imageBase64}`} download="paragon.pdf" style={{ color: T.accent, padding: 12, textAlign: 'center' }}>
+                    Pobierz paragon PDF
+                  </a>
+                ) : photo.imageBase64 ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={`data:${photo.mimeType};base64,${photo.imageBase64}`} alt="Zdjęcie transakcji" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 ) : (
