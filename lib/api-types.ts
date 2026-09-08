@@ -6,6 +6,7 @@ export interface SyncAccount {
   type: string;
   category: string;
   balance: string;
+  balance_anchor?: string | null;
   currency: string;
   sort_order: number;
   is_default: boolean;

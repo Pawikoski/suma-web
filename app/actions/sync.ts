@@ -175,6 +175,7 @@ function cloneAccountWithBalance(account: SyncAccount, balance: number, updatedA
     type: account.type,
     category: account.category,
     balance: money(balance),
+    balance_anchor: account.balance_anchor,
     currency: account.currency,
     sort_order: account.sort_order,
     is_default: account.is_default,
@@ -290,6 +291,9 @@ function accountPayload(
     type: data.type,
     category,
     balance: money(data.balance),
+    balance_anchor: existing?.balance_anchor != null
+      ? money(Number(existing.balance_anchor) + data.balance - Number(existing.balance))
+      : undefined,
     currency: data.currency,
     sort_order: existing?.sort_order ?? sortOrder,
     is_default: existing?.is_default ?? false,
