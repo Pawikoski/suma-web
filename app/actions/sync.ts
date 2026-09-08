@@ -171,6 +171,7 @@ const dateToNoonUtc = (date: string) => `${date}T12:00:00.000Z`;
 function cloneAccountWithBalance(account: SyncAccount, balance: number, updatedAt: string) {
   return {
     id: account.id,
+    parent_id: account.parent_id,
     name: account.name,
     type: account.type,
     category: account.category,
@@ -287,6 +288,7 @@ function accountPayload(
 
   return {
     id: existing?.id ?? crypto.randomUUID(),
+    parent_id: existing?.parent_id,
     name: data.name,
     type: data.type,
     category,
@@ -334,6 +336,8 @@ function categoryPayload(
     sort_order: existing?.sort_order ?? sortOrder,
     is_default: existing?.is_default ?? false,
     is_system: existing?.is_system ?? false,
+    essentiality: existing?.essentiality,
+    classification_source: existing?.classification_source,
     parent_category_id: data.parentCategoryId || null,
     updated_at: updatedAt,
     deleted_at: null,
@@ -471,6 +475,8 @@ export async function createTransactionAction(input: unknown): Promise<ActionRes
   if (data.type === 'transfer' && toAccount?.id === fromAccount.id) {
     return { ok: false, message: 'Konta transferu muszą być różne.' };
   }
+
+  if (toAccount && toAccount.currency !== fromAccount.currency) return { ok: false, message: 'Transfer między różnymi walutami utwórz w aplikacji mobilnej.' };
 
   const category = data.type === 'transfer'
     ? null
@@ -773,21 +779,25 @@ function cloneTransactionForUpdate(
   updatedAt: string
 ) {
   const amount = money(data.amount);
+  const sameMoney = transaction.type === data.type.toUpperCase() &&
+    transaction.from_account_id === fromAccount.id && transaction.to_account_id === (toAccount?.id ?? null) &&
+    Number(transaction.total_amount) === data.amount;
 
   return {
+    ...transaction,
     id: transaction.id,
     type: data.type.toUpperCase(),
     total_amount: amount,
     from_account_id: fromAccount.id,
     to_account_id: toAccount?.id ?? null,
     account_currency: fromAccount.currency,
-    transaction_amount: amount,
-    transaction_currency: fromAccount.currency,
-    exchange_rate: 1,
-    to_account_amount: toAccount ? amount : null,
-    to_account_currency: toAccount?.currency ?? null,
+    transaction_amount: sameMoney ? transaction.transaction_amount : amount,
+    transaction_currency: sameMoney ? transaction.transaction_currency : fromAccount.currency,
+    exchange_rate: sameMoney ? transaction.exchange_rate : 1,
+    to_account_amount: sameMoney ? transaction.to_account_amount : toAccount ? amount : null,
+    to_account_currency: sameMoney ? transaction.to_account_currency : toAccount?.currency ?? null,
     recurring_transaction_id: transaction.recurring_transaction_id,
-    date_time: dateToNoonUtc(data.date),
+    date_time: transaction.date_time.slice(0, 10) === data.date ? transaction.date_time : dateToNoonUtc(data.date),
     notes: data.note || null,
     location_lat: transaction.location_lat,
     location_lng: transaction.location_lng,
@@ -850,6 +860,13 @@ export async function updateTransactionAction(input: unknown): Promise<ActionRes
   if (data.type === 'transfer' && !toAccount) return { ok: false, message: 'Wybierz konto docelowe.' };
   if (data.type === 'transfer' && toAccount?.id === fromAccount.id) {
     return { ok: false, message: 'Konta transferu muszą być różne.' };
+  }
+
+  const moneyChanged = transaction.type !== data.type.toUpperCase() || transaction.from_account_id !== fromAccount.id ||
+    transaction.to_account_id !== (toAccount?.id ?? null) || Number(transaction.total_amount) !== data.amount;
+  if (moneyChanged && (transaction.transaction_currency && transaction.transaction_currency !== transaction.account_currency ||
+      toAccount && toAccount.currency !== fromAccount.currency || transaction.purpose && transaction.purpose !== 'STANDARD')) {
+    return { ok: false, message: 'Kwotę i konta operacji walutowej lub zakupu aktywa zmień w aplikacji mobilnej.' };
   }
 
   const category = data.type === 'transfer'

@@ -1,34 +1,6 @@
 import { ParsedSyncResponse } from './schemas/sync';
 
-export interface SyncAccount {
-  id: string;
-  name: string;
-  type: string;
-  category: string;
-  balance: string;
-  balance_anchor?: string | null;
-  currency: string;
-  sort_order: number;
-  is_default: boolean;
-  is_active: boolean;
-  include_in_net_worth: boolean;
-  icon_name: string | null;
-  icon_bg: string | null;
-  icon_color: string | null;
-  notes: string | null;
-  liability_kind: string | null;
-  credit_limit: string | null;
-  statement_day: number | null;
-  payment_due_day: number | null;
-  liability_principal: string | null;
-  liability_monthly_payment: string | null;
-  payment_account_id: string | null;
-  credit_card_last4: string | null;
-  credit_card_theme: string | null;
-  updated_at: string;
-  deleted_at: string | null;
-  version: number;
-}
+export type SyncAccount = ParsedSyncResponse['server_changes']['accounts'][number];
 
 export interface SyncAppliedItem {
   id: string;
@@ -53,51 +25,9 @@ export interface SyncConflictItem {
   client_record?: unknown;
 }
 
-export interface SyncCategory {
-  id: string;
-  name: string;
-  types: string[];
-  icon_name: string;
-  icon_bg: string;
-  icon_color: string;
-  sort_order: number;
-  is_default: boolean;
-  is_system: boolean;
-  parent_category_id: string | null;
-  updated_at: string;
-  deleted_at: string | null;
-  version: number;
-}
+export type SyncCategory = ParsedSyncResponse['server_changes']['categories'][number];
 
-export interface SyncTransaction {
-  id: string;
-  type: 'EXPENSE' | 'INCOME' | 'TRANSFER';
-  total_amount: string;
-  from_account_id: string;
-  to_account_id: string | null;
-  account_currency: string;
-  transaction_amount: string | null;
-  transaction_currency: string | null;
-  exchange_rate: number | null;
-  to_account_amount: string | null;
-  to_account_currency: string | null;
-  recurring_transaction_id: string | null;
-  date_time: string;
-  notes: string | null;
-  location_lat: number | null;
-  location_lng: number | null;
-  location_name: string | null;
-  location_address: string | null;
-  is_from_receipt: boolean;
-  is_from_notification_parser: boolean;
-  review_status: string | null;
-  parser_notification_key: string | null;
-  count_in_summary: boolean;
-  summary_amount: string | null;
-  updated_at: string;
-  deleted_at: string | null;
-  version: number;
-}
+export type SyncTransaction = ParsedSyncResponse['server_changes']['transactions'][number];
 
 export interface SyncTransactionSplit {
   id: string;
