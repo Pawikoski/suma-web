@@ -1,0 +1,3238 @@
+[
+  {
+    "title": "Zakupy i jedzenie",
+    "icons": [
+      {
+        "name": "ShoppingCart",
+        "label": "Koszyk",
+        "tags": [
+          "shopping",
+          "cart",
+          "koszyk",
+          "zakupy",
+          "supermarket"
+        ],
+        "glyph": "shopping_cart"
+      },
+      {
+        "name": "ShoppingBag",
+        "label": "Torba",
+        "tags": [
+          "shopping",
+          "bag",
+          "torba",
+          "zakupy",
+          "butik"
+        ],
+        "glyph": "shopping_bag"
+      },
+      {
+        "name": "Store",
+        "label": "Sklep",
+        "tags": [
+          "store",
+          "sklep",
+          "shop",
+          "market"
+        ],
+        "glyph": "store"
+      },
+      {
+        "name": "LocalGroceryStore",
+        "label": "Spożywczy",
+        "tags": [
+          "grocery",
+          "spożywczy",
+          "supermarket",
+          "żywność",
+          "food"
+        ],
+        "glyph": "local_grocery_store"
+      },
+      {
+        "name": "Restaurant",
+        "label": "Restauracja",
+        "tags": [
+          "restaurant",
+          "restauracja",
+          "jedzenie",
+          "obiad",
+          "kolacja",
+          "food"
+        ],
+        "glyph": "restaurant"
+      },
+      {
+        "name": "LocalCafe",
+        "label": "Kawiarnia",
+        "tags": [
+          "cafe",
+          "kawiarnia",
+          "kawa",
+          "coffee",
+          "herbata"
+        ],
+        "glyph": "local_cafe"
+      },
+      {
+        "name": "LocalBar",
+        "label": "Bar",
+        "tags": [
+          "bar",
+          "alkohol",
+          "piwo",
+          "wino",
+          "drink"
+        ],
+        "glyph": "local_bar"
+      },
+      {
+        "name": "LocalPizza",
+        "label": "Pizza",
+        "tags": [
+          "pizza",
+          "fast food",
+          "jedzenie"
+        ],
+        "glyph": "local_pizza"
+      },
+      {
+        "name": "FastFood",
+        "label": "Fast Food",
+        "tags": [
+          "fastfood",
+          "fast food",
+          "burger",
+          "mcdonalds"
+        ],
+        "glyph": "fastfood"
+      },
+      {
+        "name": "Cake",
+        "label": "Piekarnia",
+        "tags": [
+          "cake",
+          "bakery",
+          "piekarnia",
+          "ciasto",
+          "słodycze"
+        ],
+        "glyph": "cake"
+      },
+      {
+        "name": "Icecream",
+        "label": "Lody",
+        "tags": [
+          "icecream",
+          "lody",
+          "deser",
+          "słodycze"
+        ],
+        "glyph": "icecream"
+      },
+      {
+        "name": "EmojiFoodBeverage",
+        "label": "Napoje",
+        "tags": [
+          "beverage",
+          "napoje",
+          "drink",
+          "kawa",
+          "herbata"
+        ],
+        "glyph": "emoji_food_beverage"
+      },
+      {
+        "name": "KebabDining",
+        "label": "Kebab",
+        "tags": [
+          "kebab",
+          "fast food",
+          "jedzenie"
+        ],
+        "glyph": "kebab_dining"
+      },
+      {
+        "name": "RamenDining",
+        "label": "Azjatyckie",
+        "tags": [
+          "ramen",
+          "asian",
+          "azjatyckie",
+          "sushi"
+        ],
+        "glyph": "ramen_dining"
+      },
+      {
+        "name": "SetMeal",
+        "label": "Zestaw",
+        "tags": [
+          "meal",
+          "zestaw",
+          "obiad",
+          "lunch"
+        ],
+        "glyph": "set_meal"
+      },
+      {
+        "name": "ShoppingBasket",
+        "label": "Koszyk sklepowy",
+        "tags": [
+          "basket",
+          "koszyk",
+          "zakupy",
+          "market"
+        ],
+        "glyph": "shopping_basket"
+      },
+      {
+        "name": "AddShoppingCart",
+        "label": "Dodaj zakupy",
+        "tags": [
+          "shopping",
+          "zakupy",
+          "koszyk",
+          "dodaj"
+        ],
+        "glyph": "add_shopping_cart"
+      },
+      {
+        "name": "LocalMall",
+        "label": "Galeria handlowa",
+        "tags": [
+          "mall",
+          "galeria",
+          "centrum handlowe",
+          "zakupy"
+        ],
+        "glyph": "local_mall"
+      },
+      {
+        "name": "StoreMallDirectory",
+        "label": "Centrum sklepów",
+        "tags": [
+          "mall",
+          "sklepy",
+          "galeria",
+          "market"
+        ],
+        "glyph": "store_mall_directory"
+      },
+      {
+        "name": "LocalOffer",
+        "label": "Promocja",
+        "tags": [
+          "offer",
+          "promocja",
+          "rabat",
+          "kupon"
+        ],
+        "glyph": "local_offer"
+      },
+      {
+        "name": "Sell",
+        "label": "Sprzedaż",
+        "tags": [
+          "sell",
+          "sprzedaż",
+          "cena",
+          "marketplace"
+        ],
+        "glyph": "sell"
+      },
+      {
+        "name": "Discount",
+        "label": "Rabat",
+        "tags": [
+          "discount",
+          "rabat",
+          "zniżka",
+          "promocja"
+        ],
+        "glyph": "discount"
+      },
+      {
+        "name": "BakeryDining",
+        "label": "Pieczywo",
+        "tags": [
+          "bakery",
+          "piekarnia",
+          "chleb",
+          "bułki"
+        ],
+        "glyph": "bakery_dining"
+      },
+      {
+        "name": "BreakfastDining",
+        "label": "Śniadanie",
+        "tags": [
+          "breakfast",
+          "śniadanie",
+          "jedzenie"
+        ],
+        "glyph": "breakfast_dining"
+      },
+      {
+        "name": "LunchDining",
+        "label": "Lunch",
+        "tags": [
+          "lunch",
+          "obiad",
+          "jedzenie",
+          "posiłek"
+        ],
+        "glyph": "lunch_dining"
+      },
+      {
+        "name": "DinnerDining",
+        "label": "Kolacja",
+        "tags": [
+          "dinner",
+          "kolacja",
+          "jedzenie"
+        ],
+        "glyph": "dinner_dining"
+      },
+      {
+        "name": "BrunchDining",
+        "label": "Brunch",
+        "tags": [
+          "brunch",
+          "śniadanie",
+          "lunch",
+          "jedzenie"
+        ],
+        "glyph": "brunch_dining"
+      },
+      {
+        "name": "DeliveryDining",
+        "label": "Dostawa jedzenia",
+        "tags": [
+          "delivery",
+          "dostawa",
+          "jedzenie",
+          "uber eats",
+          "glovo"
+        ],
+        "glyph": "delivery_dining"
+      },
+      {
+        "name": "LocalDining",
+        "label": "Posiłek",
+        "tags": [
+          "dining",
+          "posiłek",
+          "jedzenie",
+          "restauracja"
+        ],
+        "glyph": "local_dining"
+      },
+      {
+        "name": "Flatware",
+        "label": "Sztućce",
+        "tags": [
+          "flatware",
+          "sztućce",
+          "jedzenie",
+          "kuchnia"
+        ],
+        "glyph": "flatware"
+      },
+      {
+        "name": "Kitchen",
+        "label": "Kuchnia",
+        "tags": [
+          "kitchen",
+          "kuchnia",
+          "agd",
+          "jedzenie"
+        ],
+        "glyph": "kitchen"
+      },
+      {
+        "name": "Blender",
+        "label": "AGD kuchenne",
+        "tags": [
+          "blender",
+          "agd",
+          "kuchnia",
+          "sprzęt"
+        ],
+        "glyph": "blender"
+      },
+      {
+        "name": "CoffeeMaker",
+        "label": "Ekspres",
+        "tags": [
+          "coffee maker",
+          "ekspres",
+          "kawa",
+          "agd"
+        ],
+        "glyph": "coffee_maker"
+      },
+      {
+        "name": "Egg",
+        "label": "Produkty spożywcze",
+        "tags": [
+          "egg",
+          "jajka",
+          "spożywcze",
+          "jedzenie"
+        ],
+        "glyph": "egg"
+      },
+      {
+        "name": "OutdoorGrill",
+        "label": "Grill",
+        "tags": [
+          "grill",
+          "barbecue",
+          "jedzenie",
+          "ogród"
+        ],
+        "glyph": "outdoor_grill"
+      },
+      {
+        "name": "Liquor",
+        "label": "Alkohol",
+        "tags": [
+          "liquor",
+          "alkohol",
+          "wódka",
+          "drink"
+        ],
+        "glyph": "liquor"
+      },
+      {
+        "name": "WineBar",
+        "label": "Wino",
+        "tags": [
+          "wine",
+          "wino",
+          "alkohol",
+          "bar"
+        ],
+        "glyph": "wine_bar"
+      },
+      {
+        "name": "SoupKitchen",
+        "label": "Zupa",
+        "tags": [
+          "soup",
+          "zupa",
+          "kuchnia",
+          "jedzenie"
+        ],
+        "glyph": "soup_kitchen"
+      }
+    ]
+  },
+  {
+    "title": "Dom i mieszkanie",
+    "icons": [
+      {
+        "name": "Home",
+        "label": "Dom",
+        "tags": [
+          "home",
+          "dom",
+          "mieszkanie",
+          "house"
+        ],
+        "glyph": "home"
+      },
+      {
+        "name": "Apartment",
+        "label": "Mieszkanie",
+        "tags": [
+          "apartment",
+          "mieszkanie",
+          "flat",
+          "lokal"
+        ],
+        "glyph": "apartment"
+      },
+      {
+        "name": "Bed",
+        "label": "Sypialnia",
+        "tags": [
+          "bed",
+          "sypialnia",
+          "meble",
+          "furniture"
+        ],
+        "glyph": "bed"
+      },
+      {
+        "name": "Chair",
+        "label": "Meble",
+        "tags": [
+          "chair",
+          "meble",
+          "furniture",
+          "krzesło"
+        ],
+        "glyph": "chair"
+      },
+      {
+        "name": "Bathtub",
+        "label": "Łazienka",
+        "tags": [
+          "bathtub",
+          "łazienka",
+          "bathroom",
+          "prysznic"
+        ],
+        "glyph": "bathtub"
+      },
+      {
+        "name": "Weekend",
+        "label": "Wypoczynek",
+        "tags": [
+          "weekend",
+          "sofa",
+          "kanapa",
+          "wypoczynek"
+        ],
+        "glyph": "weekend"
+      },
+      {
+        "name": "Yard",
+        "label": "Ogród",
+        "tags": [
+          "yard",
+          "ogród",
+          "garden",
+          "taras"
+        ],
+        "glyph": "yard"
+      },
+      {
+        "name": "CleaningServices",
+        "label": "Sprzątanie",
+        "tags": [
+          "cleaning",
+          "sprzątanie",
+          "czyszczenie",
+          "porządki"
+        ],
+        "glyph": "cleaning_services"
+      },
+      {
+        "name": "Handyman",
+        "label": "Naprawy",
+        "tags": [
+          "handyman",
+          "naprawy",
+          "remont",
+          "narzędzia",
+          "repair"
+        ],
+        "glyph": "handyman"
+      },
+      {
+        "name": "RealEstateAgent",
+        "label": "Pośrednik nieruchomości",
+        "tags": [
+          "real estate",
+          "nieruchomości",
+          "pośrednik",
+          "mieszkanie"
+        ],
+        "glyph": "real_estate_agent"
+      },
+      {
+        "name": "LocalLaundryService",
+        "label": "Pralnia",
+        "tags": [
+          "laundry",
+          "pralnia",
+          "pranie",
+          "odzież"
+        ],
+        "glyph": "local_laundry_service"
+      },
+      {
+        "name": "Roofing",
+        "label": "Dach",
+        "tags": [
+          "roofing",
+          "dach",
+          "budowa",
+          "construction"
+        ],
+        "glyph": "roofing"
+      },
+      {
+        "name": "Plumbing",
+        "label": "Hydraulik",
+        "tags": [
+          "plumbing",
+          "hydraulik",
+          "woda",
+          "rury"
+        ],
+        "glyph": "plumbing"
+      },
+      {
+        "name": "ElectricalServices",
+        "label": "Elektryk",
+        "tags": [
+          "electrical",
+          "elektryk",
+          "prąd",
+          "instalacja"
+        ],
+        "glyph": "electrical_services"
+      },
+      {
+        "name": "AddHome",
+        "label": "Nowy dom",
+        "tags": [
+          "add home",
+          "dom",
+          "nieruchomość",
+          "nowe mieszkanie"
+        ],
+        "glyph": "add_home"
+      },
+      {
+        "name": "AddHomeWork",
+        "label": "Dom i praca",
+        "tags": [
+          "home work",
+          "dom",
+          "biuro",
+          "praca zdalna"
+        ],
+        "glyph": "add_home_work"
+      },
+      {
+        "name": "HomeRepairService",
+        "label": "Serwis domu",
+        "tags": [
+          "home repair",
+          "naprawy",
+          "serwis",
+          "dom"
+        ],
+        "glyph": "home_repair_service"
+      },
+      {
+        "name": "Construction",
+        "label": "Budowa",
+        "tags": [
+          "construction",
+          "budowa",
+          "remont",
+          "narzędzia"
+        ],
+        "glyph": "construction"
+      },
+      {
+        "name": "Carpenter",
+        "label": "Stolarz",
+        "tags": [
+          "carpenter",
+          "stolarz",
+          "meble",
+          "drewno"
+        ],
+        "glyph": "carpenter"
+      },
+      {
+        "name": "Countertops",
+        "label": "Kuchnia zabudowa",
+        "tags": [
+          "countertops",
+          "blat",
+          "kuchnia",
+          "remont"
+        ],
+        "glyph": "countertops"
+      },
+      {
+        "name": "Bathroom",
+        "label": "Pokój kąpielowy",
+        "tags": [
+          "bathroom",
+          "łazienka",
+          "toaleta"
+        ],
+        "glyph": "bathroom"
+      },
+      {
+        "name": "Shower",
+        "label": "Prysznic",
+        "tags": [
+          "shower",
+          "prysznic",
+          "łazienka",
+          "woda"
+        ],
+        "glyph": "shower"
+      },
+      {
+        "name": "BedroomBaby",
+        "label": "Pokój dziecka",
+        "tags": [
+          "baby room",
+          "dziecko",
+          "pokój",
+          "łóżeczko"
+        ],
+        "glyph": "bedroom_baby"
+      },
+      {
+        "name": "BedroomChild",
+        "label": "Pokój dziecięcy",
+        "tags": [
+          "child room",
+          "dziecko",
+          "pokój",
+          "sypialnia"
+        ],
+        "glyph": "bedroom_child"
+      },
+      {
+        "name": "BedroomParent",
+        "label": "Sypialnia główna",
+        "tags": [
+          "bedroom",
+          "sypialnia",
+          "rodzice"
+        ],
+        "glyph": "bedroom_parent"
+      },
+      {
+        "name": "Crib",
+        "label": "Łóżeczko",
+        "tags": [
+          "crib",
+          "łóżeczko",
+          "dziecko",
+          "niemowlę"
+        ],
+        "glyph": "crib"
+      },
+      {
+        "name": "Balcony",
+        "label": "Balkon",
+        "tags": [
+          "balcony",
+          "balkon",
+          "mieszkanie",
+          "taras"
+        ],
+        "glyph": "balcony"
+      },
+      {
+        "name": "Deck",
+        "label": "Taras",
+        "tags": [
+          "deck",
+          "taras",
+          "ogród",
+          "dom"
+        ],
+        "glyph": "deck"
+      },
+      {
+        "name": "Cabin",
+        "label": "Domek",
+        "tags": [
+          "cabin",
+          "domek",
+          "letnisko",
+          "wakacje"
+        ],
+        "glyph": "cabin"
+      },
+      {
+        "name": "Cottage",
+        "label": "Domek wiejski",
+        "tags": [
+          "cottage",
+          "domek",
+          "wieś",
+          "dom"
+        ],
+        "glyph": "cottage"
+      },
+      {
+        "name": "Bungalow",
+        "label": "Bungalow",
+        "tags": [
+          "bungalow",
+          "dom",
+          "wakacje",
+          "nocleg"
+        ],
+        "glyph": "bungalow"
+      },
+      {
+        "name": "Chalet",
+        "label": "Chata",
+        "tags": [
+          "chalet",
+          "chata",
+          "góry",
+          "nocleg"
+        ],
+        "glyph": "chalet"
+      },
+      {
+        "name": "Foundation",
+        "label": "Fundament",
+        "tags": [
+          "foundation",
+          "fundament",
+          "budowa",
+          "dom"
+        ],
+        "glyph": "foundation"
+      },
+      {
+        "name": "Warehouse",
+        "label": "Magazyn",
+        "tags": [
+          "warehouse",
+          "magazyn",
+          "garaż",
+          "przechowywanie"
+        ],
+        "glyph": "warehouse"
+      },
+      {
+        "name": "DoorFront",
+        "label": "Drzwi",
+        "tags": [
+          "door",
+          "drzwi",
+          "dom",
+          "wejście"
+        ],
+        "glyph": "door_front"
+      },
+      {
+        "name": "Doorbell",
+        "label": "Dzwonek",
+        "tags": [
+          "doorbell",
+          "dzwonek",
+          "dom",
+          "wejście"
+        ],
+        "glyph": "doorbell"
+      },
+      {
+        "name": "Curtains",
+        "label": "Zasłony",
+        "tags": [
+          "curtains",
+          "zasłony",
+          "firany",
+          "wystrój"
+        ],
+        "glyph": "curtains"
+      }
+    ]
+  },
+  {
+    "title": "Media i rachunki",
+    "icons": [
+      {
+        "name": "Bolt",
+        "label": "Prąd",
+        "tags": [
+          "bolt",
+          "prąd",
+          "energia",
+          "electricity",
+          "electric"
+        ],
+        "glyph": "bolt"
+      },
+      {
+        "name": "WaterDrop",
+        "label": "Woda",
+        "tags": [
+          "water",
+          "woda",
+          "rachunek",
+          "utilities"
+        ],
+        "glyph": "water_drop"
+      },
+      {
+        "name": "LocalFireDepartment",
+        "label": "Gaz",
+        "tags": [
+          "fire",
+          "gaz",
+          "gas",
+          "ogrzewanie",
+          "heating"
+        ],
+        "glyph": "local_fire_department"
+      },
+      {
+        "name": "Wifi",
+        "label": "Internet",
+        "tags": [
+          "wifi",
+          "internet",
+          "sieć",
+          "network",
+          "broadband"
+        ],
+        "glyph": "wifi"
+      },
+      {
+        "name": "Phone",
+        "label": "Telefon",
+        "tags": [
+          "phone",
+          "telefon",
+          "komórka",
+          "mobile",
+          "abonament"
+        ],
+        "glyph": "phone"
+      },
+      {
+        "name": "Tv",
+        "label": "Telewizja",
+        "tags": [
+          "tv",
+          "telewizja",
+          "kabel",
+          "streaming",
+          "netflix"
+        ],
+        "glyph": "tv"
+      },
+      {
+        "name": "Router",
+        "label": "Router",
+        "tags": [
+          "router",
+          "internet",
+          "sieć"
+        ],
+        "glyph": "router"
+      },
+      {
+        "name": "ElectricBolt",
+        "label": "Energia",
+        "tags": [
+          "energy",
+          "energia",
+          "prąd",
+          "rachunki"
+        ],
+        "glyph": "electric_bolt"
+      },
+      {
+        "name": "ElectricMeter",
+        "label": "Licznik prądu",
+        "tags": [
+          "meter",
+          "licznik",
+          "prąd",
+          "energia"
+        ],
+        "glyph": "electric_meter"
+      },
+      {
+        "name": "EnergySavingsLeaf",
+        "label": "Oszczędzanie energii",
+        "tags": [
+          "eco",
+          "energia",
+          "oszczędzanie",
+          "rachunki"
+        ],
+        "glyph": "energy_savings_leaf"
+      },
+      {
+        "name": "DeviceThermostat",
+        "label": "Ogrzewanie",
+        "tags": [
+          "thermostat",
+          "ogrzewanie",
+          "temperatura",
+          "rachunki"
+        ],
+        "glyph": "device_thermostat"
+      },
+      {
+        "name": "Cable",
+        "label": "Kabel",
+        "tags": [
+          "cable",
+          "kabel",
+          "internet",
+          "tv"
+        ],
+        "glyph": "cable"
+      },
+      {
+        "name": "ConnectedTv",
+        "label": "Smart TV",
+        "tags": [
+          "smart tv",
+          "telewizja",
+          "streaming",
+          "media"
+        ],
+        "glyph": "connected_tv"
+      },
+      {
+        "name": "CellTower",
+        "label": "Sieć komórkowa",
+        "tags": [
+          "cell tower",
+          "telefon",
+          "internet",
+          "operator"
+        ],
+        "glyph": "cell_tower"
+      },
+      {
+        "name": "ChargingStation",
+        "label": "Ładowarka",
+        "tags": [
+          "charging",
+          "ładowanie",
+          "energia",
+          "prąd"
+        ],
+        "glyph": "charging_station"
+      },
+      {
+        "name": "Air",
+        "label": "Powietrze",
+        "tags": [
+          "air",
+          "powietrze",
+          "klimatyzacja",
+          "wentylacja"
+        ],
+        "glyph": "air"
+      },
+      {
+        "name": "Co2",
+        "label": "CO2",
+        "tags": [
+          "co2",
+          "powietrze",
+          "energia",
+          "ekologia"
+        ],
+        "glyph": "co2"
+      }
+    ]
+  },
+  {
+    "title": "Transport i podróże",
+    "icons": [
+      {
+        "name": "DirectionsCar",
+        "label": "Samochód",
+        "tags": [
+          "car",
+          "samochód",
+          "auto",
+          "transport"
+        ],
+        "glyph": "directions_car"
+      },
+      {
+        "name": "LocalGasStation",
+        "label": "Paliwo",
+        "tags": [
+          "gas",
+          "paliwo",
+          "benzyna",
+          "stacja",
+          "fuel"
+        ],
+        "glyph": "local_gas_station"
+      },
+      {
+        "name": "CarRepair",
+        "label": "Serwis auta",
+        "tags": [
+          "car repair",
+          "serwis",
+          "naprawa auta",
+          "mechanik"
+        ],
+        "glyph": "car_repair"
+      },
+      {
+        "name": "DirectionsBus",
+        "label": "Autobus",
+        "tags": [
+          "bus",
+          "autobus",
+          "komunikacja",
+          "transport publiczny"
+        ],
+        "glyph": "directions_bus"
+      },
+      {
+        "name": "DirectionsSubway",
+        "label": "Metro",
+        "tags": [
+          "subway",
+          "metro",
+          "komunikacja"
+        ],
+        "glyph": "directions_subway"
+      },
+      {
+        "name": "Train",
+        "label": "Pociąg",
+        "tags": [
+          "train",
+          "pociąg",
+          "pkp",
+          "kolej",
+          "intercity"
+        ],
+        "glyph": "train"
+      },
+      {
+        "name": "Tram",
+        "label": "Tramwaj",
+        "tags": [
+          "tram",
+          "tramwaj",
+          "komunikacja"
+        ],
+        "glyph": "tram"
+      },
+      {
+        "name": "DirectionsBike",
+        "label": "Rower",
+        "tags": [
+          "bike",
+          "rower",
+          "cycling"
+        ],
+        "glyph": "directions_bike"
+      },
+      {
+        "name": "ElectricScooter",
+        "label": "Hulajnoga",
+        "tags": [
+          "scooter",
+          "hulajnoga",
+          "elektryczna"
+        ],
+        "glyph": "electric_scooter"
+      },
+      {
+        "name": "LocalTaxi",
+        "label": "Taxi",
+        "tags": [
+          "taxi",
+          "uber",
+          "bolt",
+          "taksi"
+        ],
+        "glyph": "local_taxi"
+      },
+      {
+        "name": "Flight",
+        "label": "Samolot",
+        "tags": [
+          "flight",
+          "samolot",
+          "lot",
+          "podróż",
+          "lotnisko",
+          "travel"
+        ],
+        "glyph": "flight"
+      },
+      {
+        "name": "BeachAccess",
+        "label": "Wakacje",
+        "tags": [
+          "beach",
+          "wakacje",
+          "urlop",
+          "morze",
+          "holiday"
+        ],
+        "glyph": "beach_access"
+      },
+      {
+        "name": "Hotel",
+        "label": "Hotel",
+        "tags": [
+          "hotel",
+          "nocleg",
+          "zakwaterowanie",
+          "airbnb"
+        ],
+        "glyph": "hotel"
+      },
+      {
+        "name": "Luggage",
+        "label": "Bagaż",
+        "tags": [
+          "luggage",
+          "bagaż",
+          "walizka",
+          "podróż"
+        ],
+        "glyph": "luggage"
+      },
+      {
+        "name": "Commute",
+        "label": "Dojazd",
+        "tags": [
+          "commute",
+          "dojazd",
+          "praca",
+          "transport"
+        ],
+        "glyph": "commute"
+      },
+      {
+        "name": "EvStation",
+        "label": "Ładowanie EV",
+        "tags": [
+          "ev",
+          "electric",
+          "ładowanie",
+          "auto elektryczne"
+        ],
+        "glyph": "ev_station"
+      },
+      {
+        "name": "LocalParking",
+        "label": "Parking",
+        "tags": [
+          "parking",
+          "parkowanie",
+          "garaż"
+        ],
+        "glyph": "local_parking"
+      },
+      {
+        "name": "AirportShuttle",
+        "label": "Bus lotniskowy",
+        "tags": [
+          "airport shuttle",
+          "lotnisko",
+          "bus",
+          "podróż"
+        ],
+        "glyph": "airport_shuttle"
+      },
+      {
+        "name": "AirplaneTicket",
+        "label": "Bilet lotniczy",
+        "tags": [
+          "airplane ticket",
+          "bilet",
+          "samolot",
+          "lot"
+        ],
+        "glyph": "airplane_ticket"
+      },
+      {
+        "name": "Airlines",
+        "label": "Linie lotnicze",
+        "tags": [
+          "airlines",
+          "linie lotnicze",
+          "lot",
+          "podróż"
+        ],
+        "glyph": "airlines"
+      },
+      {
+        "name": "ConnectingAirports",
+        "label": "Przesiadka",
+        "tags": [
+          "connecting airports",
+          "przesiadka",
+          "lotnisko",
+          "podróż"
+        ],
+        "glyph": "connecting_airports"
+      },
+      {
+        "name": "DepartureBoard",
+        "label": "Rozkład jazdy",
+        "tags": [
+          "departure",
+          "rozkład",
+          "pociąg",
+          "autobus"
+        ],
+        "glyph": "departure_board"
+      },
+      {
+        "name": "DirectionsBoat",
+        "label": "Łódź",
+        "tags": [
+          "boat",
+          "łódź",
+          "prom",
+          "transport"
+        ],
+        "glyph": "directions_boat"
+      },
+      {
+        "name": "DirectionsRailway",
+        "label": "Kolej",
+        "tags": [
+          "railway",
+          "kolej",
+          "pociąg",
+          "transport"
+        ],
+        "glyph": "directions_railway"
+      },
+      {
+        "name": "DirectionsTransit",
+        "label": "Komunikacja",
+        "tags": [
+          "transit",
+          "komunikacja",
+          "transport publiczny"
+        ],
+        "glyph": "directions_transit"
+      },
+      {
+        "name": "DirectionsWalk",
+        "label": "Pieszo",
+        "tags": [
+          "walk",
+          "pieszo",
+          "spacer",
+          "transport"
+        ],
+        "glyph": "directions_walk"
+      },
+      {
+        "name": "DirectionsRun",
+        "label": "Bieg",
+        "tags": [
+          "run",
+          "bieg",
+          "sport",
+          "transport"
+        ],
+        "glyph": "directions_run"
+      },
+      {
+        "name": "PedalBike",
+        "label": "Rower miejski",
+        "tags": [
+          "pedal bike",
+          "rower",
+          "miejski",
+          "transport"
+        ],
+        "glyph": "pedal_bike"
+      },
+      {
+        "name": "BikeScooter",
+        "label": "Skuter",
+        "tags": [
+          "bike scooter",
+          "skuter",
+          "transport"
+        ],
+        "glyph": "bike_scooter"
+      },
+      {
+        "name": "ElectricBike",
+        "label": "Rower elektryczny",
+        "tags": [
+          "electric bike",
+          "rower elektryczny",
+          "transport"
+        ],
+        "glyph": "electric_bike"
+      },
+      {
+        "name": "ElectricCar",
+        "label": "Auto elektryczne",
+        "tags": [
+          "electric car",
+          "auto elektryczne",
+          "ev",
+          "transport"
+        ],
+        "glyph": "electric_car"
+      },
+      {
+        "name": "ElectricMoped",
+        "label": "Motorower elektryczny",
+        "tags": [
+          "electric moped",
+          "motorower",
+          "transport"
+        ],
+        "glyph": "electric_moped"
+      },
+      {
+        "name": "CarRental",
+        "label": "Wynajem auta",
+        "tags": [
+          "car rental",
+          "wynajem auta",
+          "samochód",
+          "podróż"
+        ],
+        "glyph": "car_rental"
+      },
+      {
+        "name": "CarCrash",
+        "label": "Kolizja",
+        "tags": [
+          "crash",
+          "kolizja",
+          "auto",
+          "ubezpieczenie"
+        ],
+        "glyph": "car_crash"
+      },
+      {
+        "name": "TireRepair",
+        "label": "Opony",
+        "tags": [
+          "tire",
+          "opony",
+          "wulkanizacja",
+          "auto"
+        ],
+        "glyph": "tire_repair"
+      },
+      {
+        "name": "Agriculture",
+        "label": "Maszyny rolnicze",
+        "tags": [
+          "agriculture",
+          "rolnictwo",
+          "traktor",
+          "transport"
+        ],
+        "glyph": "agriculture"
+      },
+      {
+        "name": "ModeOfTravel",
+        "label": "Tryb podróży",
+        "tags": [
+          "travel mode",
+          "podróż",
+          "transport"
+        ],
+        "glyph": "mode_of_travel"
+      },
+      {
+        "name": "AltRoute",
+        "label": "Trasa",
+        "tags": [
+          "route",
+          "trasa",
+          "droga",
+          "transport"
+        ],
+        "glyph": "alt_route"
+      },
+      {
+        "name": "AddRoad",
+        "label": "Droga",
+        "tags": [
+          "road",
+          "droga",
+          "trasa",
+          "transport"
+        ],
+        "glyph": "add_road"
+      }
+    ]
+  },
+  {
+    "title": "Zdrowie i uroda",
+    "icons": [
+      {
+        "name": "LocalHospital",
+        "label": "Szpital",
+        "tags": [
+          "hospital",
+          "szpital",
+          "leczenie",
+          "health"
+        ],
+        "glyph": "local_hospital"
+      },
+      {
+        "name": "MedicalServices",
+        "label": "Lekarz",
+        "tags": [
+          "medical",
+          "lekarz",
+          "doktor",
+          "wizyta",
+          "doctor"
+        ],
+        "glyph": "medical_services"
+      },
+      {
+        "name": "MedicalInformation",
+        "label": "Informacje medyczne",
+        "tags": [
+          "medical information",
+          "dokumentacja",
+          "badania",
+          "zdrowie"
+        ],
+        "glyph": "medical_information"
+      },
+      {
+        "name": "Psychology",
+        "label": "Psycholog",
+        "tags": [
+          "psychology",
+          "psycholog",
+          "terapia",
+          "zdrowie psychiczne"
+        ],
+        "glyph": "psychology"
+      },
+      {
+        "name": "Medication",
+        "label": "Leki",
+        "tags": [
+          "medication",
+          "leki",
+          "apteka",
+          "pharmacy",
+          "tabletki"
+        ],
+        "glyph": "medication"
+      },
+      {
+        "name": "LocalPharmacy",
+        "label": "Apteka",
+        "tags": [
+          "pharmacy",
+          "apteka",
+          "leki",
+          "zdrowie"
+        ],
+        "glyph": "local_pharmacy"
+      },
+      {
+        "name": "Favorite",
+        "label": "Zdrowie",
+        "tags": [
+          "health",
+          "zdrowie",
+          "serce",
+          "heart"
+        ],
+        "glyph": "favorite"
+      },
+      {
+        "name": "FitnessCenter",
+        "label": "Siłownia",
+        "tags": [
+          "fitness",
+          "siłownia",
+          "gym",
+          "sport",
+          "trening"
+        ],
+        "glyph": "fitness_center"
+      },
+      {
+        "name": "SelfImprovement",
+        "label": "Wellness",
+        "tags": [
+          "wellness",
+          "medytacja",
+          "yoga",
+          "spa"
+        ],
+        "glyph": "self_improvement"
+      },
+      {
+        "name": "ContentCut",
+        "label": "Fryzjer",
+        "tags": [
+          "haircut",
+          "fryzjer",
+          "salon",
+          "beauty"
+        ],
+        "glyph": "content_cut"
+      },
+      {
+        "name": "Spa",
+        "label": "Spa",
+        "tags": [
+          "spa",
+          "masaż",
+          "relaks",
+          "beauty"
+        ],
+        "glyph": "spa"
+      },
+      {
+        "name": "Face",
+        "label": "Kosmetyki",
+        "tags": [
+          "face",
+          "kosmetyki",
+          "beauty",
+          "makijaż",
+          "pielęgnacja"
+        ],
+        "glyph": "face"
+      },
+      {
+        "name": "Watch",
+        "label": "Zegarek",
+        "tags": [
+          "watch",
+          "zegarek",
+          "biżuteria",
+          "accessories"
+        ],
+        "glyph": "watch"
+      },
+      {
+        "name": "HealthAndSafety",
+        "label": "Bezpieczeństwo zdrowia",
+        "tags": [
+          "health safety",
+          "zdrowie",
+          "bezpieczeństwo",
+          "opieka"
+        ],
+        "glyph": "health_and_safety"
+      },
+      {
+        "name": "Vaccines",
+        "label": "Szczepienia",
+        "tags": [
+          "vaccines",
+          "szczepienia",
+          "zdrowie",
+          "lekarz"
+        ],
+        "glyph": "vaccines"
+      },
+      {
+        "name": "Bloodtype",
+        "label": "Badania krwi",
+        "tags": [
+          "blood",
+          "krew",
+          "badania",
+          "zdrowie"
+        ],
+        "glyph": "bloodtype"
+      },
+      {
+        "name": "Masks",
+        "label": "Maseczki",
+        "tags": [
+          "masks",
+          "maseczki",
+          "zdrowie",
+          "apteka"
+        ],
+        "glyph": "masks"
+      },
+      {
+        "name": "Sanitizer",
+        "label": "Środki higieny",
+        "tags": [
+          "sanitizer",
+          "higiena",
+          "dezynfekcja",
+          "zdrowie"
+        ],
+        "glyph": "sanitizer"
+      },
+      {
+        "name": "CleanHands",
+        "label": "Higiena",
+        "tags": [
+          "clean hands",
+          "higiena",
+          "ręce",
+          "zdrowie"
+        ],
+        "glyph": "clean_hands"
+      },
+      {
+        "name": "Coronavirus",
+        "label": "Infekcje",
+        "tags": [
+          "virus",
+          "infekcja",
+          "choroba",
+          "zdrowie"
+        ],
+        "glyph": "coronavirus"
+      },
+      {
+        "name": "Emergency",
+        "label": "Nagły wypadek",
+        "tags": [
+          "emergency",
+          "wypadek",
+          "pilne",
+          "zdrowie"
+        ],
+        "glyph": "emergency"
+      },
+      {
+        "name": "AssistWalker",
+        "label": "Rehabilitacja",
+        "tags": [
+          "walker",
+          "rehabilitacja",
+          "opieka",
+          "zdrowie"
+        ],
+        "glyph": "assist_walker"
+      },
+      {
+        "name": "Elderly",
+        "label": "Senior",
+        "tags": [
+          "elderly",
+          "senior",
+          "opieka",
+          "zdrowie"
+        ],
+        "glyph": "elderly"
+      },
+      {
+        "name": "ElderlyWoman",
+        "label": "Seniorka",
+        "tags": [
+          "elderly woman",
+          "seniorka",
+          "opieka",
+          "zdrowie"
+        ],
+        "glyph": "elderly_woman"
+      },
+      {
+        "name": "Accessible",
+        "label": "Dostępność",
+        "tags": [
+          "accessible",
+          "niepełnosprawność",
+          "dostępność",
+          "opieka"
+        ],
+        "glyph": "accessible"
+      },
+      {
+        "name": "ChildFriendly",
+        "label": "Dziecko",
+        "tags": [
+          "child friendly",
+          "dziecko",
+          "rodzina",
+          "opieka"
+        ],
+        "glyph": "child_friendly"
+      },
+      {
+        "name": "PregnantWoman",
+        "label": "Ciąża",
+        "tags": [
+          "pregnancy",
+          "ciąża",
+          "zdrowie",
+          "rodzina"
+        ],
+        "glyph": "pregnant_woman"
+      },
+      {
+        "name": "BabyChangingStation",
+        "label": "Niemowlę",
+        "tags": [
+          "baby",
+          "niemowlę",
+          "dziecko",
+          "opieka"
+        ],
+        "glyph": "baby_changing_station"
+      }
+    ]
+  },
+  {
+    "title": "Rozrywka i hobby",
+    "icons": [
+      {
+        "name": "SportsEsports",
+        "label": "Gry",
+        "tags": [
+          "gaming",
+          "gry",
+          "videogames",
+          "xbox",
+          "playstation",
+          "esport"
+        ],
+        "glyph": "sports_esports"
+      },
+      {
+        "name": "Movie",
+        "label": "Kino",
+        "tags": [
+          "movie",
+          "kino",
+          "film",
+          "cinema"
+        ],
+        "glyph": "movie"
+      },
+      {
+        "name": "MusicNote",
+        "label": "Muzyka",
+        "tags": [
+          "music",
+          "muzyka",
+          "spotify",
+          "koncert"
+        ],
+        "glyph": "music_note"
+      },
+      {
+        "name": "Headphones",
+        "label": "Słuchawki",
+        "tags": [
+          "headphones",
+          "słuchawki",
+          "muzyka",
+          "audio"
+        ],
+        "glyph": "headphones"
+      },
+      {
+        "name": "PhotoCamera",
+        "label": "Fotografia",
+        "tags": [
+          "camera",
+          "fotografia",
+          "zdjęcia",
+          "aparat"
+        ],
+        "glyph": "photo_camera"
+      },
+      {
+        "name": "Palette",
+        "label": "Sztuka",
+        "tags": [
+          "art",
+          "sztuka",
+          "malarstwo",
+          "hobby",
+          "kreatywność"
+        ],
+        "glyph": "palette"
+      },
+      {
+        "name": "MenuBook",
+        "label": "Książki",
+        "tags": [
+          "book",
+          "książki",
+          "czytanie",
+          "biblioteka",
+          "reading"
+        ],
+        "glyph": "menu_book"
+      },
+      {
+        "name": "Newspaper",
+        "label": "Prasa",
+        "tags": [
+          "newspaper",
+          "prasa",
+          "gazeta",
+          "czasopismo",
+          "media"
+        ],
+        "glyph": "newspaper"
+      },
+      {
+        "name": "Sports",
+        "label": "Sport",
+        "tags": [
+          "sport",
+          "aktywność",
+          "fitness",
+          "trening"
+        ],
+        "glyph": "sports"
+      },
+      {
+        "name": "Pool",
+        "label": "Basen",
+        "tags": [
+          "pool",
+          "basen",
+          "pływanie",
+          "swimming"
+        ],
+        "glyph": "pool"
+      },
+      {
+        "name": "Hiking",
+        "label": "Turystyka",
+        "tags": [
+          "hiking",
+          "turystyka",
+          "trekking",
+          "góry",
+          "przyroda"
+        ],
+        "glyph": "hiking"
+      },
+      {
+        "name": "Pets",
+        "label": "Zwierzęta",
+        "tags": [
+          "pets",
+          "zwierzęta",
+          "kot",
+          "pies",
+          "weterynarz"
+        ],
+        "glyph": "pets"
+      },
+      {
+        "name": "SportsBasketball",
+        "label": "Koszykówka",
+        "tags": [
+          "basketball",
+          "koszykówka",
+          "sport"
+        ],
+        "glyph": "sports_basketball"
+      },
+      {
+        "name": "SportsSoccer",
+        "label": "Piłka nożna",
+        "tags": [
+          "football",
+          "piłka nożna",
+          "soccer",
+          "sport"
+        ],
+        "glyph": "sports_soccer"
+      },
+      {
+        "name": "SportsTennis",
+        "label": "Tenis",
+        "tags": [
+          "tennis",
+          "tenis",
+          "sport",
+          "rakieta"
+        ],
+        "glyph": "sports_tennis"
+      },
+      {
+        "name": "Celebration",
+        "label": "Imprezy",
+        "tags": [
+          "celebration",
+          "impreza",
+          "urodziny",
+          "party"
+        ],
+        "glyph": "celebration"
+      },
+      {
+        "name": "NightLife",
+        "label": "Nocne życie",
+        "tags": [
+          "nightlife",
+          "noc",
+          "dyskoteka",
+          "pub"
+        ],
+        "glyph": "nightlife"
+      },
+      {
+        "name": "LocalMovies",
+        "label": "Filmy",
+        "tags": [
+          "movies",
+          "filmy",
+          "kino",
+          "streaming"
+        ],
+        "glyph": "local_movies"
+      },
+      {
+        "name": "TheaterComedy",
+        "label": "Teatr",
+        "tags": [
+          "theater",
+          "teatr",
+          "komedia",
+          "kultura"
+        ],
+        "glyph": "theater_comedy"
+      },
+      {
+        "name": "LocalActivity",
+        "label": "Bilety",
+        "tags": [
+          "activity",
+          "bilety",
+          "wydarzenie",
+          "event"
+        ],
+        "glyph": "local_activity"
+      },
+      {
+        "name": "Attractions",
+        "label": "Atrakcje",
+        "tags": [
+          "attractions",
+          "atrakcje",
+          "wycieczka",
+          "hobby"
+        ],
+        "glyph": "attractions"
+      },
+      {
+        "name": "Festival",
+        "label": "Festiwal",
+        "tags": [
+          "festival",
+          "festiwal",
+          "koncert",
+          "wydarzenie"
+        ],
+        "glyph": "festival"
+      },
+      {
+        "name": "Museum",
+        "label": "Muzeum",
+        "tags": [
+          "museum",
+          "muzeum",
+          "kultura",
+          "sztuka"
+        ],
+        "glyph": "museum"
+      },
+      {
+        "name": "Castle",
+        "label": "Zamek",
+        "tags": [
+          "castle",
+          "zamek",
+          "turystyka",
+          "atrakcje"
+        ],
+        "glyph": "castle"
+      },
+      {
+        "name": "Piano",
+        "label": "Instrumenty",
+        "tags": [
+          "piano",
+          "instrumenty",
+          "muzyka",
+          "hobby"
+        ],
+        "glyph": "piano"
+      },
+      {
+        "name": "Audiotrack",
+        "label": "Audio",
+        "tags": [
+          "audio",
+          "muzyka",
+          "nagranie",
+          "hobby"
+        ],
+        "glyph": "audiotrack"
+      },
+      {
+        "name": "Album",
+        "label": "Album",
+        "tags": [
+          "album",
+          "muzyka",
+          "zdjęcia",
+          "kolekcja"
+        ],
+        "glyph": "album"
+      },
+      {
+        "name": "SportsBar",
+        "label": "Bar sportowy",
+        "tags": [
+          "sports bar",
+          "bar",
+          "sport",
+          "mecz"
+        ],
+        "glyph": "sports_bar"
+      },
+      {
+        "name": "SportsBaseball",
+        "label": "Baseball",
+        "tags": [
+          "baseball",
+          "sport"
+        ],
+        "glyph": "sports_baseball"
+      },
+      {
+        "name": "SportsFootball",
+        "label": "Futbol",
+        "tags": [
+          "football",
+          "sport",
+          "mecz"
+        ],
+        "glyph": "sports_football"
+      },
+      {
+        "name": "SportsGolf",
+        "label": "Golf",
+        "tags": [
+          "golf",
+          "sport"
+        ],
+        "glyph": "sports_golf"
+      },
+      {
+        "name": "SportsGymnastics",
+        "label": "Gimnastyka",
+        "tags": [
+          "gymnastics",
+          "gimnastyka",
+          "sport"
+        ],
+        "glyph": "sports_gymnastics"
+      },
+      {
+        "name": "SportsHandball",
+        "label": "Piłka ręczna",
+        "tags": [
+          "handball",
+          "piłka ręczna",
+          "sport"
+        ],
+        "glyph": "sports_handball"
+      },
+      {
+        "name": "SportsHockey",
+        "label": "Hokej",
+        "tags": [
+          "hockey",
+          "hokej",
+          "sport"
+        ],
+        "glyph": "sports_hockey"
+      },
+      {
+        "name": "SportsMartialArts",
+        "label": "Sztuki walki",
+        "tags": [
+          "martial arts",
+          "sztuki walki",
+          "sport"
+        ],
+        "glyph": "sports_martial_arts"
+      },
+      {
+        "name": "SportsMma",
+        "label": "MMA",
+        "tags": [
+          "mma",
+          "sport",
+          "sztuki walki"
+        ],
+        "glyph": "sports_mma"
+      },
+      {
+        "name": "SportsMotorsports",
+        "label": "Motorsport",
+        "tags": [
+          "motorsport",
+          "sport",
+          "auto"
+        ],
+        "glyph": "sports_motorsports"
+      },
+      {
+        "name": "SportsRugby",
+        "label": "Rugby",
+        "tags": [
+          "rugby",
+          "sport"
+        ],
+        "glyph": "sports_rugby"
+      },
+      {
+        "name": "SportsVolleyball",
+        "label": "Siatkówka",
+        "tags": [
+          "volleyball",
+          "siatkówka",
+          "sport"
+        ],
+        "glyph": "sports_volleyball"
+      },
+      {
+        "name": "DownhillSkiing",
+        "label": "Narciarstwo",
+        "tags": [
+          "skiing",
+          "narty",
+          "sport",
+          "zima"
+        ],
+        "glyph": "downhill_skiing"
+      },
+      {
+        "name": "Snowboarding",
+        "label": "Snowboard",
+        "tags": [
+          "snowboard",
+          "sport",
+          "zima"
+        ],
+        "glyph": "snowboarding"
+      },
+      {
+        "name": "IceSkating",
+        "label": "Łyżwy",
+        "tags": [
+          "ice skating",
+          "łyżwy",
+          "sport",
+          "zima"
+        ],
+        "glyph": "ice_skating"
+      },
+      {
+        "name": "Casino",
+        "label": "Kasyno",
+        "tags": [
+          "casino",
+          "kasyno",
+          "hazard",
+          "rozrywka"
+        ],
+        "glyph": "casino"
+      }
+    ]
+  },
+  {
+    "title": "Finanse i praca",
+    "icons": [
+      {
+        "name": "AccountBalanceWallet",
+        "label": "Portfel",
+        "tags": [
+          "wallet",
+          "portfel",
+          "gotówka",
+          "cash"
+        ],
+        "glyph": "account_balance_wallet"
+      },
+      {
+        "name": "AccountBalance",
+        "label": "Bank",
+        "tags": [
+          "bank",
+          "konto",
+          "account",
+          "finanse"
+        ],
+        "glyph": "account_balance"
+      },
+      {
+        "name": "CreditCard",
+        "label": "Karta",
+        "tags": [
+          "credit card",
+          "karta",
+          "płatność",
+          "payment"
+        ],
+        "glyph": "credit_card"
+      },
+      {
+        "name": "Savings",
+        "label": "Oszczędności",
+        "tags": [
+          "savings",
+          "oszczędności",
+          "lokata",
+          "inwestycje"
+        ],
+        "glyph": "savings"
+      },
+      {
+        "name": "TrendingUp",
+        "label": "Inwestycje",
+        "tags": [
+          "investing",
+          "inwestycje",
+          "giełda",
+          "akcje",
+          "stocks"
+        ],
+        "glyph": "trending_up"
+      },
+      {
+        "name": "Receipt",
+        "label": "Rachunek",
+        "tags": [
+          "receipt",
+          "rachunek",
+          "faktura",
+          "paragon"
+        ],
+        "glyph": "receipt"
+      },
+      {
+        "name": "Payments",
+        "label": "Przelewy",
+        "tags": [
+          "payments",
+          "przelew",
+          "transfer"
+        ],
+        "glyph": "payments"
+      },
+      {
+        "name": "MonetizationOn",
+        "label": "Zarobki",
+        "tags": [
+          "income",
+          "zarobki",
+          "wynagrodzenie",
+          "praca",
+          "pensja"
+        ],
+        "glyph": "monetization_on"
+      },
+      {
+        "name": "Work",
+        "label": "Praca",
+        "tags": [
+          "work",
+          "praca",
+          "biuro",
+          "office",
+          "zawodowe"
+        ],
+        "glyph": "work"
+      },
+      {
+        "name": "BusinessCenter",
+        "label": "Biznes",
+        "tags": [
+          "business",
+          "biznes",
+          "firma",
+          "działalność"
+        ],
+        "glyph": "business_center"
+      },
+      {
+        "name": "LocalAtm",
+        "label": "Bankomat",
+        "tags": [
+          "atm",
+          "bankomat",
+          "gotówka",
+          "cash"
+        ],
+        "glyph": "local_atm"
+      },
+      {
+        "name": "InsertChart",
+        "label": "Budżet",
+        "tags": [
+          "chart",
+          "budżet",
+          "finanse",
+          "planowanie"
+        ],
+        "glyph": "insert_chart"
+      },
+      {
+        "name": "PriceCheck",
+        "label": "Cena",
+        "tags": [
+          "price",
+          "cena",
+          "zakupy",
+          "porównanie"
+        ],
+        "glyph": "price_check"
+      },
+      {
+        "name": "CurrencyExchange",
+        "label": "Wymiana walut",
+        "tags": [
+          "currency exchange",
+          "waluty",
+          "kantor",
+          "exchange"
+        ],
+        "glyph": "currency_exchange"
+      },
+      {
+        "name": "CurrencyBitcoin",
+        "label": "Krypto",
+        "tags": [
+          "bitcoin",
+          "krypto",
+          "crypto",
+          "waluty"
+        ],
+        "glyph": "currency_bitcoin"
+      },
+      {
+        "name": "Euro",
+        "label": "Euro",
+        "tags": [
+          "euro",
+          "waluta",
+          "eur",
+          "pieniądze"
+        ],
+        "glyph": "euro"
+      },
+      {
+        "name": "CurrencyPound",
+        "label": "Funt",
+        "tags": [
+          "pound",
+          "funt",
+          "gbp",
+          "waluta"
+        ],
+        "glyph": "currency_pound"
+      },
+      {
+        "name": "CurrencyYen",
+        "label": "Jen",
+        "tags": [
+          "yen",
+          "jen",
+          "jpy",
+          "waluta"
+        ],
+        "glyph": "currency_yen"
+      },
+      {
+        "name": "CurrencyYuan",
+        "label": "Yuan",
+        "tags": [
+          "yuan",
+          "cny",
+          "waluta",
+          "pieniądze"
+        ],
+        "glyph": "currency_yuan"
+      },
+      {
+        "name": "CreditScore",
+        "label": "Historia kredytowa",
+        "tags": [
+          "credit score",
+          "kredyt",
+          "zdolność",
+          "finanse"
+        ],
+        "glyph": "credit_score"
+      },
+      {
+        "name": "Policy",
+        "label": "Ubezpieczenie",
+        "tags": [
+          "policy",
+          "ubezpieczenie",
+          "polisa",
+          "insurance"
+        ],
+        "glyph": "policy"
+      },
+      {
+        "name": "RequestQuote",
+        "label": "Oferta finansowa",
+        "tags": [
+          "quote",
+          "oferta",
+          "wycena",
+          "finanse"
+        ],
+        "glyph": "request_quote"
+      },
+      {
+        "name": "Balance",
+        "label": "Saldo",
+        "tags": [
+          "balance",
+          "saldo",
+          "bilans",
+          "finanse"
+        ],
+        "glyph": "balance"
+      },
+      {
+        "name": "AccountTree",
+        "label": "Struktura kont",
+        "tags": [
+          "account tree",
+          "konta",
+          "struktura",
+          "finanse"
+        ],
+        "glyph": "account_tree"
+      },
+      {
+        "name": "Assessment",
+        "label": "Raport",
+        "tags": [
+          "assessment",
+          "raport",
+          "analiza",
+          "finanse"
+        ],
+        "glyph": "assessment"
+      },
+      {
+        "name": "Analytics",
+        "label": "Analityka",
+        "tags": [
+          "analytics",
+          "analityka",
+          "wykres",
+          "finanse"
+        ],
+        "glyph": "analytics"
+      },
+      {
+        "name": "AreaChart",
+        "label": "Wykres obszarowy",
+        "tags": [
+          "area chart",
+          "wykres",
+          "statystyki",
+          "finanse"
+        ],
+        "glyph": "area_chart"
+      },
+      {
+        "name": "CandlestickChart",
+        "label": "Świece giełdowe",
+        "tags": [
+          "candlestick",
+          "giełda",
+          "inwestycje",
+          "akcje"
+        ],
+        "glyph": "candlestick_chart"
+      },
+      {
+        "name": "DonutLarge",
+        "label": "Podział budżetu",
+        "tags": [
+          "donut",
+          "podział",
+          "budżet",
+          "wykres"
+        ],
+        "glyph": "donut_large"
+      },
+      {
+        "name": "ReceiptLong",
+        "label": "Długi rachunek",
+        "tags": [
+          "receipt long",
+          "rachunek",
+          "faktura",
+          "paragon"
+        ],
+        "glyph": "receipt_long"
+      },
+      {
+        "name": "Contactless",
+        "label": "Płatność zbliżeniowa",
+        "tags": [
+          "contactless",
+          "zbliżeniowo",
+          "płatność",
+          "karta"
+        ],
+        "glyph": "contactless"
+      }
+    ]
+  },
+  {
+    "title": "Edukacja i dzieci",
+    "icons": [
+      {
+        "name": "School",
+        "label": "Szkoła",
+        "tags": [
+          "school",
+          "szkoła",
+          "edukacja",
+          "nauka"
+        ],
+        "glyph": "school"
+      },
+      {
+        "name": "CastForEducation",
+        "label": "Nauka",
+        "tags": [
+          "study",
+          "nauka",
+          "kurs",
+          "learning"
+        ],
+        "glyph": "cast_for_education"
+      },
+      {
+        "name": "ChildCare",
+        "label": "Opieka nad dziećmi",
+        "tags": [
+          "childcare",
+          "dzieci",
+          "opieka",
+          "przedszkole",
+          "baby"
+        ],
+        "glyph": "child_care"
+      },
+      {
+        "name": "Toys",
+        "label": "Zabawki",
+        "tags": [
+          "toys",
+          "zabawki",
+          "dzieci",
+          "gry"
+        ],
+        "glyph": "toys"
+      },
+      {
+        "name": "Backpack",
+        "label": "Plecak",
+        "tags": [
+          "backpack",
+          "plecak",
+          "szkoła",
+          "torba"
+        ],
+        "glyph": "backpack"
+      },
+      {
+        "name": "Science",
+        "label": "Nauka ścisła",
+        "tags": [
+          "science",
+          "nauka",
+          "chemia",
+          "fizyka",
+          "lab"
+        ],
+        "glyph": "science"
+      },
+      {
+        "name": "Calculate",
+        "label": "Kalkulator",
+        "tags": [
+          "calculator",
+          "matematyka",
+          "finanse",
+          "kalkulator"
+        ],
+        "glyph": "calculate"
+      },
+      {
+        "name": "AutoStories",
+        "label": "Czytanie",
+        "tags": [
+          "stories",
+          "czytanie",
+          "książki",
+          "nauka"
+        ],
+        "glyph": "auto_stories"
+      },
+      {
+        "name": "Class",
+        "label": "Lekcja",
+        "tags": [
+          "class",
+          "lekcja",
+          "szkoła",
+          "kurs"
+        ],
+        "glyph": "class"
+      },
+      {
+        "name": "LocalLibrary",
+        "label": "Biblioteka",
+        "tags": [
+          "library",
+          "biblioteka",
+          "książki",
+          "nauka"
+        ],
+        "glyph": "local_library"
+      },
+      {
+        "name": "Architecture",
+        "label": "Architektura",
+        "tags": [
+          "architecture",
+          "architektura",
+          "projekt",
+          "nauka"
+        ],
+        "glyph": "architecture"
+      },
+      {
+        "name": "Biotech",
+        "label": "Biotechnologia",
+        "tags": [
+          "biotech",
+          "biologia",
+          "laboratorium",
+          "nauka"
+        ],
+        "glyph": "biotech"
+      },
+      {
+        "name": "Engineering",
+        "label": "Inżynieria",
+        "tags": [
+          "engineering",
+          "inżynieria",
+          "technika",
+          "nauka"
+        ],
+        "glyph": "engineering"
+      },
+      {
+        "name": "Abc",
+        "label": "ABC",
+        "tags": [
+          "abc",
+          "alfabet",
+          "dziecko",
+          "nauka"
+        ],
+        "glyph": "abc"
+      },
+      {
+        "name": "Boy",
+        "label": "Chłopiec",
+        "tags": [
+          "boy",
+          "chłopiec",
+          "dziecko",
+          "rodzina"
+        ],
+        "glyph": "boy"
+      },
+      {
+        "name": "Girl",
+        "label": "Dziewczynka",
+        "tags": [
+          "girl",
+          "dziewczynka",
+          "dziecko",
+          "rodzina"
+        ],
+        "glyph": "girl"
+      },
+      {
+        "name": "Brush",
+        "label": "Plastyka",
+        "tags": [
+          "brush",
+          "plastyka",
+          "sztuka",
+          "szkoła"
+        ],
+        "glyph": "brush"
+      }
+    ]
+  },
+  {
+    "title": "Prezenty i datki",
+    "icons": [
+      {
+        "name": "CardGiftcard",
+        "label": "Prezent",
+        "tags": [
+          "gift",
+          "prezent",
+          "podarunek",
+          "urodziny"
+        ],
+        "glyph": "card_giftcard"
+      },
+      {
+        "name": "LocalFlorist",
+        "label": "Kwiaty",
+        "tags": [
+          "flowers",
+          "kwiaty",
+          "florysta",
+          "prezent"
+        ],
+        "glyph": "local_florist"
+      },
+      {
+        "name": "VolunteerActivism",
+        "label": "Darowizna",
+        "tags": [
+          "donation",
+          "darowizna",
+          "charytatywność",
+          "pomoc"
+        ],
+        "glyph": "volunteer_activism"
+      },
+      {
+        "name": "Redeem",
+        "label": "Voucher",
+        "tags": [
+          "voucher",
+          "bon",
+          "rabat",
+          "gift card"
+        ],
+        "glyph": "redeem"
+      },
+      {
+        "name": "Handshake",
+        "label": "Pomoc",
+        "tags": [
+          "help",
+          "pomoc",
+          "wsparcie",
+          "support"
+        ],
+        "glyph": "handshake"
+      },
+      {
+        "name": "Diversity1",
+        "label": "Społeczność",
+        "tags": [
+          "diversity",
+          "społeczność",
+          "ludzie",
+          "pomoc"
+        ],
+        "glyph": "diversity_1"
+      },
+      {
+        "name": "Diversity2",
+        "label": "Grupa wsparcia",
+        "tags": [
+          "group",
+          "grupa",
+          "wsparcie",
+          "pomoc"
+        ],
+        "glyph": "diversity_2"
+      },
+      {
+        "name": "Diversity3",
+        "label": "Rodzina i znajomi",
+        "tags": [
+          "family",
+          "rodzina",
+          "znajomi",
+          "pomoc"
+        ],
+        "glyph": "diversity_3"
+      },
+      {
+        "name": "Church",
+        "label": "Kościół",
+        "tags": [
+          "church",
+          "kościół",
+          "religia",
+          "darowizna"
+        ],
+        "glyph": "church"
+      },
+      {
+        "name": "Mosque",
+        "label": "Meczet",
+        "tags": [
+          "mosque",
+          "meczet",
+          "religia",
+          "darowizna"
+        ],
+        "glyph": "mosque"
+      },
+      {
+        "name": "Synagogue",
+        "label": "Synagoga",
+        "tags": [
+          "synagogue",
+          "synagoga",
+          "religia",
+          "darowizna"
+        ],
+        "glyph": "synagogue"
+      },
+      {
+        "name": "TempleBuddhist",
+        "label": "Świątynia buddyjska",
+        "tags": [
+          "buddhist",
+          "świątynia",
+          "religia",
+          "darowizna"
+        ],
+        "glyph": "temple_buddhist"
+      },
+      {
+        "name": "TempleHindu",
+        "label": "Świątynia hinduistyczna",
+        "tags": [
+          "hindu",
+          "świątynia",
+          "religia",
+          "darowizna"
+        ],
+        "glyph": "temple_hindu"
+      }
+    ]
+  },
+  {
+    "title": "Inne",
+    "icons": [
+      {
+        "name": "Category",
+        "label": "Kategoria",
+        "tags": [
+          "category",
+          "inne",
+          "other",
+          "ogólne"
+        ],
+        "glyph": "category"
+      },
+      {
+        "name": "Star",
+        "label": "Ulubione",
+        "tags": [
+          "star",
+          "ulubione",
+          "favorite",
+          "ważne"
+        ],
+        "glyph": "star"
+      },
+      {
+        "name": "Label",
+        "label": "Etykieta",
+        "tags": [
+          "label",
+          "etykieta",
+          "tag",
+          "oznaczenie"
+        ],
+        "glyph": "label"
+      },
+      {
+        "name": "AttachMoney",
+        "label": "Pieniądze",
+        "tags": [
+          "money",
+          "pieniądze",
+          "gotówka",
+          "cash"
+        ],
+        "glyph": "attach_money"
+      },
+      {
+        "name": "Subscriptions",
+        "label": "Subskrypcja",
+        "tags": [
+          "subscription",
+          "subskrypcja",
+          "abonament",
+          "netflix",
+          "spotify"
+        ],
+        "glyph": "subscriptions"
+      },
+      {
+        "name": "CloudDownload",
+        "label": "Cyfrowe",
+        "tags": [
+          "digital",
+          "cyfrowe",
+          "pobieranie",
+          "software"
+        ],
+        "glyph": "cloud_download"
+      },
+      {
+        "name": "PhoneAndroid",
+        "label": "Elektronika",
+        "tags": [
+          "electronics",
+          "elektronika",
+          "telefon",
+          "gadżety"
+        ],
+        "glyph": "phone_android"
+      },
+      {
+        "name": "Computer",
+        "label": "Komputer",
+        "tags": [
+          "computer",
+          "komputer",
+          "laptop",
+          "it",
+          "sprzęt"
+        ],
+        "glyph": "computer"
+      },
+      {
+        "name": "Print",
+        "label": "Drukowanie",
+        "tags": [
+          "print",
+          "drukowanie",
+          "biuro",
+          "office"
+        ],
+        "glyph": "print"
+      },
+      {
+        "name": "LocalShipping",
+        "label": "Dostawa",
+        "tags": [
+          "shipping",
+          "dostawa",
+          "paczka",
+          "kurier",
+          "delivery"
+        ],
+        "glyph": "local_shipping"
+      },
+      {
+        "name": "Storefront",
+        "label": "Sklep online",
+        "tags": [
+          "online",
+          "e-commerce",
+          "allegro",
+          "amazon",
+          "zakupy"
+        ],
+        "glyph": "storefront"
+      },
+      {
+        "name": "SupportAgent",
+        "label": "Usługi",
+        "tags": [
+          "service",
+          "usługi",
+          "obsługa",
+          "support"
+        ],
+        "glyph": "support_agent"
+      },
+      {
+        "name": "Gavel",
+        "label": "Prawo",
+        "tags": [
+          "law",
+          "prawo",
+          "prawnik",
+          "sąd"
+        ],
+        "glyph": "gavel"
+      },
+      {
+        "name": "Security",
+        "label": "Bezpieczeństwo",
+        "tags": [
+          "security",
+          "bezpieczeństwo",
+          "ochrona",
+          "ubezpieczenie"
+        ],
+        "glyph": "security"
+      },
+      {
+        "name": "AdminPanelSettings",
+        "label": "Administracja",
+        "tags": [
+          "admin",
+          "administracja",
+          "ustawienia",
+          "ochrona"
+        ],
+        "glyph": "admin_panel_settings"
+      },
+      {
+        "name": "Badge",
+        "label": "Identyfikator",
+        "tags": [
+          "badge",
+          "identyfikator",
+          "praca",
+          "dokument"
+        ],
+        "glyph": "badge"
+      },
+      {
+        "name": "Inventory",
+        "label": "Zapasy",
+        "tags": [
+          "inventory",
+          "zapasy",
+          "magazyn",
+          "produkty"
+        ],
+        "glyph": "inventory"
+      },
+      {
+        "name": "Inventory2",
+        "label": "Pudełko",
+        "tags": [
+          "inventory",
+          "pudełko",
+          "magazyn",
+          "przechowywanie"
+        ],
+        "glyph": "inventory_2"
+      },
+      {
+        "name": "Cases",
+        "label": "Sprawy",
+        "tags": [
+          "cases",
+          "sprawy",
+          "teczka",
+          "biuro"
+        ],
+        "glyph": "cases"
+      },
+      {
+        "name": "Devices",
+        "label": "Urządzenia",
+        "tags": [
+          "devices",
+          "urządzenia",
+          "elektronika",
+          "sprzęt"
+        ],
+        "glyph": "devices"
+      },
+      {
+        "name": "Diamond",
+        "label": "Luksus",
+        "tags": [
+          "diamond",
+          "diament",
+          "luksus",
+          "biżuteria"
+        ],
+        "glyph": "diamond"
+      },
+      {
+        "name": "DesignServices",
+        "label": "Projektowanie",
+        "tags": [
+          "design",
+          "projektowanie",
+          "usługi",
+          "grafika"
+        ],
+        "glyph": "design_services"
+      },
+      {
+        "name": "DocumentScanner",
+        "label": "Skan dokumentów",
+        "tags": [
+          "scanner",
+          "skaner",
+          "dokumenty",
+          "biuro"
+        ],
+        "glyph": "document_scanner"
+      },
+      {
+        "name": "Folder",
+        "label": "Folder",
+        "tags": [
+          "folder",
+          "dokumenty",
+          "pliki",
+          "biuro"
+        ],
+        "glyph": "folder"
+      },
+      {
+        "name": "AllInbox",
+        "label": "Skrzynka",
+        "tags": [
+          "inbox",
+          "skrzynka",
+          "poczta",
+          "biuro"
+        ],
+        "glyph": "all_inbox"
+      },
+      {
+        "name": "AllInclusive",
+        "label": "All inclusive",
+        "tags": [
+          "all inclusive",
+          "pakiet",
+          "abonament",
+          "usługi"
+        ],
+        "glyph": "all_inclusive"
+      }
+    ]
+  }
+]

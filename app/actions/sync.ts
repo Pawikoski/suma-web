@@ -22,6 +22,7 @@ import {
   SyncTransactionSplit,
 } from '@/lib/api-types';
 import { inferImportedCategoryHierarchy } from '@/lib/import-category-hierarchy';
+import { normalizeCategoryIconName } from '@/lib/category-icons';
 import { importAnalysisSchema } from '@/lib/schemas/import-analysis';
 
 export type ActionResult =
@@ -108,7 +109,10 @@ const accountUpdateInputSchema = accountInputSchema.extend({
 const categoryInputSchema = z.object({
   name: z.string().trim().min(1, 'Podaj nazwę kategorii.').max(120),
   types: z.array(z.enum(['EXPENSE', 'INCOME'])).min(1, 'Wybierz typ kategorii.'),
-  iconName: z.string().trim().min(1).max(120).optional().default('category'),
+  iconName: z.string().trim().min(1).max(120)
+    .refine(name => normalizeCategoryIconName(name) !== null, 'Wybierz ikonę z listy.')
+    .transform(name => normalizeCategoryIconName(name)!)
+    .optional().default('Category'),
   iconBg: z.string().trim().min(4).max(16).optional().default('#F3F4F6'),
   iconColor: z.string().trim().min(4).max(16).optional().default('#6B7280'),
   parentCategoryId: z.string().nullable().optional(),

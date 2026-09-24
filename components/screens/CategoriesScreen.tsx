@@ -1,9 +1,10 @@
 'use client';
-import { CSSProperties, useState, useTransition } from 'react';
+import { CSSProperties, useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Pencil, Plus, Save, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { createCategoryAction, deleteCategoryAction, updateCategoryAction } from '@/app/actions/sync';
+import { suggestCategoryIconAction } from '@/app/actions/category-icons';
 import { T } from '@/lib/tokens';
 import { formatMoney, formatMoneyShort } from '@/lib/utils';
 import { useActiveMonthData } from '@/lib/useActiveMonthData';
@@ -13,6 +14,8 @@ import Card from '@/components/ui/Card';
 import Bar from '@/components/ui/Bar';
 import Donut from '@/components/ui/Donut';
 import Icon from '@/components/ui/Icon';
+import CategoryIconPicker from '@/components/ui/CategoryIconPicker';
+import { normalizeCategoryIconName } from '@/lib/category-icons';
 import PrivacyAmount from '@/components/ui/PrivacyAmount';
 
 const VIEWS = [
@@ -241,14 +244,40 @@ function CategoryFormModal({ category, categories, onClose }: { category?: Categ
   const [name, setName] = useState(category?.name ?? '');
   const [expense, setExpense] = useState(category ? category.types.includes('EXPENSE') : true);
   const [income, setIncome] = useState(category ? category.types.includes('INCOME') : false);
-  const [iconName, setIconName] = useState(category?.icon ?? 'category');
+  const [iconName, setIconName] = useState(normalizeCategoryIconName(category?.icon ?? 'Category') ?? category?.icon ?? 'Category');
   const [iconBg, setIconBg] = useState(category?.bg ?? '#F3F4F6');
   const [iconColor, setIconColor] = useState(category?.color ?? '#6B7280');
+  const appearanceCustomized = useRef(false);
   const [parentCategoryId, setParentCategoryId] = useState(category?.parentCategoryId ?? '');
   const [isPending, startTransition] = useTransition();
   const selectedTypes = [expense ? 'EXPENSE' : null, income ? 'INCOME' : null].filter(Boolean) as Array<'EXPENSE' | 'INCOME'>;
   const rootCategories = categories.filter(item => !item.parentCategoryId && item.id !== category?.id && !item.isSystem);
-  const canSubmit = name.trim().length > 0 && selectedTypes.length > 0;
+  const canSubmit = name.trim().length > 0 && selectedTypes.length > 0 && normalizeCategoryIconName(iconName) !== null;
+
+  useEffect(() => {
+    if (category || name.trim().length < 2 || (!expense && !income) || appearanceCustomized.current) return;
+    let active = true;
+    const timer = window.setTimeout(async () => {
+      const types = [expense ? 'EXPENSE' : null, income ? 'INCOME' : null].filter(Boolean) as Array<'EXPENSE' | 'INCOME'>;
+      const suggestion = await suggestCategoryIconAction({ name: name.trim(), types });
+      if (!active || appearanceCustomized.current || !suggestion.ok) return;
+      setIconName(suggestion.iconName);
+      setIconBg(suggestion.iconBg);
+      setIconColor(suggestion.iconColor);
+    }, 600);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [category, name, expense, income]);
+
+  const selectIcon = (value: string) => {
+    appearanceCustomized.current = true;
+    setIconName(value);
+  };
+
+  const selectColor = (kind: 'bg' | 'icon', value: string) => {
+    appearanceCustomized.current = true;
+    if (kind === 'bg') setIconBg(value);
+    else setIconColor(value);
+  };
 
   const submit = () => {
     startTransition(async () => {
@@ -300,9 +329,9 @@ function CategoryFormModal({ category, categories, onClose }: { category?: Categ
             {rootCategories.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 52px 52px', gap: 10 }}>
-            <input aria-label="Ikona kategorii" placeholder="Ikona" value={iconName} onChange={event => setIconName(event.target.value)} style={inputStyle} />
-            <input aria-label="Tło ikony" type="color" value={iconBg} onChange={event => setIconBg(event.target.value)} style={colorInputStyle} />
-            <input aria-label="Kolor ikony" type="color" value={iconColor} onChange={event => setIconColor(event.target.value)} style={colorInputStyle} />
+            <CategoryIconPicker value={iconName} onChange={selectIcon} />
+            <input aria-label="Tło ikony" type="color" value={iconBg} onChange={event => selectColor('bg', event.target.value)} style={colorInputStyle} />
+            <input aria-label="Kolor ikony" type="color" value={iconColor} onChange={event => selectColor('icon', event.target.value)} style={colorInputStyle} />
           </div>
           <button onClick={submit} disabled={!canSubmit || isPending} style={{ ...primaryButtonStyle, height: 42, opacity: !canSubmit || isPending ? 0.55 : 1 }}>
             <Save size={16} color="white" /> {isPending ? 'Zapisywanie...' : 'Zapisz kategorię'}

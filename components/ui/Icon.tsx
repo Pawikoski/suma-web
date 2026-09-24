@@ -1,3 +1,5 @@
+import { findCategoryIcon } from '@/lib/category-icons';
+
 interface IconProps {
   name: string;
   size?: number;
@@ -34,7 +36,7 @@ export default function Icon({ name, size = 20, color, className }: IconProps) {
           WebkitFontFeatureSettings: "'liga'",
         }}
       >
-        {toMaterialName(name)}
+        {findCategoryIcon(name)?.glyph ?? toMaterialName(name)}
       </span>
     );
   }
