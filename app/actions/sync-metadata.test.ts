@@ -29,17 +29,17 @@ beforeEach(() => {
 });
 
 it('keeps Android metadata and original currency/time when only a note changes', async () => {
-  const result = await updateTransactionAction({ id: 'tx', type: 'expense', amount: 4, date: '2026-09-08',
+  const result = await updateTransactionAction({ id: 'tx', expectedVersion: 3, type: 'expense', amount: 4, date: '2026-09-08',
     accountId: 'account', categoryId: 'category', note: 'After' });
   expect(result.ok).toBe(true);
   const sent = vi.mocked(postSyncChanges).mock.calls[0][0];
   expect(sent.transactions).toEqual([expect.objectContaining({ ...transaction, notes: 'After', updated_at: expect.any(String) })]);
-  expect(sent.accounts).toEqual([expect.objectContaining({ parent_id: 'parent', balance_anchor: '24.00' })]);
+  expect(sent).not.toHaveProperty('accounts');
   expect(snapshot().server_changes.categories[0]).toMatchObject({ essentiality: 'ESSENTIAL', classification_source: 'MANUAL' });
 });
 
 it('does not invent an exchange rate when changing a foreign transaction amount', async () => {
-  const result = await updateTransactionAction({ id: 'tx', type: 'expense', amount: 5, date: '2026-09-08',
+  const result = await updateTransactionAction({ id: 'tx', expectedVersion: 3, type: 'expense', amount: 5, date: '2026-09-08',
     accountId: 'account', categoryId: 'category', note: 'After' });
   expect(result.ok).toBe(false);
   expect(postSyncChanges).not.toHaveBeenCalled();

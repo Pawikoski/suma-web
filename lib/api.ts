@@ -3,6 +3,7 @@ import { headers } from 'next/headers';
 import { SyncResponse } from './api-types';
 import { ParsedSyncPreference, parseSyncPreference, parseSyncResponse } from './schemas/sync';
 import { getSession } from './session';
+import { SyncRequestError, syncHttpError } from './sync-errors';
 
 const API_URL = process.env.API_URL!;
 
@@ -29,31 +30,39 @@ export async function fetchSyncPreference(): Promise<ParsedSyncPreference | null
   });
 
   if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new Error(body || `Sync preference fetch failed with ${res.status}`);
+    throw await syncHttpError(res);
   }
   return parseSyncPreference(await res.json());
 }
 
-export async function postSyncChanges(changes: Record<string, unknown>): Promise<SyncResponse | null> {
+export async function postSyncChanges(changes: Record<string, unknown>, expectedGeneration?: number): Promise<SyncResponse | null> {
   const accessToken = await getAccessToken();
   if (!accessToken) return null;
-  let generation = 0;
+  let generation = expectedGeneration ?? 0;
   let cursor = 0;
   let restoreToken: string | null = null;
   let token: string | null = null;
   let pendingChanges = changes;
   let combined: SyncResponse | null = null;
   let recoveries = 0;
+  let acceptedOutcome: SyncResponse | null = null;
   const visited = new Set<string>();
 
   for (let page = 0; page < 10000; page++) {
     // Serialize once: retries after a lost response must replay this exact UUID/body.
-    const body = JSON.stringify({ schema_version: 2, client_id: 'web-client',
+    const body = JSON.stringify({ schema_version: 3, client_id: 'web-client',
       request_id: crypto.randomUUID(), last_sync_token: token,
       sync_reset_generation: generation, restore_cursor: cursor,
       restore_sync_token: restoreToken, changes: pendingChanges });
-    const result = await sendSync(body, accessToken);
+    let result: SyncResponse;
+    try { result = await sendSync(body, accessToken); }
+    catch (error) {
+      if (acceptedOutcome) throw new SyncRequestError('Zapis został wysłany, ale pobieranie wyniku przerwano. Sprawdź wynik przed nową operacją.', 0, 'outcome_unknown', { cause: error });
+      throw error;
+    }
+    if (result.reset_required && Object.keys(changes).length > 0 && (expectedGeneration !== undefined || acceptedOutcome)) {
+      throw new SyncRequestError('Dane synchronizacji zostały zresetowane. Odśwież dane przed ponownym zapisem.', 409, 'sync_reset_required');
+    }
     if (result.reset_required || result.sync_token_expired) {
       if (++recoveries > 3) throw new Error('Stan synchronizacji zmieniał się podczas pobierania. Spróbuj ponownie.');
       generation = result.sync_reset_generation;
@@ -62,13 +71,16 @@ export async function postSyncChanges(changes: Record<string, unknown>): Promise
       continue;
     }
     generation = result.sync_reset_generation;
+    if (Object.keys(pendingChanges).length > 0) acceptedOutcome = result;
     pendingChanges = {};
     combined = mergeSyncPages(combined, result);
     if (!result.has_more) {
       if (result.new_sync_token === null && result.errors.length === 0) {
         throw new Error('Brak końcowego tokena synchronizacji.');
       }
-      return combined;
+      // A restore restart discards snapshot rows, never the mutation's outcome.
+      return acceptedOutcome ? { ...combined, applied: acceptedOutcome.applied,
+        errors: acceptedOutcome.errors, conflicts: acceptedOutcome.conflicts } : combined;
     }
     cursor = result.next_restore_cursor ?? 0;
     restoreToken = result.restore_sync_token;
@@ -86,15 +98,22 @@ async function sendSync(body: string, accessToken: string): Promise<SyncResponse
     try {
       response = await fetch(`${API_URL}/api/sync/`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-        body, cache: 'no-store',
+        body, cache: 'no-store', signal: AbortSignal.timeout(20_000),
       });
     } catch (error) {
       if (attempt < 2) continue;
-      throw error;
+      throw new SyncRequestError('Nie udało się potwierdzić synchronizacji. Odśwież dane i sprawdź wynik przed ponownym zapisem.', 0, 'outcome_unknown', { cause: error });
     }
     if (response.status >= 500 && attempt < 2) continue;
-    if (!response.ok) throw new Error(await response.text().catch(() => '') || `Sync failed with ${response.status}`);
-    return parseSyncResponse(await response.json());
+    if (!response.ok) throw await syncHttpError(response);
+    // Reading/parsing a response can fail after the server has committed. Reuse
+    // the same request identity, just as for a lost connection during fetch.
+    try {
+      return parseSyncResponse(await response.json());
+    } catch (error) {
+      if (attempt < 2) continue;
+      throw new SyncRequestError('Nie udało się odczytać wyniku synchronizacji. Odśwież dane przed ponownym zapisem.', 0, 'outcome_unknown', { cause: error });
+    }
   }
 }
 

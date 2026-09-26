@@ -19,7 +19,7 @@ import PrivacyAmount from '@/components/ui/PrivacyAmount';
 const TX_FILTERS = ['all', 'expense', 'income', 'transfer'] as const;
 type TxFilter = typeof TX_FILTERS[number];
 
-function TxDetailPanel({
+export function TxDetailPanel({
   tx,
   accounts,
   categories,
@@ -41,6 +41,7 @@ function TxDetailPanel({
   const [toAccountId, setToAccountId] = useState(tx.toAccountId ?? '');
   const [categoryId, setCategoryId] = useState(tx.categoryId ?? '');
   const [note, setNote] = useState(tx.desc);
+  const [confirmedResolution, setConfirmedResolution] = useState(false);
   const [isDeleting, startDeleteTransition] = useTransition();
   const [isSaving, startSaveTransition] = useTransition();
   const amtColor = tx.type === 'expense' ? T.expense : tx.type === 'income' ? T.income : T.mid;
@@ -51,9 +52,13 @@ function TxDetailPanel({
   }, [categories, type]);
   const effectiveCategoryId = categoryId || eligibleCategories[0]?.id || '';
   const effectiveToAccountId = type === 'transfer'
-    ? (toAccountId && toAccountId !== accountId ? toAccountId : accounts.find(account => account.id !== accountId)?.id ?? '')
+    ? (toAccountId && toAccountId !== accountId ? toAccountId : '')
     : null;
-  const canSave = type !== 'all' && Number(amount) > 0 && !!accountId && (type === 'transfer' ? !!effectiveToAccountId : !!effectiveCategoryId);
+  const isMissingDestination = tx.accountLinkState === 'MISSING_DESTINATION';
+  const resolutionAccount = type === 'transfer' && isMissingDestination && effectiveToAccountId
+    ? accounts.find(account => account.id === effectiveToAccountId) : undefined;
+  const resolutionAmount = tx.toAccountAmount ?? tx.rawAmount;
+  const canSave = (!resolutionAccount || confirmedResolution) && type !== 'all' && Number(amount) > 0 && !!accountId && (type === 'transfer' ? !!effectiveToAccountId || isMissingDestination : !!effectiveCategoryId);
 
   const deleteTx = () => {
     startDeleteTransition(async () => {
@@ -71,11 +76,13 @@ function TxDetailPanel({
     startSaveTransition(async () => {
       const result = await updateTransactionAction({
         id: tx.id,
+        expectedVersion: tx.version,
         type,
         amount: Number(amount),
         date,
         accountId,
         toAccountId: effectiveToAccountId,
+        confirmDestinationBalanceChange: confirmedResolution,
         categoryId: type === 'transfer' ? null : effectiveCategoryId,
         note,
       });
@@ -121,6 +128,9 @@ function TxDetailPanel({
         <div style={{ fontSize: 15, color: T.muted, marginTop: 4 }}>{tx.cat}</div>
       </Card>
 
+      {isMissingDestination && <div role="status" style={{ color: T.muted, fontSize: 13 }}>
+        Historyczny przelew bez konta docelowego. Obciąża konto źródłowe i synchronizuje się w całości. Możesz zachować ten zapis lub uzupełnić cel.
+      </div>}
       {isEditing && (
         <Card style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={{ display: 'flex', gap: 6, background: T.bg, borderRadius: T.radiusSm, padding: 4 }}>
@@ -142,6 +152,12 @@ function TxDetailPanel({
             ))}
           </div>
 
+          {resolutionAccount && <label style={{ color: T.dark, fontSize: 13 }}>
+            <input type="checkbox" checked={confirmedResolution} onChange={event => setConfirmedResolution(event.target.checked)} />
+            {' '}Przypisanie celu zmieni saldo konta „{resolutionAccount.name}” o{' '}
+            <PrivacyAmount amount={resolutionAmount} currency={resolutionAccount.currency} prefix={resolutionAccount.category === 'LIABILITY' ? '-' : '+'} />.
+            Potwierdzam tę zmianę.
+          </label>}
           <input
             aria-label="Kwota transakcji"
             type="number"
@@ -159,10 +175,12 @@ function TxDetailPanel({
             style={inputStyle}
           />
           <select aria-label="Konto transakcji" value={accountId} onChange={event => setAccountId(event.target.value)} style={inputStyle}>
+            {!accounts.some(account => account.id === tx.accountId) && <option value={tx.accountId}>{tx.acc} (historyczne)</option>}
             {accounts.map(account => <option key={account.id} value={account.id}>{account.name}</option>)}
           </select>
           {type === 'transfer' ? (
-            <select aria-label="Konto docelowe transakcji" value={effectiveToAccountId ?? ''} onChange={event => setToAccountId(event.target.value)} style={inputStyle}>
+            <select aria-label="Konto docelowe transakcji" value={effectiveToAccountId ?? ''} onChange={event => { setToAccountId(event.target.value); setConfirmedResolution(false); }} style={inputStyle}>
+              <option value="">{isMissingDestination ? 'Cel nieznany — zachowaj historię' : 'Wybierz konto docelowe'}</option>
               {accounts.filter(account => account.id !== accountId).map(account => <option key={account.id} value={account.id}>{account.name}</option>)}
             </select>
           ) : (

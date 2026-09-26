@@ -1,3 +1,4 @@
+import { parseSyncResponse } from '@/lib/schemas/sync';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next/cache', () => ({
@@ -69,18 +70,18 @@ function holding() {
 describe('investment server actions', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockedPostSyncChanges.mockResolvedValue({
+    mockedPostSyncChanges.mockResolvedValue(parseSyncResponse({
       request_id: 'req-1',
       new_sync_token: '2',
       applied: {},
       conflicts: [],
       errors: [],
       server_changes: { accounts: [], categories: [], transactions: [], transaction_splits: [], category_budgets: [], overall_budgets: [] },
-    });
+    }));
   });
 
   it('opens a holding without spending free cash', async () => {
-    mockedFetchSync.mockResolvedValue({
+    mockedFetchSync.mockResolvedValue(parseSyncResponse({
       request_id: 'req-1',
       new_sync_token: '1',
       applied: {},
@@ -96,7 +97,7 @@ describe('investment server actions', () => {
         category_budgets: [],
         overall_budgets: [],
       },
-    });
+    }));
 
     const result = await createInvestmentHoldingAction({
       accountId: 'acc-invest',
@@ -110,15 +111,15 @@ describe('investment server actions', () => {
     });
 
     expect(result.ok).toBe(true);
-    expect(mockedPostSyncChanges).toHaveBeenCalledWith(expect.not.objectContaining({ accounts: expect.anything() }));
+    expect(mockedPostSyncChanges).toHaveBeenCalledWith(expect.not.objectContaining({ accounts: expect.anything() }), 0);
     expect(mockedPostSyncChanges).toHaveBeenCalledWith(expect.objectContaining({
       investment_holdings: [expect.objectContaining({ symbol: 'AAPL', quantity: 2, unit_price: '100.00' })],
       investment_transactions: [expect.objectContaining({ type: 'BUY', quantity: 2, unit_price: '100.00' })],
-    }));
+    }), 0);
   });
 
   it('rejects buy trades when free cash is too low', async () => {
-    mockedFetchSync.mockResolvedValue({
+    mockedFetchSync.mockResolvedValue(parseSyncResponse({
       request_id: 'req-1',
       new_sync_token: '1',
       applied: {},
@@ -134,7 +135,7 @@ describe('investment server actions', () => {
         category_budgets: [],
         overall_budgets: [],
       },
-    });
+    }));
 
     const result = await tradeInvestmentHoldingAction({
       holdingId: 'holding-aapl',
@@ -149,7 +150,7 @@ describe('investment server actions', () => {
   });
 
   it('rejects trades for non-investment accounts', async () => {
-    mockedFetchSync.mockResolvedValue({
+    mockedFetchSync.mockResolvedValue(parseSyncResponse({
       request_id: 'req-1',
       new_sync_token: '1',
       applied: {},
@@ -165,7 +166,7 @@ describe('investment server actions', () => {
         category_budgets: [],
         overall_budgets: [],
       },
-    });
+    }));
 
     const result = await tradeInvestmentHoldingAction({
       holdingId: 'holding-aapl',

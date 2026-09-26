@@ -19,7 +19,8 @@ it.runIf(enabled)('reads the Android graph and merges concurrent writes and a lo
   const initial = (await fetchSync())!;
   expect(initial.server_changes.transactions.length).toBeGreaterThan(250);
   expect(initial.has_more).toBe(false);
-  const account = initial.server_changes.accounts.find(a => !a.deleted_at && a.name.startsWith('HTTP '))!;
+  const account = initial.server_changes.accounts.find(a => !a.deleted_at && a.name.startsWith('HTTP ') &&
+    initial.server_changes.categories.some(c => !c.deleted_at && c.name === a.name))!;
   const category = initial.server_changes.categories.find(c => !c.deleted_at && c.name === account.name)!;
   const balance = Number(account.balance);
   const ids: string[] = [];
@@ -49,4 +50,38 @@ it.runIf(enabled)('reads the Android graph and merges concurrent writes and a lo
   const final = (await fetchSync())!;
   expect(Number(final.server_changes.accounts.find(a => a.id === account.id)!.balance)).toBeCloseTo(balance - 6, 2);
   for (const id of ids) expect(final.server_changes.transactions.filter(t => t.id === id)).toHaveLength(1);
+}, 90000);
+
+it.runIf(enabled)('preserves and resolves incomplete history across real paged v3 sync without balance drift', async () => {
+  vi.stubEnv('API_URL', url!);
+  const login = await fetch(`${url}/api/auth/login/`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: process.env.SYNC_HTTP_EMAIL, password: process.env.SYNC_HTTP_PASSWORD }) });
+  expect(login.ok).toBe(true);
+  auth.accessToken = (await login.json()).access;
+  const { fetchSync, postSyncChanges } = await import('./api');
+  const before = (await fetchSync())!;
+  const template = before.server_changes.transactions.find(t => t.account_link_state === 'MISSING_DESTINATION')!;
+  expect(template).toBeTruthy();
+  const source = before.server_changes.accounts.find(a => a.id === template.from_account_id)!;
+  const destination = before.server_changes.accounts.find(a => !a.deleted_at && a.id !== source.id && a.currency === template.to_account_currency)!;
+  expect(destination).toBeTruthy();
+  const balanceBefore = Number(destination.balance);
+  const id = crypto.randomUUID();
+  const created = (await postSyncChanges({ transactions: [{ ...template, id, version: 1, notes: 'Synthetic v3 resolution test', updated_at: new Date().toISOString() }] }, before.sync_reset_generation))!;
+  expect(created.errors).toEqual([]);
+  const row = created.server_changes.transactions.find(t => t.id === id)!;
+  expect(row.account_link_state).toBe('MISSING_DESTINATION');
+  expect(row.to_account_amount).toBe(template.to_account_amount);
+  expect(Number(created.server_changes.accounts.find(a => a.id === destination.id)!.balance)).toBeCloseTo(balanceBefore, 2);
+  const noted = (await postSyncChanges({ transactions: [{ ...row, notes: 'Updated note', updated_at: new Date().toISOString() }] }, created.sync_reset_generation))!;
+  expect(noted.errors).toEqual([]);
+  expect(Number(noted.server_changes.accounts.find(a => a.id === destination.id)!.balance)).toBeCloseTo(balanceBefore, 2);
+  const current = noted.server_changes.transactions.find(t => t.id === id)!;
+  const resolved = (await postSyncChanges({ transactions: [{ ...current, to_account_id: destination.id, account_link_state: 'COMPLETE', missing_destination_reason: null, updated_at: new Date().toISOString() }] }, noted.sync_reset_generation))!;
+  expect(resolved.errors).toEqual([]);
+  expect(Number(resolved.server_changes.accounts.find(a => a.id === destination.id)!.balance)).toBeCloseTo(balanceBefore + Number(template.to_account_amount), 2);
+  // A second upload of the stale history must not undo the resolved destination.
+  const stale = (await postSyncChanges({ transactions: [{ ...current, updated_at: new Date().toISOString() }] }, resolved.sync_reset_generation))!;
+  expect(stale.conflicts.some(c => c.id === id && c.resolution === 'server_wins')).toBe(true);
+  expect(Number(stale.server_changes.accounts.find(a => a.id === destination.id)!.balance)).toBeCloseTo(balanceBefore + Number(template.to_account_amount), 2);
 }, 90000);

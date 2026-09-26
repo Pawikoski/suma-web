@@ -1,5 +1,5 @@
 'use client';
-import { useMemo, useState, useTransition } from 'react';
+import { useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -9,6 +9,8 @@ import { Account, Category } from '@/lib/data';
 import { useActiveMonthData } from '@/lib/useActiveMonthData';
 import Card from '@/components/ui/Card';
 import PrivacyAmount from '@/components/ui/PrivacyAmount';
+import SubmissionRecovery from '@/components/ui/SubmissionRecovery';
+import { useSubmissionGuard } from '@/lib/useSubmissionGuard';
 
 type TxType = 'expense' | 'income' | 'transfer';
 
@@ -32,7 +34,7 @@ interface AddTransactionModalProps {
 
 export default function AddTransactionModal({ onClose, accounts, categories }: AddTransactionModalProps) {
   const router = useRouter();
-  const { activeMonth, baseCurrency } = useActiveMonthData();
+  const { activeMonth, baseCurrency, userEmail } = useActiveMonthData();
   const [type, setType] = useState<TxType>('expense');
   const [amount, setAmount] = useState('0');
   const [note, setNote] = useState('');
@@ -40,6 +42,9 @@ export default function AddTransactionModal({ onClose, accounts, categories }: A
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? '');
   const [toAccountId, setToAccountId] = useState(accounts.find(a => a.id !== accounts[0]?.id)?.id ?? '');
   const [categoryId, setCategoryId] = useState('');
+  const submission = useSubmissionGuard(userEmail, 'transaction');
+  const retryInput = useRef<Record<string, unknown> | null>(null);
+  const [hasRetry, setHasRetry] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const typeColor = TYPE_COLORS[type];
@@ -68,23 +73,29 @@ export default function AddTransactionModal({ onClose, accounts, categories }: A
   };
 
   const submit = () => {
+    if (isPending) return;
     startTransition(async () => {
-      const result = await createTransactionAction({
-        type,
-        amount: amountNumber,
-        date,
-        accountId,
-        toAccountId: effectiveToAccount?.id ?? null,
-        categoryId: type === 'transfer' ? null : category?.id ?? null,
-        note,
-      });
-
+      if (!retryInput.current) {
+        try {
+          const identity = submission.begin(1);
+          setHasRetry(true);
+          retryInput.current = { submissionId: identity.id, submittedAt: identity.submittedAt,
+            type, amount: amountNumber, date, accountId, toAccountId: effectiveToAccount?.id ?? null,
+            categoryId: type === 'transfer' ? null : category?.id ?? null, note };
+        } catch (error) { toast.error(error instanceof Error ? error.message : 'Nie można przygotować zapisu.'); return; }
+      }
+      let result;
+      try { result = await createTransactionAction(retryInput.current); }
+      catch { toast.error('Nie otrzymano wyniku zapisu. Sprawdź wynik lub ponów tę samą próbę.'); return; }
       if (!result.ok) {
+        if (!result.outcomeUnknown) { submission.finish(); retryInput.current = null; setHasRetry(false); }
         toast.error(result.message);
         return;
       }
-
-      toast.success(result.message ?? 'Zapisano transakcję.');
+      submission.finish();
+      retryInput.current = null;
+      setHasRetry(false);
+      toast.success(result.message ?? 'Zapisano transakcji.');
       onClose();
       router.refresh();
       if (result.id) router.push(`/transactions?id=${result.id}&month=${activeMonth}`);
@@ -107,6 +118,8 @@ export default function AddTransactionModal({ onClose, accounts, categories }: A
           </button>
         </div>
 
+        <SubmissionRecovery guard={submission} busy={isPending} onRetry={hasRetry ? submit : undefined} onResolved={() => { retryInput.current = null; setHasRetry(false); onClose(); router.refresh(); }} />
+        <fieldset disabled={isPending || submission.blocked} style={{ border: 0, margin: 0, minWidth: 0 }}>
         <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
           {/* Type selector */}
           <div style={{ display: 'flex', gap: 6, background: T.bg, borderRadius: T.radiusSm, padding: 4 }}>
@@ -219,6 +232,7 @@ export default function AddTransactionModal({ onClose, accounts, categories }: A
             })}
           </div>
         </div>
+        </fieldset>
       </Card>
     </div>
   );

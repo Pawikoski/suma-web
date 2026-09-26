@@ -24,10 +24,13 @@ import {
 import { inferImportedCategoryHierarchy } from '@/lib/import-category-hierarchy';
 import { normalizeCategoryIconName } from '@/lib/category-icons';
 import { importAnalysisSchema } from '@/lib/schemas/import-analysis';
+import { SyncRequestError } from '@/lib/sync-errors';
+import { importPreflight } from '@/lib/import-preflight';
+import { submissionEntityId } from '@/lib/submission-id';
 
 export type ActionResult =
-  | { ok: true; id?: string; message?: string }
-  | { ok: false; message: string };
+  | { ok: true; id?: string; message?: string; found?: number; total?: number }
+  | { ok: false; message: string; outcomeUnknown?: boolean };
 
 const transactionInputSchema = z.object({
   type: z.enum(['expense', 'income', 'transfer']),
@@ -39,8 +42,12 @@ const transactionInputSchema = z.object({
   note: z.string().trim().max(500).optional().default(''),
 });
 
+const transactionCreateInputSchema = transactionInputSchema.extend({ submissionId: z.uuid(), submittedAt: z.iso.datetime() });
+
 const transactionUpdateInputSchema = transactionInputSchema.extend({
   id: z.string().min(1),
+  confirmDestinationBalanceChange: z.boolean().optional().default(false),
+  expectedVersion: z.number().int().positive(),
 });
 
 const settlementInputSchema = z.object({
@@ -446,7 +453,7 @@ function revalidateFinancePaths() {
 
 function syncFailureMessage(errors: unknown[], conflicts: unknown[]) {
   if (errors.length > 0) return 'API odrzuciło zmianę. Sprawdź limity konta lub dane formularza.';
-  if (conflicts.length > 0) return 'Zmiana ma konflikt z nowszymi danymi z serwera. Odśwież i spróbuj ponownie.';
+  if (conflicts.some(conflict => !conflict || typeof conflict !== 'object' || !('resolution' in conflict) || conflict.resolution !== 'client_wins')) return 'Zmiana ma konflikt z nowszymi danymi z serwera. Odśwież i spróbuj ponownie.';
   return null;
 }
 
@@ -454,13 +461,13 @@ function isActiveInvestmentAssetAccount(account: SyncAccount | undefined): accou
   return Boolean(account && !account.deleted_at && account.is_active && account.type === 'INVESTMENT' && account.category !== 'LIABILITY');
 }
 
-async function getServerChanges(): Promise<SyncServerChanges | null> {
+async function getServerChanges(): Promise<(SyncServerChanges & { syncResetGeneration: number }) | null> {
   const sync = await fetchSync();
-  return sync?.server_changes ?? null;
+  return sync ? { ...sync.server_changes, syncResetGeneration: sync.sync_reset_generation } : null;
 }
 
-export async function createTransactionAction(input: unknown): Promise<ActionResult> {
-  const parsed = transactionInputSchema.safeParse(input);
+async function executeCreateTransactionAction(input: unknown): Promise<ActionResult> {
+  const parsed = transactionCreateInputSchema.safeParse(input);
   if (!parsed.success) {
     return { ok: false, message: parsed.error.issues[0]?.message ?? 'Niepoprawne dane transakcji.' };
   }
@@ -469,6 +476,8 @@ export async function createTransactionAction(input: unknown): Promise<ActionRes
   const changes = await getServerChanges();
   if (!changes) return { ok: false, message: 'Nie udało się pobrać aktualnych danych.' };
 
+  const transactionId = submissionEntityId(data.submissionId, 'transaction:0');
+  if (changes.transactions.some(row => row.id === transactionId)) return { ok: true, id: transactionId, message: 'Transakcja została wcześniej zapisana.' };
   const fromAccount = changes.accounts.find(a => a.id === data.accountId && !a.deleted_at && a.is_active);
   if (!fromAccount) return { ok: false, message: 'Wybierz aktywne konto.' };
 
@@ -487,30 +496,11 @@ export async function createTransactionAction(input: unknown): Promise<ActionRes
     : changes.categories.find(c => c.id === data.categoryId && !c.deleted_at);
   if (data.type !== 'transfer' && !category) return { ok: false, message: 'Wybierz kategorię.' };
 
-  const updatedAt = nowIso();
-  const transactionId = crypto.randomUUID();
-  const splitId = crypto.randomUUID();
+  const updatedAt = data.submittedAt;
+  const splitId = submissionEntityId(data.submissionId, 'split:0');
   const amount = data.amount;
   const transactionType = data.type.toUpperCase() as SyncTransaction['type'];
-  const nextFromBalance = balanceAfterTransaction(
-    fromAccount,
-    parseFloat(fromAccount.balance),
-    transactionType,
-    'FROM',
-    amount
-  );
-
-  const accounts = [cloneAccountWithBalance(fromAccount, nextFromBalance, updatedAt)];
-  if (toAccount) {
-    accounts.push(cloneAccountWithBalance(
-      toAccount,
-      balanceAfterTransaction(toAccount, parseFloat(toAccount.balance), 'TRANSFER', 'TO', amount),
-      updatedAt
-    ));
-  }
-
   const sync = await postSyncChanges({
-    accounts,
     transactions: [
       {
         id: transactionId,
@@ -559,10 +549,10 @@ export async function createTransactionAction(input: unknown): Promise<ActionRes
           },
         ]
       : [],
-  });
+  }, changes.syncResetGeneration);
 
   const failure = sync ? syncFailureMessage(sync.errors, sync.conflicts) : 'Nie udało się zsynchronizować transakcji.';
-  if (failure) return { ok: false, message: failure };
+  if (failure) return { ok: false, message: failure, ...(sync && sync.errors.length === 0 ? { outcomeUnknown: true } : {}) };
 
   revalidatePath('/');
   revalidatePath('/transactions');
@@ -573,35 +563,7 @@ export async function createTransactionAction(input: unknown): Promise<ActionRes
 }
 
 function cloneTransactionForDeletion(transaction: SyncTransaction, updatedAt: string) {
-  return {
-    id: transaction.id,
-    type: transaction.type,
-    total_amount: transaction.total_amount,
-    from_account_id: transaction.from_account_id,
-    to_account_id: transaction.to_account_id,
-    account_currency: transaction.account_currency,
-    transaction_amount: transaction.transaction_amount,
-    transaction_currency: transaction.transaction_currency,
-    exchange_rate: transaction.exchange_rate,
-    to_account_amount: transaction.to_account_amount,
-    to_account_currency: transaction.to_account_currency,
-    recurring_transaction_id: transaction.recurring_transaction_id,
-    date_time: transaction.date_time,
-    notes: transaction.notes,
-    location_lat: transaction.location_lat,
-    location_lng: transaction.location_lng,
-    location_name: transaction.location_name,
-    location_address: transaction.location_address,
-    is_from_receipt: transaction.is_from_receipt,
-    is_from_notification_parser: transaction.is_from_notification_parser,
-    review_status: transaction.review_status,
-    parser_notification_key: transaction.parser_notification_key,
-    count_in_summary: transaction.count_in_summary,
-    summary_amount: transaction.summary_amount,
-    updated_at: updatedAt,
-    deleted_at: updatedAt,
-    version: transaction.version,
-  };
+  return { ...transaction, updated_at: updatedAt, deleted_at: updatedAt };
 }
 
 function cloneSplitForDeletion(split: SyncTransactionSplit, updatedAt: string) {
@@ -787,18 +749,22 @@ function cloneTransactionForUpdate(
     transaction.from_account_id === fromAccount.id && transaction.to_account_id === (toAccount?.id ?? null) &&
     Number(transaction.total_amount) === data.amount;
 
+  const resolvingDestination = transaction.account_link_state === 'MISSING_DESTINATION' && data.type === 'transfer' && toAccount !== null;
+  const preservesMissingDestination = transaction.account_link_state === 'MISSING_DESTINATION' && data.type === 'transfer' && toAccount === null;
   return {
     ...transaction,
     id: transaction.id,
     type: data.type.toUpperCase(),
-    total_amount: amount,
+    account_link_state: preservesMissingDestination ? 'MISSING_DESTINATION' : 'COMPLETE',
+    missing_destination_reason: preservesMissingDestination ? transaction.missing_destination_reason : null,
+    total_amount: sameMoney ? transaction.total_amount : amount,
     from_account_id: fromAccount.id,
     to_account_id: toAccount?.id ?? null,
     account_currency: fromAccount.currency,
-    transaction_amount: sameMoney ? transaction.transaction_amount : amount,
-    transaction_currency: sameMoney ? transaction.transaction_currency : fromAccount.currency,
-    exchange_rate: sameMoney ? transaction.exchange_rate : 1,
-    to_account_amount: sameMoney ? transaction.to_account_amount : toAccount ? amount : null,
+    transaction_amount: sameMoney || resolvingDestination ? transaction.transaction_amount : amount,
+    transaction_currency: sameMoney || resolvingDestination ? transaction.transaction_currency : fromAccount.currency,
+    exchange_rate: sameMoney || resolvingDestination ? transaction.exchange_rate : 1,
+    to_account_amount: sameMoney || resolvingDestination ? transaction.to_account_amount ?? (toAccount ? amount : null) : toAccount ? amount : null,
     to_account_currency: sameMoney ? transaction.to_account_currency : toAccount?.currency ?? null,
     recurring_transaction_id: transaction.recurring_transaction_id,
     date_time: transaction.date_time.slice(0, 10) === data.date ? transaction.date_time : dateToNoonUtc(data.date),
@@ -842,7 +808,7 @@ function splitPayload(
   };
 }
 
-export async function updateTransactionAction(input: unknown): Promise<ActionResult> {
+async function executeUpdateTransactionAction(input: unknown): Promise<ActionResult> {
   const parsed = transactionUpdateInputSchema.safeParse(input);
   if (!parsed.success) {
     return { ok: false, message: parsed.error.issues[0]?.message ?? 'Niepoprawne dane transakcji.' };
@@ -854,21 +820,37 @@ export async function updateTransactionAction(input: unknown): Promise<ActionRes
 
   const transaction = changes.transactions.find(t => t.id === data.id && !t.deleted_at);
   if (!transaction) return { ok: false, message: 'Nie znaleziono transakcji.' };
+  if (transaction.version !== data.expectedVersion) return { ok: false, message: 'Transakcja zmieniła się na innym urządzeniu. Odśwież dane przed zapisem.' };
 
-  const fromAccount = changes.accounts.find(a => a.id === data.accountId && !a.deleted_at && a.is_active);
+  const fromAccount = changes.accounts.find(a => a.id === data.accountId && !a.deleted_at && (a.is_active || a.id === transaction.from_account_id));
   if (!fromAccount) return { ok: false, message: 'Wybierz aktywne konto.' };
 
   const toAccount = data.type === 'transfer'
-    ? changes.accounts.find(a => a.id === data.toAccountId && !a.deleted_at && a.is_active) ?? null
+    ? changes.accounts.find(a => a.id === data.toAccountId && !a.deleted_at && (a.is_active || a.id === transaction.to_account_id)) ?? null
     : null;
-  if (data.type === 'transfer' && !toAccount) return { ok: false, message: 'Wybierz konto docelowe.' };
+  const keepsMissingDestination = transaction.account_link_state === 'MISSING_DESTINATION' &&
+    data.type === 'transfer' && !data.toAccountId;
+  if (data.type === 'transfer' && !toAccount && !keepsMissingDestination) return { ok: false, message: 'Wybierz konto docelowe.' };
+  const resolvingDestination = transaction.account_link_state === 'MISSING_DESTINATION' && data.type === 'transfer' && toAccount !== null;
+  if (resolvingDestination && !data.confirmDestinationBalanceChange) {
+    return { ok: false, message: 'Potwierdź wpływ przypisania celu na jego saldo.' };
+  }
+  if (resolvingDestination && ((transaction.to_account_currency && transaction.to_account_currency !== toAccount.currency) ||
+      (!transaction.to_account_amount && toAccount.currency !== fromAccount.currency))) {
+    return { ok: false, message: 'Waluta celu lub brak kwoty docelowej wymaga uzupełnienia w aplikacji mobilnej.' };
+  }
   if (data.type === 'transfer' && toAccount?.id === fromAccount.id) {
     return { ok: false, message: 'Konta transferu muszą być różne.' };
   }
 
   const moneyChanged = transaction.type !== data.type.toUpperCase() || transaction.from_account_id !== fromAccount.id ||
     transaction.to_account_id !== (toAccount?.id ?? null) || Number(transaction.total_amount) !== data.amount;
-  if (moneyChanged && (transaction.transaction_currency && transaction.transaction_currency !== transaction.account_currency ||
+  const onlyResolvingDestination = resolvingDestination && transaction.from_account_id === fromAccount.id && Number(transaction.total_amount) === data.amount;
+  if (resolvingDestination && !onlyResolvingDestination) return { ok: false, message: 'Uzupełnij cel oddzielnie od zmiany kwoty lub konta źródłowego.' };
+  if (keepsMissingDestination && moneyChanged) {
+    return { ok: false, message: 'Przy brakującym celu zachowaj kwotę i konto źródłowe albo najpierw uzupełnij cel.' };
+  }
+  if (moneyChanged && !onlyResolvingDestination && (transaction.transaction_currency && transaction.transaction_currency !== transaction.account_currency ||
       toAccount && toAccount.currency !== fromAccount.currency || transaction.purpose && transaction.purpose !== 'STANDARD')) {
     return { ok: false, message: 'Kwotę i konta operacji walutowej lub zakupu aktywa zmień w aplikacji mobilnej.' };
   }
@@ -877,57 +859,14 @@ export async function updateTransactionAction(input: unknown): Promise<ActionRes
     ? null
     : changes.categories.find(c => c.id === data.categoryId && !c.deleted_at);
   if (data.type !== 'transfer' && !category) return { ok: false, message: 'Wybierz kategorię.' };
+  if (moneyChanged && transaction.purpose && transaction.purpose !== 'STANDARD') return { ok: false, message: 'Operację na aktywach zmień w aplikacji mobilnej.' };
 
   const updatedAt = nowIso();
-  const accountBalances = new Map<string, number>();
-  const getBalance = (accountId: string) => {
-    if (accountBalances.has(accountId)) return accountBalances.get(accountId)!;
-    const account = changes.accounts.find(a => a.id === accountId && !a.deleted_at);
-    if (!account) return null;
-    const balance = parseFloat(account.balance);
-    accountBalances.set(accountId, balance);
-    return balance;
-  };
-  const applyTransactionEffect = (
-    accountId: string,
-    type: SyncTransaction['type'],
-    role: 'FROM' | 'TO',
-    amount: number,
-    multiplier = 1
-  ) => {
-    const account = changes.accounts.find(a => a.id === accountId && !a.deleted_at);
-    const current = getBalance(accountId);
-    if (!account || current === null) return false;
-    accountBalances.set(accountId, balanceAfterTransaction(account, current, type, role, amount, multiplier));
-    return true;
-  };
-
-  const previousAmount = parseFloat(transaction.total_amount);
-  if (!applyTransactionEffect(transaction.from_account_id, transaction.type, 'FROM', previousAmount, -1)) {
-    return { ok: false, message: 'Nie znaleziono konta transakcji.' };
-  }
-  if (transaction.type === 'TRANSFER' && transaction.to_account_id) {
-    if (!applyTransactionEffect(transaction.to_account_id, transaction.type, 'TO', previousAmount, -1)) {
-      return { ok: false, message: 'Nie znaleziono konta docelowego transferu.' };
-    }
-  }
-
-  const nextType = data.type.toUpperCase() as SyncTransaction['type'];
-  if (!applyTransactionEffect(fromAccount.id, nextType, 'FROM', data.amount)) {
-    return { ok: false, message: 'Nie znaleziono konta transakcji.' };
-  }
-  if (nextType === 'TRANSFER' && toAccount) {
-    if (!applyTransactionEffect(toAccount.id, nextType, 'TO', data.amount)) {
-      return { ok: false, message: 'Nie znaleziono konta docelowego transferu.' };
-    }
-  }
-
-  const accounts = Array.from(accountBalances.entries()).map(([accountId, balance]) => {
-    const account = changes.accounts.find(a => a.id === accountId && !a.deleted_at)!;
-    return cloneAccountWithBalance(account, balance, updatedAt);
-  });
   const existingSplits = changes.transaction_splits.filter(split => split.transaction_id === transaction.id && !split.deleted_at);
-  const transactionSplits = data.type === 'transfer'
+  const splitsUnchanged = transaction.type === data.type.toUpperCase() && Number(transaction.total_amount) === data.amount &&
+    (data.type === 'transfer' || existingSplits[0]?.category_id === category?.id);
+  if (!splitsUnchanged && existingSplits.length > 1) return { ok: false, message: 'Transakcję z wieloma pozycjami zmień w aplikacji mobilnej.' };
+  const transactionSplits = splitsUnchanged ? [] : data.type === 'transfer'
     ? existingSplits.map(split => cloneSplitForDeletion(split, updatedAt))
     : [
         splitPayload(existingSplits[0], transaction.id, category!.id, data.amount, data.note || '', updatedAt),
@@ -935,10 +874,9 @@ export async function updateTransactionAction(input: unknown): Promise<ActionRes
       ];
 
   const sync = await postSyncChanges({
-    accounts,
     transactions: [cloneTransactionForUpdate(transaction, data, fromAccount, toAccount, updatedAt)],
     transaction_splits: transactionSplits,
-  });
+  }, changes.syncResetGeneration);
 
   const failure = sync ? syncFailureMessage(sync.errors, sync.conflicts) : 'Nie udało się zaktualizować transakcji.';
   if (failure) return { ok: false, message: failure };
@@ -951,11 +889,11 @@ export async function updateTransactionAction(input: unknown): Promise<ActionRes
   return { ok: true, id: transaction.id, message: 'Transakcja została zaktualizowana.' };
 }
 
-export async function deleteTransactionAction(transactionId: string): Promise<ActionResult> {
+async function executeDeleteTransactionAction(transactionId: string): Promise<ActionResult> {
   return deleteTransactionsAction([transactionId]);
 }
 
-export async function deleteTransactionsAction(transactionIds: string[]): Promise<ActionResult> {
+async function executeDeleteTransactionsAction(transactionIds: string[]): Promise<ActionResult> {
   const ids = Array.from(new Set(transactionIds.filter(Boolean)));
   if (ids.length === 0) return { ok: false, message: 'Wybierz transakcje do usunięcia.' };
 
@@ -966,52 +904,13 @@ export async function deleteTransactionsAction(transactionIds: string[]): Promis
   if (transactions.some(transaction => !transaction)) return { ok: false, message: 'Nie znaleziono części transakcji.' };
 
   const updatedAt = nowIso();
-  const accountBalances = new Map<string, number>();
-  const getAccountBalance = (accountId: string) => {
-    if (accountBalances.has(accountId)) return accountBalances.get(accountId)!;
-    const account = changes.accounts.find(a => a.id === accountId && !a.deleted_at);
-    if (!account) return null;
-    const balance = parseFloat(account.balance);
-    accountBalances.set(accountId, balance);
-    return balance;
-  };
-
-  for (const transaction of transactions as SyncTransaction[]) {
-    const amount = parseFloat(transaction.total_amount);
-    const fromBalance = getAccountBalance(transaction.from_account_id);
-    const fromAccount = changes.accounts.find(a => a.id === transaction.from_account_id && !a.deleted_at);
-    if (fromBalance === null) return { ok: false, message: 'Nie znaleziono konta transakcji.' };
-    if (!fromAccount) return { ok: false, message: 'Nie znaleziono konta transakcji.' };
-
-    accountBalances.set(
-      transaction.from_account_id,
-      balanceAfterTransaction(fromAccount, fromBalance, transaction.type, 'FROM', amount, -1)
-    );
-
-    if (transaction.type === 'TRANSFER' && transaction.to_account_id) {
-      const toBalance = getAccountBalance(transaction.to_account_id);
-      const toAccount = changes.accounts.find(a => a.id === transaction.to_account_id && !a.deleted_at);
-      if (toBalance === null) return { ok: false, message: 'Nie znaleziono konta docelowego transferu.' };
-      if (!toAccount) return { ok: false, message: 'Nie znaleziono konta docelowego transferu.' };
-      accountBalances.set(
-        transaction.to_account_id,
-        balanceAfterTransaction(toAccount, toBalance, transaction.type, 'TO', amount, -1)
-      );
-    }
-  }
-
-  const accounts = Array.from(accountBalances.entries()).map(([accountId, balance]) => {
-    const account = changes.accounts.find(a => a.id === accountId && !a.deleted_at)!;
-    return cloneAccountWithBalance(account, balance, updatedAt);
-  });
   const selectedIdSet = new Set(ids);
   const sync = await postSyncChanges({
-    accounts,
     transactions: (transactions as SyncTransaction[]).map(transaction => cloneTransactionForDeletion(transaction, updatedAt)),
     transaction_splits: changes.transaction_splits
       .filter(split => split.transaction_id && selectedIdSet.has(split.transaction_id) && !split.deleted_at)
       .map(split => cloneSplitForDeletion(split, updatedAt)),
-  });
+  }, changes.syncResetGeneration);
 
   const failure = sync ? syncFailureMessage(sync.errors, sync.conflicts) : 'Nie udało się usunąć transakcji.';
   if (failure) return { ok: false, message: failure };
@@ -1024,7 +923,7 @@ export async function deleteTransactionsAction(transactionIds: string[]): Promis
   };
 }
 
-export async function createSettlementAction(input: unknown): Promise<ActionResult> {
+async function executeCreateSettlementAction(input: unknown): Promise<ActionResult> {
   const parsed = settlementInputSchema.safeParse(input);
   if (!parsed.success) {
     return { ok: false, message: parsed.error.issues[0]?.message ?? 'Niepoprawne dane rozliczenia.' };
@@ -1078,7 +977,7 @@ export async function createSettlementAction(input: unknown): Promise<ActionResu
         version: 1,
       },
     ],
-  });
+  }, changes.syncResetGeneration);
 
   const failure = sync ? syncFailureMessage(sync.errors, sync.conflicts) : 'Nie udało się zapisać rozliczenia.';
   if (failure) return { ok: false, message: failure };
@@ -1157,7 +1056,7 @@ async function addSettlementPayment({
       },
     ],
     settlements: isFullyPaid ? [settlementStatusPayload(settlement, 'SETTLED', updatedAt)] : [],
-  });
+  }, changes.syncResetGeneration);
 
   const failure = sync ? syncFailureMessage(sync.errors, sync.conflicts) : 'Nie udało się zapisać wpłaty.';
   if (failure) return { ok: false, message: failure };
@@ -1166,7 +1065,7 @@ async function addSettlementPayment({
   return { ok: true, id: paymentId, message: isFullyPaid ? 'Rozliczenie zostało zamknięte.' : 'Wpłata została zapisana.' };
 }
 
-export async function addSettlementPaymentAction(input: unknown): Promise<ActionResult> {
+async function executeAddSettlementPaymentAction(input: unknown): Promise<ActionResult> {
   const parsed = settlementPaymentInputSchema.safeParse(input);
   if (!parsed.success) {
     return { ok: false, message: parsed.error.issues[0]?.message ?? 'Niepoprawne dane wpłaty.' };
@@ -1178,7 +1077,7 @@ export async function addSettlementPaymentAction(input: unknown): Promise<Action
   });
 }
 
-export async function settleSettlementAction(input: unknown): Promise<ActionResult> {
+async function executeSettleSettlementAction(input: unknown): Promise<ActionResult> {
   const parsed = settleSettlementInputSchema.safeParse(input);
   if (!parsed.success) {
     return { ok: false, message: parsed.error.issues[0]?.message ?? 'Niepoprawne dane rozliczenia.' };
@@ -1197,7 +1096,7 @@ export async function settleSettlementAction(input: unknown): Promise<ActionResu
     const updatedAt = nowIso();
     const sync = await postSyncChanges({
       settlements: [settlementStatusPayload(settlement, 'SETTLED', updatedAt)],
-    });
+    }, changes.syncResetGeneration);
     const failure = sync ? syncFailureMessage(sync.errors, sync.conflicts) : 'Nie udało się zamknąć rozliczenia.';
     if (failure) return { ok: false, message: failure };
     revalidateFinancePaths();
@@ -1214,7 +1113,7 @@ export async function settleSettlementAction(input: unknown): Promise<ActionResu
   });
 }
 
-export async function deleteSettlementAction(settlementId: string): Promise<ActionResult> {
+async function executeDeleteSettlementAction(settlementId: string): Promise<ActionResult> {
   if (!settlementId) return { ok: false, message: 'Nie wybrano rozliczenia.' };
 
   const changes = await getServerChanges();
@@ -1277,7 +1176,7 @@ export async function deleteSettlementAction(settlementId: string): Promise<Acti
       .map(split => cloneSplitForDeletion(split, updatedAt)),
     settlements: [cloneSettlementForDeletion(settlement, updatedAt)],
     settlement_payments: payments.map(payment => cloneSettlementPaymentForDeletion(payment, updatedAt)),
-  });
+  }, changes.syncResetGeneration);
 
   const failure = sync ? syncFailureMessage(sync.errors, sync.conflicts) : 'Nie udało się usunąć rozliczenia.';
   if (failure) return { ok: false, message: failure };
@@ -1286,7 +1185,7 @@ export async function deleteSettlementAction(settlementId: string): Promise<Acti
   return { ok: true, id: settlement.id, message: 'Rozliczenie zostało usunięte.' };
 }
 
-export async function createRecurringTransactionAction(input: unknown): Promise<ActionResult> {
+async function executeCreateRecurringTransactionAction(input: unknown): Promise<ActionResult> {
   const parsed = recurringInputSchema.safeParse(input);
   if (!parsed.success) {
     return { ok: false, message: parsed.error.issues[0]?.message ?? 'Niepoprawne dane opłaty stałej.' };
@@ -1344,7 +1243,7 @@ export async function createRecurringTransactionAction(input: unknown): Promise<
         version: 1,
       },
     ],
-  });
+  }, changes.syncResetGeneration);
 
   const failure = sync ? syncFailureMessage(sync.errors, sync.conflicts) : 'Nie udało się zapisać opłaty stałej.';
   if (failure) return { ok: false, message: failure };
@@ -1355,7 +1254,7 @@ export async function createRecurringTransactionAction(input: unknown): Promise<
   return { ok: true, id: recurringId, message: 'Opłata stała została zapisana.' };
 }
 
-export async function deleteRecurringTransactionAction(recurringId: string): Promise<ActionResult> {
+async function executeDeleteRecurringTransactionAction(recurringId: string): Promise<ActionResult> {
   if (!recurringId) return { ok: false, message: 'Nie wybrano opłaty stałej.' };
 
   const changes = await getServerChanges();
@@ -1367,7 +1266,7 @@ export async function deleteRecurringTransactionAction(recurringId: string): Pro
   const updatedAt = nowIso();
   const sync = await postSyncChanges({
     recurring_transactions: [cloneRecurringForDeletion(recurring, updatedAt)],
-  });
+  }, changes.syncResetGeneration);
 
   const failure = sync ? syncFailureMessage(sync.errors, sync.conflicts) : 'Nie udało się usunąć opłaty stałej.';
   if (failure) return { ok: false, message: failure };
@@ -1378,7 +1277,7 @@ export async function deleteRecurringTransactionAction(recurringId: string): Pro
   return { ok: true, id: recurring.id, message: 'Opłata stała została usunięta.' };
 }
 
-export async function createAccountAction(input: unknown): Promise<ActionResult> {
+async function executeCreateAccountAction(input: unknown): Promise<ActionResult> {
   const parsed = accountInputSchema.safeParse(input);
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? 'Niepoprawne dane konta.' };
 
@@ -1395,7 +1294,7 @@ export async function createAccountAction(input: unknown): Promise<ActionResult>
   const updatedAt = nowIso();
   const maxSort = Math.max(0, ...changes.accounts.map(account => account.sort_order));
   const payload = accountPayload(parsed.data, undefined, maxSort + 1, updatedAt);
-  const sync = await postSyncChanges({ accounts: [payload] });
+  const sync = await postSyncChanges({ accounts: [payload] }, changes.syncResetGeneration);
 
   const failure = sync ? syncFailureMessage(sync.errors, sync.conflicts) : 'Nie udało się zapisać konta.';
   if (failure) return { ok: false, message: failure };
@@ -1407,7 +1306,7 @@ export async function createAccountAction(input: unknown): Promise<ActionResult>
   return { ok: true, id: payload.id, message: 'Konto zostało zapisane.' };
 }
 
-export async function updateAccountAction(input: unknown): Promise<ActionResult> {
+async function executeUpdateAccountAction(input: unknown): Promise<ActionResult> {
   const parsed = accountUpdateInputSchema.safeParse(input);
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? 'Niepoprawne dane konta.' };
 
@@ -1426,7 +1325,7 @@ export async function updateAccountAction(input: unknown): Promise<ActionResult>
 
   const updatedAt = nowIso();
   const payload = accountPayload(parsed.data, existing, existing.sort_order, updatedAt);
-  const sync = await postSyncChanges({ accounts: [payload] });
+  const sync = await postSyncChanges({ accounts: [payload] }, changes.syncResetGeneration);
 
   const failure = sync ? syncFailureMessage(sync.errors, sync.conflicts) : 'Nie udało się zaktualizować konta.';
   if (failure) return { ok: false, message: failure };
@@ -1438,7 +1337,7 @@ export async function updateAccountAction(input: unknown): Promise<ActionResult>
   return { ok: true, id: existing.id, message: 'Konto zostało zaktualizowane.' };
 }
 
-export async function deleteAccountAction(accountId: string): Promise<ActionResult> {
+async function executeDeleteAccountAction(accountId: string): Promise<ActionResult> {
   if (!accountId) return { ok: false, message: 'Nie wybrano konta.' };
 
   const changes = await getServerChanges();
@@ -1459,7 +1358,7 @@ export async function deleteAccountAction(accountId: string): Promise<ActionResu
     name: hasTransactions ? `${existing.name}_deleted_${Date.now()}` : existing.name,
     deleted_at: updatedAt,
   };
-  const sync = await postSyncChanges({ accounts: [payload] });
+  const sync = await postSyncChanges({ accounts: [payload] }, changes.syncResetGeneration);
 
   const failure = sync ? syncFailureMessage(sync.errors, sync.conflicts) : 'Nie udało się usunąć konta.';
   if (failure) return { ok: false, message: failure };
@@ -1471,7 +1370,7 @@ export async function deleteAccountAction(accountId: string): Promise<ActionResu
   return { ok: true, id: existing.id, message: 'Konto zostało usunięte.' };
 }
 
-export async function upsertAccountInterestAction(input: unknown): Promise<ActionResult> {
+async function executeUpsertAccountInterestAction(input: unknown): Promise<ActionResult> {
   const parsed = accountInterestInputSchema.safeParse(input);
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? 'Niepoprawne ustawienia oprocentowania.' };
 
@@ -1495,7 +1394,7 @@ export async function upsertAccountInterestAction(input: unknown): Promise<Actio
   const existing = (changes.account_interest ?? []).find(interest => interest.account_id === account.id && !interest.deleted_at);
   const updatedAt = nowIso();
   const payload = accountInterestPayload(parsed.data, existing, updatedAt);
-  const sync = await postSyncChanges({ account_interest: [payload] });
+  const sync = await postSyncChanges({ account_interest: [payload] }, changes.syncResetGeneration);
 
   const failure = sync ? syncFailureMessage(sync.errors, sync.conflicts) : 'Nie udało się zapisać oprocentowania.';
   if (failure) return { ok: false, message: failure };
@@ -1506,7 +1405,7 @@ export async function upsertAccountInterestAction(input: unknown): Promise<Actio
   return { ok: true, id: payload.id, message: 'Oprocentowanie zostało zapisane.' };
 }
 
-export async function deleteAccountInterestAction(accountId: string): Promise<ActionResult> {
+async function executeDeleteAccountInterestAction(accountId: string): Promise<ActionResult> {
   if (!accountId) return { ok: false, message: 'Nie wybrano konta.' };
 
   const changes = await getServerChanges();
@@ -1529,7 +1428,7 @@ export async function deleteAccountInterestAction(accountId: string): Promise<Ac
     monthlyPayment: existing.monthly_payment === null ? null : parseFloat(existing.monthly_payment),
     originalLoanAmount: existing.original_loan_amount === null ? null : parseFloat(existing.original_loan_amount),
   }, existing, updatedAt, updatedAt);
-  const sync = await postSyncChanges({ account_interest: [payload] });
+  const sync = await postSyncChanges({ account_interest: [payload] }, changes.syncResetGeneration);
 
   const failure = sync ? syncFailureMessage(sync.errors, sync.conflicts) : 'Nie udało się wyłączyć oprocentowania.';
   if (failure) return { ok: false, message: failure };
@@ -1540,7 +1439,7 @@ export async function deleteAccountInterestAction(accountId: string): Promise<Ac
   return { ok: true, id: existing.id, message: 'Oprocentowanie zostało wyłączone.' };
 }
 
-export async function createInvestmentHoldingAction(input: unknown): Promise<ActionResult> {
+async function executeCreateInvestmentHoldingAction(input: unknown): Promise<ActionResult> {
   const parsed = investmentHoldingInputSchema.safeParse(input);
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? 'Niepoprawne dane inwestycji.' };
 
@@ -1584,7 +1483,7 @@ export async function createInvestmentHoldingAction(input: unknown): Promise<Act
         version: 1,
       },
     ],
-  });
+  }, changes.syncResetGeneration);
 
   const failure = sync ? syncFailureMessage(sync.errors, sync.conflicts) : 'Nie udało się zapisać inwestycji.';
   if (failure) return { ok: false, message: failure };
@@ -1593,7 +1492,7 @@ export async function createInvestmentHoldingAction(input: unknown): Promise<Act
   return { ok: true, id: holding.id, message: existing ? 'Pozycja została powiększona.' : 'Pozycja została dodana.' };
 }
 
-export async function updateInvestmentHoldingAction(input: unknown): Promise<ActionResult> {
+async function executeUpdateInvestmentHoldingAction(input: unknown): Promise<ActionResult> {
   const parsed = investmentHoldingUpdateInputSchema.safeParse(input);
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? 'Niepoprawne dane inwestycji.' };
 
@@ -1615,7 +1514,7 @@ export async function updateInvestmentHoldingAction(input: unknown): Promise<Act
   const updatedAt = nowIso();
   const sync = await postSyncChanges({
     investment_holdings: [investmentHoldingPayload(parsed.data, existing, updatedAt)],
-  });
+  }, changes.syncResetGeneration);
 
   const failure = sync ? syncFailureMessage(sync.errors, sync.conflicts) : 'Nie udało się zaktualizować pozycji.';
   if (failure) return { ok: false, message: failure };
@@ -1624,7 +1523,7 @@ export async function updateInvestmentHoldingAction(input: unknown): Promise<Act
   return { ok: true, id: existing.id, message: 'Pozycja została zaktualizowana.' };
 }
 
-export async function tradeInvestmentHoldingAction(input: unknown): Promise<ActionResult> {
+async function executeTradeInvestmentHoldingAction(input: unknown): Promise<ActionResult> {
   const parsed = investmentTradeInputSchema.safeParse(input);
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? 'Niepoprawne dane operacji.' };
 
@@ -1682,7 +1581,7 @@ export async function tradeInvestmentHoldingAction(input: unknown): Promise<Acti
         version: 1,
       },
     ],
-  });
+  }, changes.syncResetGeneration);
 
   const failure = sync ? syncFailureMessage(sync.errors, sync.conflicts) : 'Nie udało się zapisać operacji.';
   if (failure) return { ok: false, message: failure };
@@ -1691,7 +1590,7 @@ export async function tradeInvestmentHoldingAction(input: unknown): Promise<Acti
   return { ok: true, id: holding.id, message: parsed.data.type === 'BUY' ? 'Kupno zostało zapisane.' : 'Sprzedaż została zapisana.' };
 }
 
-export async function deleteInvestmentHoldingAction(holdingId: string): Promise<ActionResult> {
+async function executeDeleteInvestmentHoldingAction(holdingId: string): Promise<ActionResult> {
   if (!holdingId) return { ok: false, message: 'Nie wybrano pozycji.' };
 
   const changes = await getServerChanges();
@@ -1705,7 +1604,7 @@ export async function deleteInvestmentHoldingAction(holdingId: string): Promise<
   const sync = await postSyncChanges({
     investment_holdings: [cloneInvestmentHoldingForDeletion(holding, updatedAt)],
     investment_transactions: transactions.map(tx => cloneInvestmentTransactionForDeletion(tx, updatedAt)),
-  });
+  }, changes.syncResetGeneration);
 
   const failure = sync ? syncFailureMessage(sync.errors, sync.conflicts) : 'Nie udało się usunąć pozycji.';
   if (failure) return { ok: false, message: failure };
@@ -1746,7 +1645,7 @@ function validateCategoryParent(data: z.infer<typeof categoryInputSchema>, categ
   return null;
 }
 
-export async function createCategoryAction(input: unknown): Promise<ActionResult> {
+async function executeCreateCategoryAction(input: unknown): Promise<ActionResult> {
   const parsed = categoryInputSchema.safeParse(input);
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? 'Niepoprawne dane kategorii.' };
 
@@ -1763,7 +1662,7 @@ export async function createCategoryAction(input: unknown): Promise<ActionResult
   const updatedAt = nowIso();
   const maxSort = Math.max(0, ...changes.categories.map(category => category.sort_order));
   const payload = categoryPayload(parsed.data, undefined, maxSort + 1, updatedAt);
-  const sync = await postSyncChanges({ categories: [payload] });
+  const sync = await postSyncChanges({ categories: [payload] }, changes.syncResetGeneration);
 
   const failure = sync ? syncFailureMessage(sync.errors, sync.conflicts) : 'Nie udało się zapisać kategorii.';
   if (failure) return { ok: false, message: failure };
@@ -1775,7 +1674,7 @@ export async function createCategoryAction(input: unknown): Promise<ActionResult
   return { ok: true, id: payload.id, message: 'Kategoria została zapisana.' };
 }
 
-export async function updateCategoryAction(input: unknown): Promise<ActionResult> {
+async function executeUpdateCategoryAction(input: unknown): Promise<ActionResult> {
   const parsed = categoryUpdateInputSchema.safeParse(input);
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? 'Niepoprawne dane kategorii.' };
 
@@ -1796,7 +1695,7 @@ export async function updateCategoryAction(input: unknown): Promise<ActionResult
   const updatedAt = nowIso();
   const sync = await postSyncChanges({
     categories: [categoryPayload(parsed.data, existing, existing.sort_order, updatedAt)],
-  });
+  }, changes.syncResetGeneration);
 
   const failure = sync ? syncFailureMessage(sync.errors, sync.conflicts) : 'Nie udało się zaktualizować kategorii.';
   if (failure) return { ok: false, message: failure };
@@ -1808,7 +1707,7 @@ export async function updateCategoryAction(input: unknown): Promise<ActionResult
   return { ok: true, id: existing.id, message: 'Kategoria została zaktualizowana.' };
 }
 
-export async function deleteCategoryAction(categoryId: string): Promise<ActionResult> {
+async function executeDeleteCategoryAction(categoryId: string): Promise<ActionResult> {
   if (!categoryId) return { ok: false, message: 'Nie wybrano kategorii.' };
 
   const changes = await getServerChanges();
@@ -1836,7 +1735,7 @@ export async function deleteCategoryAction(categoryId: string): Promise<ActionRe
       deleted_at: updatedAt,
       version: budget.version,
     }));
-  const sync = await postSyncChanges({ categories: payloads, category_budgets: budgetPayloads });
+  const sync = await postSyncChanges({ categories: payloads, category_budgets: budgetPayloads }, changes.syncResetGeneration);
 
   const failure = sync ? syncFailureMessage(sync.errors, sync.conflicts) : 'Nie udało się usunąć kategorii.';
   if (failure) return { ok: false, message: failure };
@@ -1874,7 +1773,7 @@ function overallBudgetOverridePayload(existing: SyncOverallBudgetOverride | unde
   };
 }
 
-export async function upsertOverallBudgetAction(input: unknown): Promise<ActionResult> {
+async function executeUpsertOverallBudgetAction(input: unknown): Promise<ActionResult> {
   const parsed = budgetInputSchema.safeParse(input);
   if (!parsed.success) return { ok: false, message: 'Podaj poprawną kwotę budżetu.' };
 
@@ -1894,12 +1793,12 @@ export async function upsertOverallBudgetAction(input: unknown): Promise<ActionR
             updatedAt
           ),
         ],
-      })
+      }, changes.syncResetGeneration)
     : await postSyncChanges({
         overall_budgets: [
           overallBudgetPayload(changes.overall_budgets.find(b => !b.deleted_at), parsed.data.amount, updatedAt),
         ],
-      });
+      }, changes.syncResetGeneration);
 
   const failure = sync ? syncFailureMessage(sync.errors, sync.conflicts) : 'Nie udało się zapisać budżetu.';
   if (failure) return { ok: false, message: failure };
@@ -1929,7 +1828,7 @@ function categoryBudgetPayload(existing: SyncCategoryBudget | undefined, categor
   };
 }
 
-export async function upsertCategoryBudgetAction(input: unknown): Promise<ActionResult> {
+async function executeUpsertCategoryBudgetAction(input: unknown): Promise<ActionResult> {
   const parsed = categoryBudgetInputSchema.safeParse(input);
   if (!parsed.success) return { ok: false, message: 'Podaj poprawny budżet kategorii.' };
 
@@ -1947,7 +1846,7 @@ export async function upsertCategoryBudgetAction(input: unknown): Promise<Action
   const updatedAt = nowIso();
   const sync = await postSyncChanges({
     category_budgets: [categoryBudgetPayload(existing, parsed.data.categoryId, parsed.data.amount, updatedAt)],
-  });
+  }, changes.syncResetGeneration);
 
   const failure = sync ? syncFailureMessage(sync.errors, sync.conflicts) : 'Nie udało się zapisać budżetu kategorii.';
   if (failure) return { ok: false, message: failure };
@@ -1981,7 +1880,7 @@ function accountBudgetOverridePayload(existing: SyncAccountBudgetOverride | unde
   };
 }
 
-export async function upsertAccountBudgetAction(input: unknown): Promise<ActionResult> {
+async function executeUpsertAccountBudgetAction(input: unknown): Promise<ActionResult> {
   const parsed = accountBudgetInputSchema.safeParse(input);
   if (!parsed.success) return { ok: false, message: 'Podaj poprawny budżet konta.' };
 
@@ -2012,10 +1911,10 @@ export async function upsertAccountBudgetAction(input: unknown): Promise<ActionR
             updatedAt
           ),
         ],
-      })
+      }, changes.syncResetGeneration)
     : await postSyncChanges({
         account_budgets: [accountBudgetPayload(existing, account.id, parsed.data.amount, updatedAt)],
-      });
+      }, changes.syncResetGeneration);
 
   const failure = sync ? syncFailureMessage(sync.errors, sync.conflicts) : 'Nie udało się zapisać budżetu konta.';
   if (failure) return { ok: false, message: failure };
@@ -2027,7 +1926,7 @@ export async function upsertAccountBudgetAction(input: unknown): Promise<ActionR
 }
 
 function normalizeName(value: string): string {
-  return value.trim().toLocaleLowerCase('pl-PL');
+  return value.normalize('NFC').trim().toLocaleLowerCase('pl-PL');
 }
 
 function importedAccountPayload(name: string, balance: number, currency: string, sortOrder: number, updatedAt: string) {
@@ -2085,15 +1984,22 @@ function importedCategoryPayload(
   };
 }
 
-export async function confirmImportAnalysisAction(input: unknown): Promise<ActionResult> {
-  const parsed = importAnalysisSchema.safeParse(input);
+async function executeConfirmImportAnalysisAction(input: unknown): Promise<ActionResult> {
+  const parsed = importAnalysisSchema.extend({ submissionId: z.uuid(), submittedAt: z.iso.datetime() }).safeParse(input);
   if (!parsed.success) return { ok: false, message: 'Niepoprawny podgląd importu.' };
   if (parsed.data.transactions.length === 0) return { ok: false, message: 'Plik nie zawiera transakcji do importu.' };
 
   const changes = await getServerChanges();
   if (!changes) return { ok: false, message: 'Nie udało się pobrać aktualnych danych.' };
 
-  const updatedAt = nowIso();
+  const existingIds = new Set(changes.transactions.map(row => row.id));
+  const plannedIds = parsed.data.transactions.map((_, index) => submissionEntityId(parsed.data.submissionId, `transaction:${index}`));
+  const present = plannedIds.filter(id => existingIds.has(id)).length;
+  if (present === plannedIds.length) return { ok: true, message: 'Import został wcześniej zapisany.' };
+  if (present > 0) return { ok: false, outcomeUnknown: true, message: 'Część tego importu jest już na serwerze. Sprawdź wynik przed kolejną próbą.' };
+  const preflightError = importPreflight(parsed.data, changes.accounts);
+  if (preflightError) return { ok: false, message: preflightError };
+  const updatedAt = parsed.data.submittedAt;
   const accountByName = new Map(
     changes.accounts
       .filter(account => !account.deleted_at && account.is_active)
@@ -2116,20 +2022,17 @@ export async function confirmImportAnalysisAction(input: unknown): Promise<Actio
   let maxCategorySort = Math.max(0, ...changes.categories.map(category => category.sort_order));
 
   const resolveAccount = (name: string, currency: string) => {
-    const normalized = normalizeName(name || 'Import');
+    const normalized = normalizeName(name);
     const importedBalance = importedBalanceByName.get(normalized);
     const existing = accountByName.get(normalized);
     if (existing) {
-      if (importedBalance !== undefined && importedBalance !== null) {
-        fixedBalanceByAccountId.set(existing.id, importedBalance);
-        balanceByAccountId.set(existing.id, importedBalance);
-      } else if (!balanceByAccountId.has(existing.id)) {
-        balanceByAccountId.set(existing.id, parseFloat(existing.balance));
-      }
+      // Existing balances are authoritative. Import only the new ledger effects;
+      // a file snapshot must not reset an account already in use.
+      if (!balanceByAccountId.has(existing.id)) balanceByAccountId.set(existing.id, Number(existing.balance));
       return existing;
     }
 
-    const account = importedAccountPayload(name || 'Import', importedBalance ?? 0, currency, ++maxAccountSort, updatedAt);
+    const account = { ...importedAccountPayload(name, importedBalance ?? 0, currency, ++maxAccountSort, updatedAt), id: submissionEntityId(parsed.data.submissionId, `account:${normalized}:${currency}`) };
     accountByName.set(normalized, account);
     balanceByAccountId.set(account.id, parseFloat(account.balance));
     if (importedBalance !== undefined && importedBalance !== null) fixedBalanceByAccountId.set(account.id, importedBalance);
@@ -2177,7 +2080,7 @@ export async function confirmImportAnalysisAction(input: unknown): Promise<Actio
       return typed;
     }
 
-    const category = importedCategoryPayload(displayName, type, ++maxCategorySort, updatedAt, parentCategoryId);
+    const category = { ...importedCategoryPayload(displayName, type, ++maxCategorySort, updatedAt, parentCategoryId), id: submissionEntityId(parsed.data.submissionId, `category:${normalized}`) };
     categoryByName.set(normalized, category);
     categoriesToSync.set(category.id, category);
     importCreatedCategoryIds.add(category.id);
@@ -2201,10 +2104,10 @@ export async function confirmImportAnalysisAction(input: unknown): Promise<Actio
   const transactions: Array<Record<string, unknown>> = [];
   const transactionSplits: Array<Record<string, unknown>> = [];
 
-  for (const imported of parsed.data.transactions) {
+  for (const [index, imported] of parsed.data.transactions.entries()) {
     const fromAccount = resolveAccount(imported.from_account, imported.currency);
-    const toAccount = imported.type === 'TRANSFER'
-      ? resolveAccount(imported.to_account || 'Transfer', imported.currency2 || imported.currency)
+    const toAccount = imported.type === 'TRANSFER' && imported.to_account?.trim()
+      ? resolveAccount(imported.to_account, imported.currency2 || imported.currency)
       : null;
     const category = imported.type === 'TRANSFER'
       ? null
@@ -2214,7 +2117,7 @@ export async function confirmImportAnalysisAction(input: unknown): Promise<Actio
         imported.to_category_parent
       );
 
-    const transactionId = crypto.randomUUID();
+    const transactionId = plannedIds[index];
     const amount = imported.amount;
 
     const fromBalance = balanceByAccountId.get(fromAccount.id) ?? parseFloat(fromAccount.balance);
@@ -2241,12 +2144,14 @@ export async function confirmImportAnalysisAction(input: unknown): Promise<Actio
       total_amount: money(amount),
       from_account_id: fromAccount.id,
       to_account_id: toAccount?.id ?? null,
+      account_link_state: imported.type === 'TRANSFER' && !toAccount ? 'MISSING_DESTINATION' : 'COMPLETE',
+      missing_destination_reason: imported.type === 'TRANSFER' && !toAccount ? imported.missing_destination_reason ?? 'ABSENT_IN_FILE' : null,
       account_currency: fromAccount.currency,
-      transaction_amount: money(amount),
-      transaction_currency: imported.currency,
+      transaction_amount: money(imported.transaction_amount ?? amount),
+      transaction_currency: imported.transaction_currency ?? imported.currency,
       exchange_rate: null,
-      to_account_amount: toAccount ? money(imported.amount2 ?? amount) : null,
-      to_account_currency: toAccount?.currency ?? null,
+      to_account_amount: imported.type === 'TRANSFER' ? imported.amount2 ? money(imported.amount2) : toAccount ? money(amount) : null : null,
+      to_account_currency: imported.type === 'TRANSFER' ? toAccount?.currency ?? imported.currency2 ?? null : null,
       recurring_transaction_id: null,
       date_time: dateToNoonUtc(imported.date),
       notes: imported.notes || null,
@@ -2267,7 +2172,7 @@ export async function confirmImportAnalysisAction(input: unknown): Promise<Actio
 
     if (category) {
       transactionSplits.push({
-        id: crypto.randomUUID(),
+        id: submissionEntityId(parsed.data.submissionId, `split:${index}`),
         transaction_id: transactionId,
         category_id: category.id,
         amount: money(amount),
@@ -2282,12 +2187,10 @@ export async function confirmImportAnalysisAction(input: unknown): Promise<Actio
     }
   }
 
-  for (const [accountId, balance] of balanceByAccountId) {
-    const account = accountByName.get(normalizeName(accountsToSync.get(accountId)?.name ?? changes.accounts.find(item => item.id === accountId)?.name ?? ''));
-    const existing = changes.accounts.find(item => item.id === accountId);
-    const source = existing ?? account;
-    if (!source) continue;
-    accountsToSync.set(accountId, cloneAccountWithBalance(source, balance, updatedAt));
+  for (const [accountId, account] of accountsToSync) {
+    const balance = balanceByAccountId.get(accountId);
+    if (balance === undefined) throw new Error('Missing prepared import account balance');
+    accountsToSync.set(accountId, cloneAccountWithBalance(account, balance, updatedAt));
   }
 
   const sync = await postSyncChanges({
@@ -2295,10 +2198,10 @@ export async function confirmImportAnalysisAction(input: unknown): Promise<Actio
     categories: Array.from(categoriesToSync.values()),
     transactions,
     transaction_splits: transactionSplits,
-  });
+  }, changes.syncResetGeneration);
 
   const failure = sync ? syncFailureMessage(sync.errors, sync.conflicts) : 'Nie udało się zapisać importu.';
-  if (failure) return { ok: false, message: failure };
+  if (failure) return { ok: false, message: failure, ...(sync && sync.errors.length === 0 ? { outcomeUnknown: true } : {}) };
 
   revalidatePath('/');
   revalidatePath('/transactions');
@@ -2307,4 +2210,132 @@ export async function confirmImportAnalysisAction(input: unknown): Promise<Actio
   revalidatePath('/budget');
   revalidatePath('/import-export');
   return { ok: true, message: `Zaimportowano transakcje: ${parsed.data.transactions.length}.` };
+}
+
+async function withSyncFailure(action: () => Promise<ActionResult>): Promise<ActionResult> {
+  try {
+    return await action();
+  } catch (error) {
+    if (error instanceof SyncRequestError) return { ok: false, message: error.message, ...(error.code === 'outcome_unknown' || error.status >= 500 ? { outcomeUnknown: true } : {}) };
+    throw error;
+  }
+}
+
+export async function createTransactionAction(input: unknown): Promise<ActionResult> {
+  return withSyncFailure(() => executeCreateTransactionAction(input));
+}
+
+export async function updateTransactionAction(input: unknown): Promise<ActionResult> {
+  return withSyncFailure(() => executeUpdateTransactionAction(input));
+}
+
+export async function deleteTransactionAction(transactionId: string): Promise<ActionResult> {
+  return withSyncFailure(() => executeDeleteTransactionAction(transactionId));
+}
+
+export async function deleteTransactionsAction(transactionIds: string[]): Promise<ActionResult> {
+  return withSyncFailure(() => executeDeleteTransactionsAction(transactionIds));
+}
+
+export async function createSettlementAction(input: unknown): Promise<ActionResult> {
+  return withSyncFailure(() => executeCreateSettlementAction(input));
+}
+
+export async function addSettlementPaymentAction(input: unknown): Promise<ActionResult> {
+  return withSyncFailure(() => executeAddSettlementPaymentAction(input));
+}
+
+export async function settleSettlementAction(input: unknown): Promise<ActionResult> {
+  return withSyncFailure(() => executeSettleSettlementAction(input));
+}
+
+export async function deleteSettlementAction(settlementId: string): Promise<ActionResult> {
+  return withSyncFailure(() => executeDeleteSettlementAction(settlementId));
+}
+
+export async function createRecurringTransactionAction(input: unknown): Promise<ActionResult> {
+  return withSyncFailure(() => executeCreateRecurringTransactionAction(input));
+}
+
+export async function deleteRecurringTransactionAction(recurringId: string): Promise<ActionResult> {
+  return withSyncFailure(() => executeDeleteRecurringTransactionAction(recurringId));
+}
+
+export async function createAccountAction(input: unknown): Promise<ActionResult> {
+  return withSyncFailure(() => executeCreateAccountAction(input));
+}
+
+export async function updateAccountAction(input: unknown): Promise<ActionResult> {
+  return withSyncFailure(() => executeUpdateAccountAction(input));
+}
+
+export async function deleteAccountAction(accountId: string): Promise<ActionResult> {
+  return withSyncFailure(() => executeDeleteAccountAction(accountId));
+}
+
+export async function upsertAccountInterestAction(input: unknown): Promise<ActionResult> {
+  return withSyncFailure(() => executeUpsertAccountInterestAction(input));
+}
+
+export async function deleteAccountInterestAction(accountId: string): Promise<ActionResult> {
+  return withSyncFailure(() => executeDeleteAccountInterestAction(accountId));
+}
+
+export async function createInvestmentHoldingAction(input: unknown): Promise<ActionResult> {
+  return withSyncFailure(() => executeCreateInvestmentHoldingAction(input));
+}
+
+export async function updateInvestmentHoldingAction(input: unknown): Promise<ActionResult> {
+  return withSyncFailure(() => executeUpdateInvestmentHoldingAction(input));
+}
+
+export async function tradeInvestmentHoldingAction(input: unknown): Promise<ActionResult> {
+  return withSyncFailure(() => executeTradeInvestmentHoldingAction(input));
+}
+
+export async function deleteInvestmentHoldingAction(holdingId: string): Promise<ActionResult> {
+  return withSyncFailure(() => executeDeleteInvestmentHoldingAction(holdingId));
+}
+
+export async function createCategoryAction(input: unknown): Promise<ActionResult> {
+  return withSyncFailure(() => executeCreateCategoryAction(input));
+}
+
+export async function updateCategoryAction(input: unknown): Promise<ActionResult> {
+  return withSyncFailure(() => executeUpdateCategoryAction(input));
+}
+
+export async function deleteCategoryAction(categoryId: string): Promise<ActionResult> {
+  return withSyncFailure(() => executeDeleteCategoryAction(categoryId));
+}
+
+export async function upsertOverallBudgetAction(input: unknown): Promise<ActionResult> {
+  return withSyncFailure(() => executeUpsertOverallBudgetAction(input));
+}
+
+export async function upsertCategoryBudgetAction(input: unknown): Promise<ActionResult> {
+  return withSyncFailure(() => executeUpsertCategoryBudgetAction(input));
+}
+
+export async function upsertAccountBudgetAction(input: unknown): Promise<ActionResult> {
+  return withSyncFailure(() => executeUpsertAccountBudgetAction(input));
+}
+
+export async function confirmImportAnalysisAction(input: unknown): Promise<ActionResult> {
+  return withSyncFailure(() => executeConfirmImportAnalysisAction(input));
+}
+
+export async function reconcileSubmissionAction(input: unknown): Promise<ActionResult> {
+  return withSyncFailure(async () => {
+    const parsed = z.object({ id: z.uuid(), count: z.number().int().min(1).max(100000) }).safeParse(input);
+    if (!parsed.success) return { ok: false, message: 'Niepoprawna tożsamość operacji.' };
+    const data = await getServerChanges();
+    if (!data) return { ok: false, message: 'Nie udało się pobrać wyniku operacji.' };
+    const ids = new Set(data.transactions.map(row => row.id));
+    let found = 0;
+    for (let index = 0; index < parsed.data.count; index++) {
+      if (ids.has(submissionEntityId(parsed.data.id, `transaction:${index}`))) found++;
+    }
+    return { ok: true, found, total: parsed.data.count };
+  });
 }

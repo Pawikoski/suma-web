@@ -63,6 +63,8 @@ export const syncTransactionSchema = z.object({
   total_amount: decimalLike,
   from_account_id: z.string(),
   to_account_id: nullableString,
+  account_link_state: z.enum(['COMPLETE', 'MISSING_DESTINATION']).optional().default('COMPLETE'),
+  missing_destination_reason: z.enum(['LEGACY', 'ABSENT_IN_FILE', 'REFERENCE_NOT_FOUND']).nullable().optional().default(null),
   account_currency: z.string(),
   transaction_amount: decimalLike.nullable().optional().default(null),
   transaction_currency: optionalNullableString.default(null),

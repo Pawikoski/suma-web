@@ -62,6 +62,10 @@ export interface Transaction {
   accountId: string;
   toAccountId: string | null;
   toAccountName: string | null;
+  accountLinkState?: 'COMPLETE' | 'MISSING_DESTINATION';
+  missingDestinationReason?: 'LEGACY' | 'ABSENT_IN_FILE' | 'REFERENCE_NOT_FOUND' | null;
+  toAccountAmount?: number | null;
+  toAccountCurrency?: string | null;
   currency: string;
   amount: number;
   rawAmount: number;

@@ -1,21 +1,27 @@
 'use client';
 
-import { CSSProperties, ChangeEvent, useMemo, useState, useTransition } from 'react';
+import { CSSProperties, ChangeEvent, useMemo, useRef, useState, useSyncExternalStore, useTransition } from 'react';
 import { AlertTriangle, CheckCircle2, Download, FileJson, FileSpreadsheet, UploadCloud } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { confirmImportAnalysisAction } from '@/app/actions/sync';
 import { T } from '@/lib/tokens';
 import { useActiveMonthData } from '@/lib/useActiveMonthData';
-import { ImportAnalysis } from '@/lib/schemas/import-analysis';
+import { ImportAnalysis, importAnalysisSchema } from '@/lib/schemas/import-analysis';
 import { formatMoney, fallbackCurrency } from '@/lib/utils';
 import Card from '@/components/ui/Card';
 import PrivacyAmount from '@/components/ui/PrivacyAmount';
+import SubmissionRecovery from '@/components/ui/SubmissionRecovery';
+import { useSubmissionGuard } from '@/lib/useSubmissionGuard';
 
 type ImportState =
   | { status: 'idle' }
   | { status: 'error'; message: string }
   | { status: 'ready'; fileName: string; analysis: ImportAnalysis };
+
+const subscribeHydration = () => () => {};
+const clientReady = () => true;
+const serverReady = () => false;
 
 const ACCEPTED_IMPORT_TYPES = '.csv,.json,.xls,.xlsx,.xml';
 
@@ -31,8 +37,14 @@ function transactionTypeLabel(type: string) {
 
 export default function ImportExportScreen() {
   const router = useRouter();
-  const { accounts, categories, allTransactions, recurringTransactions, settlements, investmentHoldings, accountInterest, baseCurrency } = useActiveMonthData();
+  const hydrated = useSyncExternalStore(subscribeHydration, clientReady, serverReady);
+  const { accounts, categories, allTransactions, recurringTransactions, settlements, investmentHoldings, accountInterest, baseCurrency, userEmail } = useActiveMonthData();
+  const submission = useSubmissionGuard(userEmail, 'import');
+  const retryInput = useRef<Record<string, unknown> | null>(null);
+  const [hasRetry, setHasRetry] = useState(false);
   const [state, setState] = useState<ImportState>({ status: 'idle' });
+  const [accountMappings, setAccountMappings] = useState<Record<string, string>>({});
+  const [allowMissingDestination, setAllowMissingDestination] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [isConfirming, startConfirmTransition] = useTransition();
 
@@ -42,25 +54,55 @@ export default function ImportExportScreen() {
     return state.analysis.transactions.filter(tx => existing.has(`${tx.date}|${tx.amount.toFixed(2)}|${(tx.notes || '').toLocaleLowerCase('pl-PL')}`)).length;
   }, [allTransactions, state]);
 
+  const mappingKey = (role: string, name: string | null | undefined, currency: string) => JSON.stringify([role, name ?? '', currency]);
+  const references = state.status === 'ready' ? [...new Map(state.analysis.transactions.flatMap(row => [
+    { role: 'source', name: row.from_account, currency: row.currency },
+    ...(row.type === 'TRANSFER' ? [{ role: 'destination', name: row.to_account ?? '', currency: row.currency2 ?? row.currency }] : []),
+  ]).map(ref => [mappingKey(ref.role, ref.name, ref.currency), ref])).entries()] : [];
+  const mappedAnalysis = state.status === 'ready' ? {
+    ...state.analysis,
+    allow_missing_destination: allowMissingDestination,
+    transactions: state.analysis.transactions.map(row => ({
+      ...row,
+      from_account: accountMappings[mappingKey('source', row.from_account, row.currency)] ?? row.from_account,
+      to_account: row.type === 'TRANSFER' ? accountMappings[mappingKey('destination', row.to_account, row.currency2 ?? row.currency)] ?? row.to_account : row.to_account,
+    })),
+    accounts: state.analysis.accounts.map(account => ({ ...account,
+      name: accountMappings[mappingKey('source', account.name, account.currency)] ?? accountMappings[mappingKey('destination', account.name, account.currency)] ?? account.name,
+    })),
+  } : null;
+  const missingSources = mappedAnalysis?.transactions.filter(row => !row.from_account.trim()).length ?? 0;
+  const missingDestinations = mappedAnalysis?.transactions.filter(row => row.type === 'TRANSFER' && !row.to_account?.trim()).length ?? 0;
+
   const analyzeFile = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    event.target.value = '';
+    setState({ status: 'idle' });
 
     startTransition(async () => {
       const body = new FormData();
       body.set('file', file);
 
-      const response = await fetch('/api/imports/analyze', {
-        method: 'POST',
-        body,
-      });
+      const response = await fetch('/api/imports/analyze', { method: 'POST', body }).catch(() => null);
+      if (!response) {
+        setState({ status: 'error', message: 'Połączenie przerwane. Wybierz plik ponownie, aby powtórzyć analizę.' });
+        return;
+      }
       const payload = await response.json().catch(() => null);
       if (!response.ok) {
         setState({ status: 'error', message: payload?.detail ?? 'Nie udało się przeanalizować pliku.' });
         return;
       }
 
-      setState({ status: 'ready', fileName: file.name, analysis: payload as ImportAnalysis });
+      const parsed = importAnalysisSchema.safeParse(payload);
+      if (!parsed.success) {
+        setState({ status: 'error', message: 'Niepoprawne dane analizy importu.' });
+        return;
+      }
+      setAccountMappings({});
+      setAllowMissingDestination(false);
+      setState({ status: 'ready', fileName: file.name, analysis: parsed.data });
     });
   };
 
@@ -75,14 +117,26 @@ export default function ImportExportScreen() {
   ];
 
   const confirmImport = () => {
-    if (state.status !== 'ready') return;
+    if ((!mappedAnalysis && !retryInput.current) || isConfirming) return;
     startConfirmTransition(async () => {
-      const result = await confirmImportAnalysisAction(state.analysis);
+      if (!retryInput.current && mappedAnalysis) {
+        try {
+          const identity = submission.begin(mappedAnalysis.transactions.length);
+          setHasRetry(true);
+          retryInput.current = { ...mappedAnalysis, submissionId: identity.id, submittedAt: identity.submittedAt };
+        } catch (error) { toast.error(error instanceof Error ? error.message : 'Nie można przygotować importu.'); return; }
+      }
+      let result;
+      try { result = await confirmImportAnalysisAction(retryInput.current); }
+      catch { toast.error('Nie otrzymano wyniku importu. Sprawdź wynik lub ponów tę samą próbę.'); return; }
       if (!result.ok) {
+        if (!result.outcomeUnknown) { submission.finish(); retryInput.current = null; setHasRetry(false); }
         toast.error(result.message);
         return;
       }
-
+      submission.finish();
+      retryInput.current = null;
+      setHasRetry(false);
       toast.success(result.message ?? 'Import został zapisany.');
       setState({ status: 'idle' });
       router.refresh();
@@ -91,6 +145,7 @@ export default function ImportExportScreen() {
 
   return (
     <div className="screen import-export-screen" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 18 }}>
+      <SubmissionRecovery guard={submission} busy={isConfirming} onRetry={hasRetry ? confirmImport : undefined} onResolved={() => { retryInput.current = null; setHasRetry(false); setState({ status: 'idle' }); router.refresh(); }} />
       <div className="import-export-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         <Card style={{ padding: 22 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
@@ -132,7 +187,7 @@ export default function ImportExportScreen() {
           <label
             style={{ display: 'flex', minHeight: 112, border: `1px dashed ${T.accentMid}`, borderRadius: T.radius, background: T.accentLight, alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: T.accent, fontWeight: 850, cursor: 'pointer', padding: 18 }}
           >
-            <input type="file" accept={ACCEPTED_IMPORT_TYPES} onChange={analyzeFile} style={{ display: 'none' }} />
+            <input type="file" disabled={!hydrated || isPending || isConfirming || submission.blocked} accept={ACCEPTED_IMPORT_TYPES} onChange={analyzeFile} style={{ display: 'none' }} />
             <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <FileSpreadsheet size={20} /> {isPending ? 'Analizuję plik...' : 'Wybierz plik'}
             </span>
@@ -145,13 +200,31 @@ export default function ImportExportScreen() {
         </Card>
       </div>
 
-      {state.status === 'ready' && (
+      {state.status === 'ready' && mappedAnalysis && <Card style={{ padding: 18 }}>
+        <h2 style={{ fontSize: 17, color: T.dark }}>Konta importowanych transakcji</h2>
+        <p style={{ color: T.muted, fontSize: 13 }}>Wybierz istniejącą nazwę lub wpisz nazwę rzeczywistego konta do utworzenia. Źródło jest wymagane. Salda istniejących kont zmienią się wyłącznie o importowane transakcje; salda z pliku dotyczą nowo tworzonych kont.</p>
+        <datalist id="import-account-names">{accounts.map(account => <option key={account.id} value={account.name}>{account.currency}</option>)}</datalist>
+        {references.map(([key, ref]) => <label key={key} style={{ display: 'block', marginTop: 8, fontSize: 13 }}>
+          {ref.role === 'source' ? 'Źródło' : 'Cel'}: {ref.name || 'brak w pliku'} ({ref.currency})
+          <input aria-label={`${ref.role === 'source' ? 'Źródło' : 'Cel'}: ${ref.name || 'brak w pliku'} (${ref.currency})`}
+            disabled={submission.blocked || isConfirming} list="import-account-names" value={accountMappings[key] ?? ref.name}
+            onChange={event => { setAccountMappings(current => ({ ...current, [key]: event.target.value })); setAllowMissingDestination(false); }}
+            style={{ display: 'block', padding: 8, border: `1px solid ${T.border}`, borderRadius: 6, width: '100%', maxWidth: 440 }} />
+        </label>)}
+        {missingSources > 0 && <p role="alert" style={{ color: T.expense }}>Przypisz konto źródłowe: {missingSources} transakcji.</p>}
+        {missingDestinations > 0 && <label style={{ display: 'block', marginTop: 12, color: T.dark }}>
+          <input type="checkbox" disabled={submission.blocked || isConfirming} checked={allowMissingDestination} onChange={event => setAllowMissingDestination(event.target.checked)} />
+          {' '}Zachowaj {missingDestinations} historycznych przelewów bez celu. Obciążą tylko znane konto źródłowe i będą synchronizowane w całości.
+        </label>}
+      </Card>}
+      {state.status === 'ready' && mappedAnalysis && (
         <ImportPreview
           fileName={state.fileName}
-          analysis={state.analysis}
+          analysis={mappedAnalysis}
           duplicateCount={duplicateCount}
           baseCurrency={baseCurrency}
           isConfirming={isConfirming}
+          blocked={submission.blocked || missingSources > 0 || (missingDestinations > 0 && !allowMissingDestination)}
           onConfirm={confirmImport}
         />
       )}
@@ -165,6 +238,7 @@ function ImportPreview({
   duplicateCount,
   baseCurrency,
   isConfirming,
+  blocked,
   onConfirm,
 }: {
   fileName: string;
@@ -172,6 +246,7 @@ function ImportPreview({
   duplicateCount: number;
   baseCurrency: string;
   isConfirming: boolean;
+  blocked: boolean;
   onConfirm: () => void;
 }) {
   const totalExpense = analysis.transactions
@@ -201,7 +276,7 @@ function ImportPreview({
         <PreviewStat label="Duplikaty" value={duplicateCount} color={duplicateCount > 0 ? T.warn : T.income} />
         <button
           onClick={onConfirm}
-          disabled={isConfirming || analysis.transactions.length === 0}
+          disabled={blocked || isConfirming || analysis.transactions.length === 0}
           style={{ height: 40, padding: '0 14px', borderRadius: T.radiusSm, background: T.income, color: 'white', fontWeight: 850, opacity: isConfirming ? .65 : 1 }}
         >
           {isConfirming ? 'Importuję...' : 'Zatwierdź import'}
@@ -233,7 +308,7 @@ function ImportPreview({
                   <td style={tdStyle}>{tx.date}</td>
                   <td style={tdStyle}>{transactionTypeLabel(tx.type)}</td>
                   <td style={tdStyle}>{tx.from_account}</td>
-                  <td style={tdStyle}>{tx.type === 'TRANSFER' ? tx.to_account : [tx.to_category_parent, tx.to_category || 'Inne'].filter(Boolean).join(' / ')}</td>
+                  <td style={tdStyle}>{tx.type === 'TRANSFER' ? tx.to_account || 'Cel nieznany (historia)' : [tx.to_category_parent, tx.to_category || 'Inne'].filter(Boolean).join(' / ')}</td>
                   <td style={{ ...tdStyle, color: T.muted }}>{tx.notes || '-'}</td>
                   <td style={{ ...tdStyle, textAlign: 'right', color: tx.type === 'EXPENSE' ? T.expense : T.income, fontWeight: 850 }}>
                     <PrivacyAmount
