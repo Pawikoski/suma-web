@@ -220,6 +220,7 @@ function CategoryRow({
           <div style={{ fontSize: 14, fontWeight: 600, color: T.dark, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</div>
           <div style={{ fontSize: 12, color: T.muted }}>
             {txCount} transakcji{childCount > 0 ? `, ${childCount} podkategorii` : ''}
+            {c.isLocked ? ' · zablokowana (plan Free)' : ''}
           </div>
         </div>
         <div style={{ textAlign: 'right' }}>

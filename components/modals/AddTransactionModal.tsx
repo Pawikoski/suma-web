@@ -11,6 +11,7 @@ import Card from '@/components/ui/Card';
 import PrivacyAmount from '@/components/ui/PrivacyAmount';
 import SubmissionRecovery from '@/components/ui/SubmissionRecovery';
 import { useSubmissionGuard } from '@/lib/useSubmissionGuard';
+import { selectableCategories } from '@/lib/category-lock';
 
 type TxType = 'expense' | 'income' | 'transfer';
 
@@ -55,7 +56,7 @@ export default function AddTransactionModal({ onClose, accounts, categories }: A
   const eligibleCategories = useMemo(() => {
     if (type === 'transfer') return [];
     const targetType = type === 'income' ? 'INCOME' : 'EXPENSE';
-    return categories.filter(c => c.types.length === 0 || c.types.includes(targetType));
+    return selectableCategories(categories).filter(c => c.types.length === 0 || c.types.includes(targetType));
   }, [categories, type]);
   const category = eligibleCategories.find(c => c.id === categoryId) ?? eligibleCategories[0] ?? null;
   const effectiveToAccount = type === 'transfer'

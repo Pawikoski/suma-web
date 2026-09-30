@@ -16,6 +16,7 @@ import { formatMoneyShort } from '@/lib/utils';
 import Card from '@/components/ui/Card';
 import Icon from '@/components/ui/Icon';
 import PrivacyAmount from '@/components/ui/PrivacyAmount';
+import { selectableCategories } from '@/lib/category-lock';
 
 const ALL_CATEGORY = 'all';
 
@@ -154,7 +155,7 @@ function RecurringFormModal({ accounts, categories, onClose }: { accounts: Accou
   const [notes, setNotes] = useState('');
   const [isPending, startTransition] = useTransition();
   const targetType = type === 'income' ? 'INCOME' : 'EXPENSE';
-  const eligibleCategories = categories.filter(item => item.types.length === 0 || item.types.includes(targetType));
+  const eligibleCategories = selectableCategories(categories).filter(item => item.types.length === 0 || item.types.includes(targetType));
   const effectiveCategoryId = categoryId || eligibleCategories[0]?.id || '';
   const amountValue = Number(amount);
   const canSubmit = amountValue > 0 && !!accountId && !!effectiveCategoryId && Number(intervalValue) > 0;

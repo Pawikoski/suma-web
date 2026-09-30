@@ -126,6 +126,7 @@ export function mapSyncData(data: SyncServerChanges, yearMonth: string, preferre
       txCount: countByCategory.get(c.id)?.size ?? 0,
       parentCategoryId: c.parent_category_id,
       isSystem: c.is_system,
+      isLocked: c.is_locked,
       sortOrder: c.sort_order,
       updatedAt: c.updated_at,
       deletedAt: c.deleted_at,

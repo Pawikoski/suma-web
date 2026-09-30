@@ -42,6 +42,8 @@ export interface Category {
   txCount: number;
   parentCategoryId: string | null;
   isSystem: boolean;
+  /** Free plan: kept for history but cannot be picked for new transactions. */
+  isLocked: boolean;
   sortOrder: number;
   updatedAt: string;
   deletedAt: string | null;

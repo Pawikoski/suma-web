@@ -15,6 +15,7 @@ import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import Icon from '@/components/ui/Icon';
 import PrivacyAmount from '@/components/ui/PrivacyAmount';
+import { selectableCategories } from '@/lib/category-lock';
 
 const TX_FILTERS = ['all', 'expense', 'income', 'transfer'] as const;
 type TxFilter = typeof TX_FILTERS[number];
@@ -48,8 +49,8 @@ export function TxDetailPanel({
   const eligibleCategories = useMemo(() => {
     if (type === 'transfer' || type === 'all') return [];
     const targetType = type === 'income' ? 'INCOME' : 'EXPENSE';
-    return categories.filter(c => c.types.length === 0 || c.types.includes(targetType));
-  }, [categories, type]);
+    return selectableCategories(categories, tx.categoryId).filter(c => c.types.length === 0 || c.types.includes(targetType));
+  }, [categories, tx.categoryId, type]);
   const effectiveCategoryId = categoryId || eligibleCategories[0]?.id || '';
   const effectiveToAccountId = type === 'transfer'
     ? (toAccountId && toAccountId !== accountId ? toAccountId : '')

@@ -27,6 +27,7 @@ import { importAnalysisSchema } from '@/lib/schemas/import-analysis';
 import { SyncRequestError } from '@/lib/sync-errors';
 import { importPreflight } from '@/lib/import-preflight';
 import { submissionEntityId } from '@/lib/submission-id';
+import { LOCKED_CATEGORY_MESSAGE } from '@/lib/category-lock';
 
 export type ActionResult =
   | { ok: true; id?: string; message?: string; found?: number; total?: number }
@@ -347,6 +348,7 @@ function categoryPayload(
     sort_order: existing?.sort_order ?? sortOrder,
     is_default: existing?.is_default ?? false,
     is_system: existing?.is_system ?? false,
+    is_locked: existing?.is_locked ?? false,
     essentiality: existing?.essentiality,
     classification_source: existing?.classification_source,
     parent_category_id: data.parentCategoryId || null,
@@ -367,6 +369,7 @@ function cloneCategoryForDeletion(category: SyncCategory, updatedAt: string) {
     sort_order: category.sort_order,
     is_default: category.is_default,
     is_system: category.is_system,
+    is_locked: category.is_locked,
     parent_category_id: category.parent_category_id,
     updated_at: updatedAt,
     deleted_at: updatedAt,
@@ -495,6 +498,7 @@ async function executeCreateTransactionAction(input: unknown): Promise<ActionRes
     ? null
     : changes.categories.find(c => c.id === data.categoryId && !c.deleted_at);
   if (data.type !== 'transfer' && !category) return { ok: false, message: 'Wybierz kategorię.' };
+  if (category?.is_locked) return { ok: false, message: LOCKED_CATEGORY_MESSAGE };
 
   const updatedAt = data.submittedAt;
   const splitId = submissionEntityId(data.submissionId, 'split:0');
@@ -863,6 +867,10 @@ async function executeUpdateTransactionAction(input: unknown): Promise<ActionRes
 
   const updatedAt = nowIso();
   const existingSplits = changes.transaction_splits.filter(split => split.transaction_id === transaction.id && !split.deleted_at);
+  // A locked category may stay on the transaction, but it cannot be newly chosen.
+  if (category?.is_locked && existingSplits[0]?.category_id !== category.id) {
+    return { ok: false, message: LOCKED_CATEGORY_MESSAGE };
+  }
   const splitsUnchanged = transaction.type === data.type.toUpperCase() && Number(transaction.total_amount) === data.amount &&
     (data.type === 'transfer' || existingSplits[0]?.category_id === category?.id);
   if (!splitsUnchanged && existingSplits.length > 1) return { ok: false, message: 'Transakcję z wieloma pozycjami zmień w aplikacji mobilnej.' };
@@ -1203,6 +1211,7 @@ async function executeCreateRecurringTransactionAction(input: unknown): Promise<
   if (!category || (category.types.length > 0 && !category.types.includes(expectedCategoryType))) {
     return { ok: false, message: 'Wybierz kategorię zgodną z typem opłaty.' };
   }
+  if (category.is_locked) return { ok: false, message: LOCKED_CATEGORY_MESSAGE };
 
   const updatedAt = nowIso();
   const amount = money(data.amount);
@@ -1977,6 +1986,7 @@ function importedCategoryPayload(
     sort_order: sortOrder,
     is_default: false,
     is_system: false,
+    is_locked: false,
     parent_category_id: parentCategoryId,
     updated_at: updatedAt,
     deleted_at: null,
