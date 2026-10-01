@@ -54,6 +54,8 @@ export const syncCategorySchema = z.object({
   is_system: z.boolean(),
   // Free-plan lock (API 0.13.0+); older servers omit it.
   is_locked: z.boolean().optional().default(false),
+  // Key of an untouched default category (API 0.14.0+); empty for custom or renamed ones.
+  default_key: z.string().optional().default(''),
   parent_category_id: optionalNullableString.default(null),
   essentiality: z.string().optional(),
   classification_source: z.string().optional(),

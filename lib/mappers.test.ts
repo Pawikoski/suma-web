@@ -51,6 +51,7 @@ function syncFixture(): SyncServerChanges {
         is_default: false,
         is_system: false,
         is_locked: true,
+        default_key: '',
         parent_category_id: null,
       },
     ],
