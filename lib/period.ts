@@ -11,7 +11,13 @@ export function filterTransactionsByMonth(transactions: Transaction[], month: st
   return transactions.filter(tx => tx.date.startsWith(month));
 }
 
-export function categoriesForMonth(categories: Category[], transactions: Transaction[], month: string): Category[] {
+/** `toBase` converts a split into the main currency (null = no rate, the split is left out); by default amounts are used as they are. */
+export function categoriesForMonth(
+  categories: Category[],
+  transactions: Transaction[],
+  month: string,
+  toBase: (amount: number, currency: string) => number | null = amount => amount,
+): Category[] {
   const periodTransactions = filterTransactionsByMonth(transactions, month);
   const spentByCategory = new Map<string, number>();
   const countByCategory = new Map<string, Set<string>>();
@@ -21,7 +27,9 @@ export function categoriesForMonth(categories: Category[], transactions: Transac
 
     for (const split of tx.splits) {
       if (!split.categoryId) continue;
-      spentByCategory.set(split.categoryId, (spentByCategory.get(split.categoryId) ?? 0) + split.amount);
+      const amount = toBase(split.amount, tx.currency);
+      if (amount === null) continue;
+      spentByCategory.set(split.categoryId, (spentByCategory.get(split.categoryId) ?? 0) + amount);
       const ids = countByCategory.get(split.categoryId) ?? new Set<string>();
       ids.add(tx.id);
       countByCategory.set(split.categoryId, ids);

@@ -1,4 +1,4 @@
-import { fetchSync, fetchSyncPreference } from '@/lib/api';
+import { fetchCurrencyRates, fetchSync, fetchSyncPreference } from '@/lib/api';
 import { mapSyncData, currentYearMonth } from '@/lib/mappers';
 import { AppDataProvider } from '@/lib/AppDataContext';
 import AppShell from '@/components/AppShell';
@@ -36,8 +36,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         yearMonth: currentYearMonth(),
       };
 
+  const fxRates = await fetchCurrencyRates(data.baseCurrency).catch(() => null);
+
   return (
-    <AppDataProvider data={{ ...data, syncError: syncResult.syncError, userEmail: session?.email ?? null }}>
+    <AppDataProvider data={{ ...data, fxRates, syncError: syncResult.syncError, userEmail: session?.email ?? null }}>
       <AppShell>{children}</AppShell>
     </AppDataProvider>
   );

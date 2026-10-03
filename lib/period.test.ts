@@ -75,4 +75,20 @@ describe('period helpers', () => {
 
     expect(categories[0]).toMatchObject({ spent: 12, txCount: 1 });
   });
+
+  it('converts split amounts to the main currency and leaves out those without a rate', () => {
+    const toBase = (amount: number, currency: string) => (currency === 'USD' ? amount * 3.65 : currency === 'PLN' ? amount : null);
+    const categories = categoriesForMonth(
+      [category],
+      [
+        transaction({ id: 'usd', date: '2026-05-10', currency: 'USD', splits: [{ id: 'a', categoryId: 'cat-food', amount: 400 }] }),
+        transaction({ id: 'pln', date: '2026-05-11', currency: 'PLN', splits: [{ id: 'b', categoryId: 'cat-food', amount: 10 }] }),
+        transaction({ id: 'gbp', date: '2026-05-12', currency: 'GBP', splits: [{ id: 'c', categoryId: 'cat-food', amount: 50 }] }),
+      ],
+      '2026-05',
+      toBase,
+    );
+
+    expect(categories[0].spent).toBeCloseTo(1470);
+  });
 });

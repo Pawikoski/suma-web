@@ -1,6 +1,7 @@
 'use client';
 import { createContext, useContext } from 'react';
 import { Account, AccountBudget, AccountInterest, Category, InvestmentHolding, OverallBudget, RecurringTransaction, Settlement, Transaction } from '@/lib/data';
+import { FxRates } from '@/lib/fx';
 import { fallbackCurrency } from '@/lib/utils';
 
 export interface AppData {
@@ -16,6 +17,8 @@ export interface AppData {
   overallBudget: number | null;
   overallBudgetRecord: OverallBudget | null;
   baseCurrency: string;
+  /** Rates to baseCurrency, or null when unavailable. */
+  fxRates: FxRates | null;
   yearMonth: string;
   syncError: string | null;
   userEmail: string | null;
@@ -34,6 +37,7 @@ const AppDataContext = createContext<AppData>({
   overallBudget: null,
   overallBudgetRecord: null,
   baseCurrency: fallbackCurrency(),
+  fxRates: null,
   yearMonth: '',
   syncError: null,
   userEmail: null,

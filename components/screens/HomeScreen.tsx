@@ -15,11 +15,9 @@ import PrivacyAmount from '@/components/ui/PrivacyAmount';
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { accounts, categories, transactions, overallBudget, activeMonth, baseCurrency } = useActiveMonthData();
+  const { accounts, categories, transactions, overallBudget, activeMonth, baseCurrency, totals } = useActiveMonthData();
 
-  const totalBalance = accounts.filter(a => a.includeInNetWorth).reduce((s, a) => s + a.balance, 0);
-  const income = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-  const expense = Math.abs(transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0));
+  const { netWorth: totalBalance, income, expense, skippedCurrencies } = totals;
   const donutData = categories.slice(0, 5).map(c => ({ value: c.spent, color: c.color }));
   const budgetAmount = overallBudget ?? 0;
 
@@ -33,6 +31,9 @@ export default function HomeScreen() {
             <StatPill label="Przychody" amount={income} currency={baseCurrency} type="income" />
             <StatPill label="Wydatki" amount={expense} currency={baseCurrency} type="expense" />
           </div>
+          {skippedCurrencies.length > 0 && (
+            <div style={{ fontSize: 12, color: T.faint, marginTop: 10 }}>Bez przeliczenia (brak kursu): {skippedCurrencies.join(', ')}</div>
+          )}
         </Card>
 
         {budgetAmount > 0 ? (

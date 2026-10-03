@@ -3,6 +3,7 @@
 import { useEffect, useMemo } from 'react';
 import { parseAsString, useQueryState } from 'nuqs';
 import { useAppData } from './AppDataContext';
+import { convertToBase, sumInBase } from './fx';
 import { availableMonths, categoriesForMonth, filterTransactionsByMonth } from './period';
 import { useSumaUiStore } from './stores/ui-store';
 
@@ -23,10 +24,34 @@ export function useActiveMonthData() {
     () => filterTransactionsByMonth(data.allTransactions, activeMonth),
     [activeMonth, data.allTransactions]
   );
+  const { baseCurrency, fxRates } = data;
   const categories = useMemo(
-    () => categoriesForMonth(data.categories, data.allTransactions, activeMonth),
-    [activeMonth, data.allTransactions, data.categories]
+    () => categoriesForMonth(
+      data.categories,
+      data.allTransactions,
+      activeMonth,
+      (amount, currency) => convertToBase(amount, currency, baseCurrency, fxRates),
+    ),
+    [activeMonth, data.allTransactions, data.categories, baseCurrency, fxRates]
   );
+  // Totals are in the main currency: amounts in other currencies are converted, not added as they are.
+  const totals = useMemo(() => {
+    const netWorth = sumInBase(
+      data.accounts.filter(account => account.includeInNetWorth), account => account.balance, account => account.currency, baseCurrency, fxRates,
+    );
+    const income = sumInBase(
+      transactions.filter(tx => tx.type === 'income'), tx => tx.amount, tx => tx.currency, baseCurrency, fxRates,
+    );
+    const expense = sumInBase(
+      transactions.filter(tx => tx.type === 'expense'), tx => tx.amount, tx => tx.currency, baseCurrency, fxRates,
+    );
+    return {
+      netWorth: netWorth.total,
+      income: income.total,
+      expense: Math.abs(expense.total),
+      skippedCurrencies: [...new Set([...netWorth.skipped, ...income.skipped, ...expense.skipped])].sort(),
+    };
+  }, [data.accounts, transactions, baseCurrency, fxRates]);
 
   return {
     ...data,
@@ -35,5 +60,6 @@ export function useActiveMonthData() {
     availableMonths: months,
     transactions,
     categories,
+    totals,
   };
 }

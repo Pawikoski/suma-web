@@ -23,7 +23,7 @@ import PrivacyAmount from '@/components/ui/PrivacyAmount';
 export default function AccountsScreen({ initialAccountId }: { initialAccountId?: string }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { accounts, transactions, accountInterest, accountBudgets, activeMonth, baseCurrency } = useActiveMonthData();
+  const { accounts, transactions, accountInterest, accountBudgets, activeMonth, baseCurrency, totals } = useActiveMonthData();
   const [selectedAccountId, setSelectedAccountId] = useQueryState('account', parseAsString.withDefault(initialAccountId ?? accounts[0]?.id ?? ''));
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
@@ -32,7 +32,7 @@ export default function AccountsScreen({ initialAccountId }: { initialAccountId?
     [accounts, selectedAccountId]
   );
 
-  const totalBalance = accounts.filter(a => a.includeInNetWorth).reduce((s, a) => s + a.balance, 0);
+  const totalBalance = totals.netWorth;
 
   const accTxs = selected ? transactions.filter(t => t.acc === selected.name) : [];
   const accIncome = accTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
@@ -46,6 +46,9 @@ export default function AccountsScreen({ initialAccountId }: { initialAccountId?
         <div>
           <div style={{ fontSize: 12, color: T.muted, fontWeight: 500 }}>Łączny majątek</div>
           <PrivacyAmount amount={totalBalance} currency={baseCurrency} style={{ display: 'block', fontSize: 28, fontWeight: 800, color: T.dark }} />
+          {totals.skippedCurrencies.length > 0 && (
+            <div style={{ fontSize: 11, color: T.faint }}>Bez przeliczenia (brak kursu): {totals.skippedCurrencies.join(', ')}</div>
+          )}
         </div>
         <button aria-label="Dodaj konto" onClick={() => setIsCreateOpen(true)} style={primaryButtonStyle}>
           <Plus size={16} color="white" /> Dodaj konto

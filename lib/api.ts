@@ -1,6 +1,7 @@
 import 'server-only';
 import { headers } from 'next/headers';
 import { SyncResponse } from './api-types';
+import { FxRates, parseCurrencyRates } from './fx';
 import { ParsedSyncPreference, parseSyncPreference, parseSyncResponse } from './schemas/sync';
 import { getSession } from './session';
 import { SyncRequestError, syncHttpError } from './sync-errors';
@@ -16,6 +17,13 @@ async function getAccessToken(): Promise<string | null> {
 
 export async function fetchSync(): Promise<SyncResponse | null> {
   return postSyncChanges({});
+}
+
+/** Rates to `base` for the totals in the main currency; null when the API has none (totals then skip other currencies). */
+export async function fetchCurrencyRates(base: string): Promise<FxRates | null> {
+  const res = await fetch(`${API_URL}/api/currency-rates/?base=${encodeURIComponent(base)}`, { cache: 'no-store' });
+  if (!res.ok) return null;
+  return parseCurrencyRates(await res.json());
 }
 
 export async function fetchSyncPreference(): Promise<ParsedSyncPreference | null> {
