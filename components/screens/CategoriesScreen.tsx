@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { createCategoryAction, deleteCategoryAction, updateCategoryAction } from '@/app/actions/sync';
 import { suggestCategoryIconAction } from '@/app/actions/category-icons';
 import { T } from '@/lib/tokens';
-import { formatMoney, formatMoneyShort } from '@/lib/utils';
+import { formatMoney, formatMoneyShort, polishPlural } from '@/lib/utils';
 import { useActiveMonthData } from '@/lib/useActiveMonthData';
 import { Category } from '@/lib/data';
 import { categoryBudgetUsages, groupCategoriesForView } from '@/lib/category-hierarchy';
@@ -219,7 +219,7 @@ function CategoryRow({
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 14, fontWeight: 600, color: T.dark, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</div>
           <div style={{ fontSize: 12, color: T.muted }}>
-            {txCount} transakcji{childCount > 0 ? `, ${childCount} podkategorii` : ''}
+            {txCount} {polishPlural(txCount, 'transakcja', 'transakcje', 'transakcji')}{childCount > 0 ? `, ${childCount} podkategorii` : ''}
             {c.isLocked ? ' · zablokowana (plan Free)' : ''}
           </div>
         </div>

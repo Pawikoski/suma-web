@@ -1,6 +1,6 @@
 import { SyncServerChanges } from './api-types';
 import { Account, AccountBudget, AccountInterest, Category, InvestmentHolding, OverallBudget, RecurringTransaction, Settlement, Transaction } from './data';
-import { fallbackCurrency } from './utils';
+import { categoryDisplayName, fallbackCurrency } from './utils';
 
 const TYPE_LABELS: Record<string, string> = {
   CASH: 'Gotówka',
@@ -114,7 +114,7 @@ export function mapSyncData(data: SyncServerChanges, yearMonth: string, preferre
     .sort((a, b) => a.sort_order - b.sort_order)
     .map(c => ({
       id: c.id,
-      name: c.name,
+      name: categoryDisplayName(c),
       types: c.types,
       icon: c.icon_name || '📦',
       bg: c.icon_bg || '#f8fafc',
@@ -170,7 +170,7 @@ export function mapSyncData(data: SyncServerChanges, yearMonth: string, preferre
         id: t.id,
         date: t.date_time.slice(0, 10),
         dateTime: t.date_time,
-        cat: cat?.name ?? (t.type === 'TRANSFER' ? 'Transfer' : 'Inne'),
+        cat: (cat ? categoryDisplayName(cat) : null) ?? (t.type === 'TRANSFER' ? 'Transfer' : 'Inne'),
         catIcon: cat?.icon_name ?? (t.type === 'TRANSFER' ? '↔️' : '📦'),
         catBg: cat?.icon_bg ?? '#f8fafc',
         catColor: cat?.icon_color ?? '#64748b',

@@ -37,3 +37,16 @@ export const fmtDate = (d: string): string => {
   };
   return map[d] ?? d;
 };
+
+/** Polish plural: 1 -> one, 2-4 (except 12-14) -> few, everything else -> many. */
+export const polishPlural = (count: number, one: string, few: string, many: string): string => {
+  const n = Math.abs(count);
+  if (n === 1) return one;
+  const lastTwo = n % 100;
+  const last = n % 10;
+  return last >= 2 && last <= 4 && !(lastTwo >= 12 && lastTwo <= 14) ? few : many;
+};
+
+/** The system category the app names "Inne" is stored as "Other"; the Polish web shows it in Polish. */
+export const categoryDisplayName = (category: { name: string; is_system: boolean }): string =>
+  category.is_system && category.name === 'Other' ? 'Inne' : category.name;
