@@ -46,6 +46,13 @@ it('acknowledges reset generation before restoring the snapshot', async () => {
   expect(JSON.parse(fetchMock.mock.calls[1][1].body).sync_reset_generation).toBe(7);
 });
 
+it('asks for large restore pages because every load restores the whole snapshot', async () => {
+  const mock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ...page, new_sync_token: '500', has_more: false }) });
+  vi.stubGlobal('fetch', mock);
+  await fetchSync();
+  expect(JSON.parse(mock.mock.calls[0][1].body).restore_page_size).toBe(1000);
+});
+
 it('declares v3 even for the first read', async () => {
   const mock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ...page, new_sync_token: '500', has_more: false }) });
   vi.stubGlobal('fetch', mock);

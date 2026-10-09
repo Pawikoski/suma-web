@@ -7,6 +7,9 @@ import { getSession } from './session';
 import { SyncRequestError, syncHttpError } from './sync-errors';
 
 const API_URL = process.env.API_URL!;
+// The web app renders the whole snapshot on every load, so it asks for the largest
+// pages the API allows (the server still caps a page by size in bytes).
+const RESTORE_PAGE_SIZE = 1000;
 
 async function getAccessToken(): Promise<string | null> {
   const h = await headers();
@@ -60,7 +63,7 @@ export async function postSyncChanges(changes: Record<string, unknown>, expected
     // Serialize once: retries after a lost response must replay this exact UUID/body.
     const body = JSON.stringify({ schema_version: 3, client_id: 'web-client',
       request_id: crypto.randomUUID(), last_sync_token: token,
-      sync_reset_generation: generation, restore_cursor: cursor,
+      sync_reset_generation: generation, restore_cursor: cursor, restore_page_size: RESTORE_PAGE_SIZE,
       restore_sync_token: restoreToken, changes: pendingChanges });
     let result: SyncResponse;
     try { result = await sendSync(body, accessToken); }
