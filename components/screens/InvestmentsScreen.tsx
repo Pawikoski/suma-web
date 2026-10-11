@@ -10,9 +10,10 @@ import {
   tradeInvestmentHoldingAction,
   updateInvestmentHoldingAction,
 } from '@/app/actions/sync';
-import { fetchHoldingQuotesAction, type HoldingQuotes } from '@/app/actions/prices';
+import { fetchHoldingQuotesAction, searchInstrumentsAction, type HoldingQuotes } from '@/app/actions/prices';
+import type { InstrumentSuggestion } from '@/lib/api';
 import { useAppData } from '@/lib/AppDataContext';
-import { convertToBase } from '@/lib/fx';
+import { convertToBase, type FxRates } from '@/lib/fx';
 import { holdingMarketValue } from '@/lib/investment-valuation';
 import { T } from '@/lib/tokens';
 import { Account, InvestmentHolding, InvestmentType } from '@/lib/data';
@@ -243,8 +244,8 @@ export default function InvestmentsScreen({ initialAccountId = 'all' }: { initia
           </Card>
         </div>
       </div>
-      {isCreateOpen && <HoldingFormModal accounts={investmentAccounts} baseCurrency={baseCurrency} onClose={() => setIsCreateOpen(false)} />}
-      {editingHolding && <HoldingFormModal accounts={investmentAccounts} baseCurrency={baseCurrency} holding={editingHolding} onClose={() => setEditingHolding(null)} />}
+      {isCreateOpen && <HoldingFormModal accounts={investmentAccounts} baseCurrency={baseCurrency} fxRates={fxRates} onClose={() => setIsCreateOpen(false)} />}
+      {editingHolding && <HoldingFormModal accounts={investmentAccounts} baseCurrency={baseCurrency} fxRates={fxRates} holding={editingHolding} onClose={() => setEditingHolding(null)} />}
       {tradeHolding && <TradeModal
         holding={tradeHolding.holding}
         account={tradeHolding.holding.accountId ? accountById.get(tradeHolding.holding.accountId) ?? null : null}
@@ -380,11 +381,13 @@ function chipStyle(active: boolean): React.CSSProperties {
 function HoldingFormModal({
   accounts,
   baseCurrency,
+  fxRates,
   holding,
   onClose,
 }: {
   accounts: Account[];
   baseCurrency: string;
+  fxRates: FxRates | null;
   holding?: InvestmentHolding;
   onClose: () => void;
 }) {
@@ -398,6 +401,44 @@ function HoldingFormModal({
   const [currency, setCurrency] = useState(fallbackCurrency(holding?.currency, accounts.find(account => account.id === accountId)?.currency, baseCurrency));
   const [notes, setNotes] = useState(holding?.notes ?? '');
   const [isPending, startTransition] = useTransition();
+  const [suggestions, setSuggestions] = useState<InstrumentSuggestion[]>([]);
+  const [searchedQuery, setSearchedQuery] = useState('');
+  const [priceNote, setPriceNote] = useState('');
+  // Search runs for a new position only, after the user stopped typing; picking a suggestion
+  // clears the list so the picked symbol does not search again.
+  useEffect(() => {
+    if (holding) return;
+    const query = (name.trim().length >= 2 ? name : symbol).trim();
+    if (query.length < 2 || query === searchedQuery) return;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      searchInstrumentsAction({ query, investmentType })
+        .then(result => { if (!cancelled) setSuggestions(result); })
+        .catch(() => { if (!cancelled) setSuggestions([]); });
+    }, 350);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [holding, name, symbol, investmentType, searchedQuery]);
+
+  const pickSuggestion = (suggestion: InstrumentSuggestion) => {
+    const nextType: InvestmentType = suggestion.type === 'ETF' ? 'ETF' : suggestion.type === 'CRYPTO' ? 'CRYPTO' : investmentType === 'CRYPTO' ? 'STOCK' : investmentType === 'PRECIOUS_METAL' ? 'STOCK' : suggestion.type === 'EQUITY' ? 'STOCK' : investmentType;
+    setSymbol(suggestion.symbol);
+    setName(suggestion.name || suggestion.symbol);
+    setInvestmentType(nextType);
+    setSearchedQuery((suggestion.name || suggestion.symbol).trim());
+    setSuggestions([]);
+    setPriceNote('Pobieram aktualną cenę…');
+    fetchHoldingQuotesAction({ holdings: [{ symbol: suggestion.symbol, investmentType: nextType }], currency: baseCurrency })
+      .then(quotes => {
+        const perUnit = holdingMarketValue({ symbol: suggestion.symbol, investmentType: nextType, quantity: 1, currency }, quotes, baseCurrency, fxRates);
+        if (perUnit === null) {
+          setPriceNote('Brak aktualnej ceny dla tego symbolu — wpisz cenę ręcznie.');
+          return;
+        }
+        setUnitPrice(String(Number(perUnit.toFixed(perUnit >= 1 ? 4 : 8))));
+        setPriceNote('Cena rynkowa została podstawiona — możesz ją zmienić.');
+      })
+      .catch(() => setPriceNote('Nie udało się pobrać ceny — wpisz ją ręcznie.'));
+  };
   const quantityValue = Number(quantity);
   const unitPriceValue = Number(unitPrice);
   const openingValue = Number.isFinite(quantityValue) && Number.isFinite(unitPriceValue) ? quantityValue * unitPriceValue : 0;
@@ -461,6 +502,27 @@ function HoldingFormModal({
           <input aria-label="Symbol" placeholder="Symbol" value={symbol} onChange={event => setSymbol(event.target.value.toUpperCase())} style={inputStyle} />
           <input aria-label="Nazwa inwestycji" placeholder="Nazwa" value={name} onChange={event => setName(event.target.value)} style={inputStyle} />
         </div>
+        {suggestions.length > 0 && (
+          <div role="listbox" aria-label="Podpowiedzi instrumentów" style={{ border: `1px solid ${T.border}`, borderRadius: 12, overflow: 'hidden' }}>
+            {suggestions.map(suggestion => (
+              <button
+                key={`${suggestion.symbol}-${suggestion.exchange}`}
+                type="button"
+                role="option"
+                aria-selected={false}
+                onClick={() => pickSuggestion(suggestion)}
+                style={{ display: 'flex', width: '100%', justifyContent: 'space-between', gap: 12, padding: '9px 12px', background: T.card, border: 'none', borderBottom: `1px solid ${T.border}`, textAlign: 'left', cursor: 'pointer' }}
+              >
+                <span style={{ minWidth: 0 }}>
+                  <span style={{ display: 'block', color: T.dark, fontSize: 13, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{suggestion.name || suggestion.symbol}</span>
+                  <span style={{ color: T.faint, fontSize: 11 }}>{[suggestion.exchange, suggestion.currency].filter(Boolean).join(' · ')}</span>
+                </span>
+                <span style={{ color: T.mid, fontSize: 12, fontWeight: 800 }}>{suggestion.symbol}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        {priceNote && <div style={{ color: T.muted, fontSize: 12 }}>{priceNote}</div>}
         <select aria-label="Typ inwestycji" value={investmentType} onChange={event => setInvestmentType(event.target.value as InvestmentType)} style={inputStyle}>
           {Object.entries(TYPE_META).map(([type, meta]) => <option key={type} value={type}>{meta.label}</option>)}
         </select>

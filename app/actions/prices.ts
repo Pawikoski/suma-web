@@ -1,6 +1,6 @@
 'use server';
 import { z } from 'zod';
-import { fetchAssetQuotes } from '@/lib/api';
+import { fetchAssetQuotes, fetchInstrumentSuggestions, type InstrumentSuggestion } from '@/lib/api';
 import { quoteKey, quoteKindFor } from '@/lib/investment-valuation';
 
 const inputSchema = z.object({
@@ -36,3 +36,20 @@ export async function fetchHoldingQuotesAction(input: unknown): Promise<HoldingQ
   }
   return result;
 }
+
+const searchSchema = z.object({
+  query: z.string().trim().min(2).max(64),
+  investmentType: z.enum(['STOCK', 'ETF', 'CRYPTO', 'PRECIOUS_METAL']),
+});
+
+/** Suggestions for the new-position form; metals have no provider search (the app lists futures tickers). */
+export async function searchInstrumentsAction(input: unknown): Promise<InstrumentSuggestion[]> {
+  const parsed = searchSchema.safeParse(input);
+  if (!parsed.success || parsed.data.investmentType === 'PRECIOUS_METAL') return [];
+  try {
+    return await fetchInstrumentSuggestions(parsed.data.query, parsed.data.investmentType === 'CRYPTO' ? 'crypto' : 'stock');
+  } catch {
+    return [];
+  }
+}
+

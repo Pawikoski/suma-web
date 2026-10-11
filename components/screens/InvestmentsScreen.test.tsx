@@ -25,6 +25,7 @@ vi.mock('@/lib/useActiveMonthData', () => ({
 
 vi.mock('@/app/actions/prices', () => ({
   fetchHoldingQuotesAction: vi.fn(),
+  searchInstrumentsAction: vi.fn(),
 }));
 
 vi.mock('@/lib/AppDataContext', () => ({
@@ -32,10 +33,11 @@ vi.mock('@/lib/AppDataContext', () => ({
 }));
 
 import { useActiveMonthData } from '@/lib/useActiveMonthData';
-import { fetchHoldingQuotesAction } from '@/app/actions/prices';
+import { fetchHoldingQuotesAction, searchInstrumentsAction } from '@/app/actions/prices';
 
 const mockedUseActiveMonthData = vi.mocked(useActiveMonthData);
 const mockedFetchQuotes = vi.mocked(fetchHoldingQuotesAction);
+const mockedSearch = vi.mocked(searchInstrumentsAction);
 
 const account = {
   id: 'acc-invest',
@@ -126,6 +128,7 @@ describe('InvestmentsScreen', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockedFetchQuotes.mockResolvedValue({});
+    mockedSearch.mockResolvedValue([]);
     mockPortfolioData();
   });
 
@@ -180,6 +183,26 @@ describe('InvestmentsScreen', () => {
     await user.click(screen.getAllByRole('button', { name: 'Dodaj pozycję' })[0]);
 
     expect(screen.getByText(/nie zmieni wolnych środków konta/i)).toBeVisible();
+  });
+
+  it('searches instruments while typing and fills the position from the picked one', async () => {
+    const user = userEvent.setup();
+    mockPortfolioData({ investmentHoldings: [] });
+    mockedSearch.mockResolvedValue([
+      { symbol: 'IWDA.L', name: 'iShares Core MSCI World UCITS ETF', exchange: 'London', currency: 'USD', type: 'ETF' },
+    ]);
+    mockedFetchQuotes.mockResolvedValue({ 'market:IWDA.L': { price: 150, currency: 'USD' } });
+    render(<InvestmentsScreen />);
+
+    await user.click(screen.getAllByRole('button', { name: 'Dodaj pozycję' })[0]);
+    await user.type(screen.getByLabelText('Symbol'), 'iwda');
+    await user.click(await screen.findByRole('option', { name: /iShares Core MSCI World/ }));
+
+    expect(screen.getByLabelText('Symbol')).toHaveValue('IWDA.L');
+    expect(screen.getByLabelText('Typ inwestycji')).toHaveValue('ETF');
+    // 150 USD x 4 = 600 zł per unit
+    await vi.waitFor(() => expect(screen.getByLabelText('Cena jednostki')).toHaveValue(600));
+    expect(mockedSearch).toHaveBeenCalledWith({ query: 'IWDA', investmentType: 'STOCK' });
   });
 
   it('links the empty no-account state back to accounts', () => {

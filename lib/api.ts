@@ -58,6 +58,44 @@ export async function fetchAssetQuotes(symbols: string[], kind: 'market' | 'cryp
   return quotes;
 }
 
+export interface InstrumentSuggestion {
+  symbol: string;
+  name: string;
+  exchange: string;
+  currency: string;
+  type: string;
+}
+
+/** Instrument search results (stocks/ETFs from the market provider, or crypto); empty on any failure. */
+export async function fetchInstrumentSuggestions(query: string, kind: 'stock' | 'crypto'): Promise<InstrumentSuggestion[]> {
+  const accessToken = await getAccessToken();
+  const trimmed = query.trim();
+  if (!accessToken || trimmed.length < 2) return [];
+  const path = kind === 'crypto' ? 'crypto-search' : 'stock-search';
+  const res = await fetch(`${API_URL}/api/${path}/?query=${encodeURIComponent(trimmed)}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    cache: 'no-store',
+  });
+  if (!res.ok) return [];
+  const payload: unknown = await res.json();
+  if (!Array.isArray(payload)) return [];
+  const result: InstrumentSuggestion[] = [];
+  for (const row of payload) {
+    if (!row || typeof row !== 'object') continue;
+    const r = row as Record<string, unknown>;
+    if (typeof r.symbol !== 'string' || !r.symbol.trim()) continue;
+    result.push({
+      symbol: r.symbol.trim().toUpperCase(),
+      name: typeof r.name === 'string' ? r.name : '',
+      exchange: typeof r.exchange === 'string' ? r.exchange : '',
+      currency: typeof r.currency === 'string' ? r.currency : '',
+      type: typeof r.type === 'string' ? r.type.toUpperCase() : kind === 'crypto' ? 'CRYPTO' : '',
+    });
+    if (result.length >= 10) break;
+  }
+  return result;
+}
+
 export async function fetchSyncPreference(): Promise<ParsedSyncPreference | null> {
   const accessToken = await getAccessToken();
   if (!accessToken) return null;
