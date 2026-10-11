@@ -113,8 +113,8 @@ describe('investment server actions', () => {
     expect(result.ok).toBe(true);
     expect(mockedPostSyncChanges).toHaveBeenCalledWith(expect.not.objectContaining({ accounts: expect.anything() }), 0);
     expect(mockedPostSyncChanges).toHaveBeenCalledWith(expect.objectContaining({
-      investment_holdings: [expect.objectContaining({ symbol: 'AAPL', quantity: 2, unit_price: '100.00' })],
-      investment_transactions: [expect.objectContaining({ type: 'BUY', quantity: 2, unit_price: '100.00' })],
+      investment_holdings: [expect.objectContaining({ symbol: 'AAPL', quantity: 2, unit_price: '100.00', notes: '' })],
+      investment_transactions: [expect.objectContaining({ type: 'BUY', quantity: 2, unit_price: '100.00', notes: '' })],
     }), 0);
   });
 
@@ -147,6 +147,39 @@ describe('investment server actions', () => {
 
     expect(result).toEqual({ ok: false, message: 'Brak wystarczających wolnych środków na tym koncie.' });
     expect(mockedPostSyncChanges).not.toHaveBeenCalled();
+  });
+
+  it('never sends null notes with a trade (API rejects null)', async () => {
+    mockedFetchSync.mockResolvedValue(parseSyncResponse({
+      request_id: 'req-1',
+      new_sync_token: '1',
+      applied: {},
+      conflicts: [],
+      errors: [],
+      server_changes: {
+        accounts: [investmentAccount('500.00')],
+        investment_holdings: [holding()],
+        investment_transactions: [],
+        categories: [],
+        transactions: [],
+        transaction_splits: [],
+        category_budgets: [],
+        overall_budgets: [],
+      },
+    }));
+
+    const result = await tradeInvestmentHoldingAction({
+      holdingId: 'holding-aapl',
+      type: 'BUY',
+      quantity: 1,
+      unitPrice: 100,
+      notes: '',
+    });
+
+    expect(result.ok).toBe(true);
+    const payload = mockedPostSyncChanges.mock.calls[0][0] as Record<string, Array<{ notes?: unknown }>>;
+    expect(payload.investment_holdings[0].notes).toBe('');
+    expect(payload.investment_transactions[0].notes).toBe('');
   });
 
   it('rejects trades for non-investment accounts', async () => {
