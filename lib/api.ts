@@ -29,6 +29,35 @@ export async function fetchCurrencyRates(base: string): Promise<FxRates | null> 
   return parseCurrencyRates(await res.json());
 }
 
+export interface AssetQuote {
+  symbol: string;
+  price: number;
+  currency: string;
+}
+
+/** Live quotes for `symbols` in one namespace; empty when the API or the data provider is unavailable. */
+export async function fetchAssetQuotes(symbols: string[], kind: 'market' | 'crypto', currency: string): Promise<AssetQuote[]> {
+  const accessToken = await getAccessToken();
+  if (!accessToken || symbols.length === 0) return [];
+  const query = new URLSearchParams({ symbols: symbols.join(','), kind, currency });
+  const res = await fetch(`${API_URL}/api/asset-prices/?${query.toString()}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    cache: 'no-store',
+  });
+  if (!res.ok) return [];
+  const payload: unknown = await res.json();
+  if (!Array.isArray(payload)) return [];
+  const quotes: AssetQuote[] = [];
+  for (const row of payload) {
+    if (!row || typeof row !== 'object') continue;
+    const { symbol, price, currency: quoteCurrency } = row as Record<string, unknown>;
+    if (typeof symbol === 'string' && typeof price === 'number' && Number.isFinite(price) && price > 0 && typeof quoteCurrency === 'string') {
+      quotes.push({ symbol, price, currency: quoteCurrency.toUpperCase() });
+    }
+  }
+  return quotes;
+}
+
 export async function fetchSyncPreference(): Promise<ParsedSyncPreference | null> {
   const accessToken = await getAccessToken();
   if (!accessToken) return null;

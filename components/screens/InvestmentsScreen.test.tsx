@@ -23,9 +23,19 @@ vi.mock('@/lib/useActiveMonthData', () => ({
   useActiveMonthData: vi.fn(),
 }));
 
+vi.mock('@/app/actions/prices', () => ({
+  fetchHoldingQuotesAction: vi.fn(),
+}));
+
+vi.mock('@/lib/AppDataContext', () => ({
+  useAppData: () => ({ fxRates: { base: 'PLN', rates: { USD: 4 } } }),
+}));
+
 import { useActiveMonthData } from '@/lib/useActiveMonthData';
+import { fetchHoldingQuotesAction } from '@/app/actions/prices';
 
 const mockedUseActiveMonthData = vi.mocked(useActiveMonthData);
+const mockedFetchQuotes = vi.mocked(fetchHoldingQuotesAction);
 
 const account = {
   id: 'acc-invest',
@@ -107,6 +117,7 @@ function mockPortfolioData(overrides: Record<string, unknown> = {}) {
     activeMonth: '2026-05',
     setActiveMonthParam: vi.fn(),
     availableMonths: ['2026-05'],
+    baseCurrency: 'PLN',
     ...overrides,
   } as never);
 }
@@ -114,7 +125,28 @@ function mockPortfolioData(overrides: Record<string, unknown> = {}) {
 describe('InvestmentsScreen', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockedFetchQuotes.mockResolvedValue({});
     mockPortfolioData();
+  });
+
+  it('values a position at its live quote and shows the result against cost', async () => {
+    mockedFetchQuotes.mockResolvedValue({ 'market:AAPL': { price: 75, currency: 'USD' } });
+    render(<InvestmentsScreen />);
+
+    // 2 x 75 USD x 4 = 600 zł instead of the 200 zł cost
+    expect((await screen.findAllByText('600,00 zł')).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('400,00 zł').length).toBeGreaterThan(0);
+    expect(mockedFetchQuotes).toHaveBeenCalledWith({
+      holdings: [{ investmentType: 'STOCK', symbol: 'AAPL' }],
+      currency: 'PLN',
+    });
+  });
+
+  it('labels positions without a quote as valued at cost', async () => {
+    render(<InvestmentsScreen />);
+
+    expect(await screen.findByText(/1 poz\. wycenione po koszcie/)).toBeVisible();
+    expect(screen.getByText(/wg kosztu/)).toBeVisible();
   });
 
   it('shows total value, invested value, and free cash separately', () => {

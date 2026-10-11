@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { ArrowDownCircle, ArrowUpCircle, BriefcaseBusiness, Coins, LineChart, Pencil, Plus, Save, ShoppingCart, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -10,6 +10,10 @@ import {
   tradeInvestmentHoldingAction,
   updateInvestmentHoldingAction,
 } from '@/app/actions/sync';
+import { fetchHoldingQuotesAction, type HoldingQuotes } from '@/app/actions/prices';
+import { useAppData } from '@/lib/AppDataContext';
+import { convertToBase } from '@/lib/fx';
+import { holdingMarketValue } from '@/lib/investment-valuation';
 import { T } from '@/lib/tokens';
 import { Account, InvestmentHolding, InvestmentType } from '@/lib/data';
 import { fallbackCurrency } from '@/lib/utils';
@@ -32,6 +36,8 @@ export default function InvestmentsScreen({ initialAccountId = 'all' }: { initia
   const router = useRouter();
   const pathname = usePathname();
   const { investmentHoldings, accounts, activeMonth, baseCurrency } = useActiveMonthData();
+  const { fxRates } = useAppData();
+  const [quotes, setQuotes] = useState<HoldingQuotes>({});
   const [accountId, setAccountId] = useState(initialAccountId);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingHolding, setEditingHolding] = useState<InvestmentHolding | null>(null);
@@ -44,17 +50,54 @@ export default function InvestmentsScreen({ initialAccountId = 'all' }: { initia
   const selectedAccounts = accountId === 'all'
     ? investmentAccounts
     : investmentAccounts.filter(account => account.id === accountId);
-  const investmentValue = filtered.reduce((sum, holding) => sum + holding.value, 0);
-  const freeCash = selectedAccounts.reduce((sum, account) => sum + account.balance, 0);
+  // Quotes are fetched after the first paint: until they arrive (or when a symbol has none) a
+  // position is valued at cost, and the card says so.
+  const quoteRequestKey = investmentHoldings
+    .filter(holding => holding.accountId && investmentAccountIds.has(holding.accountId))
+    .map(holding => `${holding.investmentType}:${holding.symbol}`)
+    .sort()
+    .join('|');
+  useEffect(() => {
+    if (!quoteRequestKey) return;
+    let cancelled = false;
+    const holdings = quoteRequestKey.split('|').map(entry => {
+      const [investmentType, ...symbol] = entry.split(':');
+      return { investmentType, symbol: symbol.join(':') };
+    });
+    fetchHoldingQuotesAction({ holdings, currency: baseCurrency })
+      .then(result => { if (!cancelled) setQuotes(result); })
+      .catch(() => { if (!cancelled) setQuotes({}); });
+    return () => { cancelled = true; };
+  }, [quoteRequestKey, baseCurrency]);
+  const marketValueOf = (holding: InvestmentHolding) => holdingMarketValue(holding, quotes, baseCurrency, fxRates);
+  const valueOf = (holding: InvestmentHolding) => marketValueOf(holding) ?? holding.value;
+  // Portfolios in different currencies are added up in the main currency; one currency stays as is.
+  const portfolioCurrency = fallbackCurrency(
+    selectedAccounts.length > 0 && selectedAccounts.every(account => account.currency === selectedAccounts[0].currency)
+      ? selectedAccounts[0].currency
+      : baseCurrency,
+    filtered[0]?.currency,
+    baseCurrency,
+  );
+  const toPortfolio = (amount: number, currency: string) =>
+    currency === portfolioCurrency ? amount : convertToBase(amount, currency, portfolioCurrency, fxRates) ?? amount;
+  const costValue = filtered.reduce((sum, holding) => sum + toPortfolio(holding.value, holding.currency), 0);
+  const investmentValue = filtered.reduce((sum, holding) => sum + toPortfolio(valueOf(holding), holding.currency), 0);
+  const unrealizedPnl = investmentValue - costValue;
+  const valuedAtCost = filtered.filter(holding => marketValueOf(holding) === null).length;
+  const freeCash = selectedAccounts.reduce((sum, account) => sum + toPortfolio(account.balance, account.currency), 0);
   const totalValue = investmentValue + freeCash;
-  const portfolioCurrency = fallbackCurrency(selectedAccounts[0]?.currency, filtered[0]?.currency, baseCurrency);
   const transactionCount = filtered.reduce((sum, holding) => sum + holding.transactions.length, 0);
   const accountById = useMemo(() => new Map(investmentAccounts.map(account => [account.id, account])), [investmentAccounts]);
   const byType = useMemo(() => {
     const result = new Map<InvestmentType, number>();
-    for (const holding of filtered) result.set(holding.investmentType, (result.get(holding.investmentType) ?? 0) + holding.value);
+    for (const holding of filtered) {
+      const value = holdingMarketValue(holding, quotes, baseCurrency, fxRates) ?? holding.value;
+      const inPortfolio = holding.currency === portfolioCurrency ? value : convertToBase(value, holding.currency, portfolioCurrency, fxRates) ?? value;
+      result.set(holding.investmentType, (result.get(holding.investmentType) ?? 0) + inPortfolio);
+    }
     return Array.from(result.entries()).sort((a, b) => b[1] - a[1]);
-  }, [filtered]);
+  }, [filtered, quotes, baseCurrency, fxRates, portfolioCurrency]);
 
   if (investmentAccounts.length === 0) {
     return (
@@ -92,6 +135,12 @@ export default function InvestmentsScreen({ initialAccountId = 'all' }: { initia
           <div style={{ color: T.muted, fontSize: 12, fontWeight: 850, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>Wartość łączna</div>
           <PrivacyAmount amount={totalValue} currency={portfolioCurrency} style={{ display: 'block', color: T.dark, fontSize: 34, fontWeight: 850 }} />
           <div style={{ color: T.muted, fontSize: 13, marginTop: 10 }}>{filtered.length} pozycji plus wolne środki</div>
+          {filtered.length > 0 && (
+            <div style={{ color: T.faint, fontSize: 12, marginTop: 6 }}>
+              Wynik niezrealizowany: <PrivacyAmount amount={unrealizedPnl} currency={portfolioCurrency} style={{ color: unrealizedPnl >= 0 ? T.income : T.expense, fontWeight: 800 }} />
+              {valuedAtCost > 0 && ` · ${valuedAtCost} poz. wycenione po koszcie`}
+            </div>
+          )}
         </Card>
         <AmountMetricCard icon={<LineChart size={20} color={T.accent} />} label="Pozycje inwestycyjne" value={investmentValue} currency={portfolioCurrency} />
         <AmountMetricCard icon={<Coins size={20} color={T.warn} />} label="Wolne środki" value={freeCash} currency={portfolioCurrency} />
@@ -131,6 +180,7 @@ export default function InvestmentsScreen({ initialAccountId = 'all' }: { initia
               <HoldingCard
                 key={holding.id}
                 holding={holding}
+                marketValue={marketValueOf(holding)}
                 onBuy={() => setTradeHolding({ holding, type: 'BUY' })}
                 onSell={() => setTradeHolding({ holding, type: 'SELL' })}
                 onEdit={() => setEditingHolding(holding)}
@@ -195,7 +245,16 @@ export default function InvestmentsScreen({ initialAccountId = 'all' }: { initia
       </div>
       {isCreateOpen && <HoldingFormModal accounts={investmentAccounts} baseCurrency={baseCurrency} onClose={() => setIsCreateOpen(false)} />}
       {editingHolding && <HoldingFormModal accounts={investmentAccounts} baseCurrency={baseCurrency} holding={editingHolding} onClose={() => setEditingHolding(null)} />}
-      {tradeHolding && <TradeModal holding={tradeHolding.holding} account={tradeHolding.holding.accountId ? accountById.get(tradeHolding.holding.accountId) ?? null : null} type={tradeHolding.type} onClose={() => setTradeHolding(null)} />}
+      {tradeHolding && <TradeModal
+        holding={tradeHolding.holding}
+        account={tradeHolding.holding.accountId ? accountById.get(tradeHolding.holding.accountId) ?? null : null}
+        type={tradeHolding.type}
+        suggestedPrice={(() => {
+          const market = marketValueOf(tradeHolding.holding);
+          return market !== null && tradeHolding.holding.quantity > 0 ? market / tradeHolding.holding.quantity : undefined;
+        })()}
+        onClose={() => setTradeHolding(null)}
+      />}
     </div>
   );
 }
@@ -243,11 +302,13 @@ function EmptyHoldingsCard({ onCreate }: { onCreate: () => void }) {
 
 function HoldingCard({
   holding,
+  marketValue,
   onBuy,
   onSell,
   onEdit,
 }: {
   holding: InvestmentHolding;
+  marketValue: number | null;
   onBuy: () => void;
   onSell: () => void;
   onEdit: () => void;
@@ -265,8 +326,16 @@ function HoldingCard({
           <div style={{ color: T.faint, fontSize: 12, marginTop: 5 }}>{holding.accountName ?? 'Bez konta'} · {meta.label}</div>
         </div>
         <div style={{ textAlign: 'right', flexShrink: 0 }}>
-          <PrivacyAmount amount={holding.value} currency={holding.currency} style={{ display: 'block', color: T.dark, fontSize: 16, fontWeight: 850 }} />
-          <div style={{ color: T.faint, fontSize: 11 }}>{holding.currency}</div>
+          <PrivacyAmount amount={marketValue ?? holding.value} currency={holding.currency} style={{ display: 'block', color: T.dark, fontSize: 16, fontWeight: 850 }} />
+          {marketValue === null ? (
+            <div style={{ color: T.faint, fontSize: 11 }}>wg kosztu · {holding.currency}</div>
+          ) : (
+            <PrivacyAmount
+              amount={marketValue - holding.value}
+              currency={holding.currency}
+              style={{ color: marketValue - holding.value >= 0 ? T.income : T.expense, fontSize: 11, fontWeight: 800 }}
+            />
+          )}
         </div>
       </div>
       <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.border}`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -325,7 +394,7 @@ function HoldingFormModal({
   const [name, setName] = useState(holding?.name ?? '');
   const [investmentType, setInvestmentType] = useState<InvestmentType>(holding?.investmentType ?? 'STOCK');
   const [quantity, setQuantity] = useState(holding ? String(holding.quantity) : '');
-  const [unitPrice, setUnitPrice] = useState(holding ? String(holding.unitPrice.toFixed(2)) : '');
+  const [unitPrice, setUnitPrice] = useState(holding ? String(holding.unitPrice) : '');
   const [currency, setCurrency] = useState(fallbackCurrency(holding?.currency, accounts.find(account => account.id === accountId)?.currency, baseCurrency));
   const [notes, setNotes] = useState(holding?.notes ?? '');
   const [isPending, startTransition] = useTransition();
@@ -397,7 +466,7 @@ function HoldingFormModal({
         </select>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 92px', gap: 10 }}>
           <input aria-label="Ilość" type="number" min="0" step="0.00000001" placeholder="Ilość" value={quantity} onChange={event => setQuantity(event.target.value)} style={inputStyle} />
-          <input aria-label="Cena jednostki" type="number" min="0" step="0.01" placeholder="Cena" value={unitPrice} onChange={event => setUnitPrice(event.target.value)} style={inputStyle} />
+          <input aria-label="Cena jednostki" type="number" min="0" step="any" placeholder="Cena" value={unitPrice} onChange={event => setUnitPrice(event.target.value)} style={inputStyle} />
           <input aria-label="Waluta" value={currency} onChange={event => setCurrency(event.target.value.toUpperCase())} style={inputStyle} />
         </div>
         <div style={{ padding: 12, borderRadius: 12, background: T.bg, color: T.mid, fontSize: 12, lineHeight: 1.45 }}>
@@ -422,10 +491,10 @@ function HoldingFormModal({
   );
 }
 
-function TradeModal({ holding, account, type, onClose }: { holding: InvestmentHolding; account: Account | null; type: 'BUY' | 'SELL'; onClose: () => void }) {
+function TradeModal({ holding, account, type, suggestedPrice, onClose }: { holding: InvestmentHolding; account: Account | null; type: 'BUY' | 'SELL'; suggestedPrice?: number; onClose: () => void }) {
   const router = useRouter();
   const [quantity, setQuantity] = useState('');
-  const [unitPrice, setUnitPrice] = useState(String(holding.unitPrice.toFixed(2)));
+  const [unitPrice, setUnitPrice] = useState(String(Number((suggestedPrice ?? holding.unitPrice).toFixed(8))));
   const [notes, setNotes] = useState('');
   const [isPending, startTransition] = useTransition();
   const quantityValue = Number(quantity);
@@ -467,7 +536,7 @@ function TradeModal({ holding, account, type, onClose }: { holding: InvestmentHo
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <input aria-label="Ilość operacji" type="number" min="0" step="0.00000001" placeholder="Ilość" value={quantity} onChange={event => setQuantity(event.target.value)} style={inputStyle} />
-          <input aria-label="Cena operacji" type="number" min="0" step="0.01" placeholder="Cena" value={unitPrice} onChange={event => setUnitPrice(event.target.value)} style={inputStyle} />
+          <input aria-label="Cena operacji" type="number" min="0" step="any" placeholder="Cena" value={unitPrice} onChange={event => setUnitPrice(event.target.value)} style={inputStyle} />
         </div>
         {!account && <div style={{ color: T.expense, fontSize: 12, fontWeight: 750 }}>Nie znaleziono aktywnego konta inwestycyjnego dla tej pozycji.</div>}
         {isInsufficientCash && <div style={{ color: T.expense, fontSize: 12, fontWeight: 750 }}>Brak wystarczających wolnych środków na tym koncie.</div>}
